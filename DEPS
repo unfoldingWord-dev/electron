@@ -19,12 +19,14 @@ vars = {
   'boto_version': 'f7574aa6cc2c819430c1f05e9a1a1a666ef8169b',
   'pyyaml_version': '3.12',
   'requests_version': 'e4d59bedfd3c7f4f254f4f5d036587bcd8152458',
+  'graphite_version': 'a7096fa3d91754da03de74a1fe5069de3971103c',
 
   'boto_git': 'https://github.com/boto',
   'chromium_git': 'https://chromium.googlesource.com',
   'electron_git': 'https://github.com/electron',
   'nodejs_git': 'https://github.com/nodejs',
   'requests_git': 'https://github.com/kennethreitz',
+  'graphite_git': 'https://github.com/silnrsi',
   'yaml_git': 'https://github.com/yaml',
 
   # KEEP IN SYNC WITH utils.js FILE
@@ -40,6 +42,7 @@ vars = {
   'checkout_chromium': True,
   'checkout_node': True,
   'checkout_nan': True,
+  'checkout_graphite': True,
 
   # It's only needed to parse the native tests configurations.
   'checkout_pyyaml': False,
@@ -80,6 +83,10 @@ deps = {
   'src/third_party/electron_node': {
     'url': (Var("nodejs_git")) + '/node.git@' + (Var("node_version")),
     'condition': 'checkout_node and process_deps',
+  },
+  'src/third_party/graphite/graphite2': {
+    'url': (Var("graphite_git")) + '/graphite.git@' + (Var("graphite_version")),
+    'condition': 'checkout_graphite and process_deps',
   },
   'src/electron/vendor/pyyaml': {
     'url': (Var("yaml_git")) + '/pyyaml.git@' + (Var("pyyaml_version")),
