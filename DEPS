@@ -71,13 +71,6 @@ vars = {
     False,
 }
 
-pre_deps_hooks = {
-  {
-    'name': 'patch_graphite',
-    'action': ['mkdir -p src/electron/third_party/graphite']
-  }
-}
-
 deps = {
   'src': {
     'url': (Var("chromium_git")) + '/chromium/src.git@' + (Var("chromium_version")),
@@ -108,6 +101,18 @@ deps = {
     'condition': 'checkout_requests and process_deps',
   },
 }
+
+pre_deps_hooks = [
+  {
+    'name': 'setup_graphite',
+    'pattern': 'src/electron',
+    'action': [
+      'python',
+      '-c',
+      'import os; os.makedirs(os.path.join("src", "electron", "third_party", "graphite"));',
+    ],
+  },
+]
 
 hooks = [
   {
