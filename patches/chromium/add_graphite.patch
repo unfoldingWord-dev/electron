@@ -1,7 +1,7 @@
-From fe6867900b99b364d52c25ad135efef3cde79a91 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Joel <joel@neutrinographics.com>
 Date: Tue, 23 Jul 2019 15:48:39 -0700
-Subject: add graphite support for font rendering
+Subject: adds graphite support for font rendering
 
 ---
  .gitmodules                                   |   3 +

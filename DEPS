@@ -71,6 +71,13 @@ vars = {
     False,
 }
 
+pre_deps_hooks = {
+  {
+    'name': 'patch_graphite',
+    'action': ['mkdir -p src/electron/third_party/graphite']
+  }
+}
+
 deps = {
   'src': {
     'url': (Var("chromium_git")) + '/chromium/src.git@' + (Var("chromium_version")),
