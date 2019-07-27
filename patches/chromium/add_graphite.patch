@@ -1,44 +1,30 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Joel <joel@neutrinographics.com>
 Date: Tue, 23 Jul 2019 15:48:39 -0700
-Subject: adds graphite support for font rendering
+Subject: [PATCH] adds graphite support for font rendering
 
 ---
- .gitmodules                                   |   3 +
- third_party/BUILD.gn                          |   6 +-
+ third_party/BUILD.gn                          |   4 +
  .../platform/fonts/web_font_decoder.cc        |  11 ++
  third_party/graphite/BUILD.gn                 | 115 ++++++++++++++++++
  third_party/graphite/graphite.gni             |   4 +
  third_party/harfbuzz-ng/BUILD.gn              |  12 ++
- 6 files changed, 150 insertions(+), 1 deletion(-)
- create mode 100644 .gitmodules
+ 5 files changed, 146 insertions(+)
  create mode 100644 third_party/graphite/BUILD.gn
  create mode 100644 third_party/graphite/graphite.gni
 
-diff --git a/.gitmodules b/.gitmodules
-new file mode 100644
-index 000000000000..2f12aa5b70f1
---- /dev/null
-+++ b/.gitmodules
-@@ -0,0 +1,3 @@
-+[submodule "third_party/graphite/graphite2"]
-+	path = third_party/graphite/graphite2
-+	url = https://github.com/silnrsi/graphite.git
 diff --git a/third_party/BUILD.gn b/third_party/BUILD.gn
-index f0a8651e4eac..72f3b2f98dbe 100644
+index f0a8651e4eac..4b4b1473fb26 100644
 --- a/third_party/BUILD.gn
 +++ b/third_party/BUILD.gn
-@@ -4,8 +4,9 @@
+@@ -4,6 +4,7 @@
 
  import("//build/config/freetype/freetype.gni")
  import("//third_party/harfbuzz-ng/harfbuzz.gni")
 +import("//third_party/graphite/graphite.gni")
  import("//third_party/libjpeg.gni")
--
-+
- assert(!is_ios, "This is not used on iOS, don't drag it in unintentionally")
 
- config("system_libjpeg_config") {
+ assert(!is_ios, "This is not used on iOS, don't drag it in unintentionally")
 @@ -64,5 +65,8 @@ component("freetype_harfbuzz") {
      public_configs += [ "//third_party/harfbuzz-ng:harfbuzz_from_pkgconfig" ]
    } else {
