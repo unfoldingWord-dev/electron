@@ -79,7 +79,7 @@ deps = {
   },
   'src/third_party/graphite/graphite2': {
     'url': (Var("graphite_git")) + '/graphite.git@' + (Var("graphite_version")),
-    'condition': 'checkout_graphite and process_deps',
+    'condition': 'checkout_graphite',
   },
   'src/electron/vendor/pyyaml': {
     'url': (Var("yaml_git")) + '/pyyaml.git@' + (Var("pyyaml_version")),
