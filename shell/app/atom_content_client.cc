@@ -5,17 +5,19 @@
 #include "shell/app/atom_content_client.h"
 
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "base/command_line.h"
 #include "base/files/file_util.h"
+#include "base/path_service.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "content/public/common/content_constants.h"
-#include "content/public/common/pepper_plugin_info.h"
 #include "electron/buildflags/buildflags.h"
-#include "ppapi/shared_impl/ppapi_permissions.h"
+#include "ppapi/buildflags/buildflags.h"
+#include "shell/browser/atom_paths.h"
 #include "shell/common/options_switches.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/resource/resource_bundle.h"
@@ -33,6 +35,11 @@
 #include "pdf/pdf.h"
 #include "shell/common/atom_constants.h"
 #endif  // BUILDFLAG(ENABLE_PDF_VIEWER)
+
+#if BUILDFLAG(ENABLE_PLUGINS)
+#include "content/public/common/pepper_plugin_info.h"
+#include "ppapi/shared_impl/ppapi_permissions.h"
+#endif  // BUILDFLAG(ENABLE_PLUGINS)
 
 namespace electron {
 
@@ -140,6 +147,7 @@ void AddPepperFlashFromCommandLine(
 }
 #endif  // BUILDFLAG(ENABLE_PEPPER_FLASH)
 
+#if BUILDFLAG(ENABLE_PLUGINS)
 void ComputeBuiltInPlugins(std::vector<content::PepperPluginInfo>* plugins) {
 #if BUILDFLAG(ENABLE_PDF_VIEWER)
   content::PepperPluginInfo pdf_info;
@@ -160,15 +168,21 @@ void ComputeBuiltInPlugins(std::vector<content::PepperPluginInfo>* plugins) {
   plugins->push_back(pdf_info);
 #endif  // BUILDFLAG(ENABLE_PDF_VIEWER)
 }
+#endif  // BUILDFLAG(ENABLE_PLUGINS)
 
-void ConvertStringWithSeparatorToVector(std::vector<std::string>* vec,
-                                        const char* separator,
-                                        const char* cmd_switch) {
+void AppendDelimitedSwitchToVector(const base::StringPiece cmd_switch,
+                                   std::vector<std::string>* append_me) {
   auto* command_line = base::CommandLine::ForCurrentProcess();
-  auto string_with_separator = command_line->GetSwitchValueASCII(cmd_switch);
-  if (!string_with_separator.empty())
-    *vec = base::SplitString(string_with_separator, separator,
-                             base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
+  auto switch_value = command_line->GetSwitchValueASCII(cmd_switch);
+  if (!switch_value.empty()) {
+    constexpr base::StringPiece delimiter(",", 1);
+    auto tokens =
+        base::SplitString(switch_value, delimiter, base::TRIM_WHITESPACE,
+                          base::SPLIT_WANT_NONEMPTY);
+    append_me->reserve(append_me->size() + tokens.size());
+    std::move(std::begin(tokens), std::end(tokens),
+              std::back_inserter(*append_me));
+  }
 }
 
 }  // namespace
@@ -200,30 +214,19 @@ base::RefCountedMemory* AtomContentClient::GetDataResourceBytes(
 }
 
 void AtomContentClient::AddAdditionalSchemes(Schemes* schemes) {
-  std::vector<std::string> splited;
-  ConvertStringWithSeparatorToVector(&splited, ",",
-                                     switches::kServiceWorkerSchemes);
-  for (const std::string& scheme : splited)
-    schemes->service_worker_schemes.push_back(scheme);
+  AppendDelimitedSwitchToVector(switches::kServiceWorkerSchemes,
+                                &schemes->service_worker_schemes);
+  AppendDelimitedSwitchToVector(switches::kStandardSchemes,
+                                &schemes->standard_schemes);
+  AppendDelimitedSwitchToVector(switches::kSecureSchemes,
+                                &schemes->secure_schemes);
+  AppendDelimitedSwitchToVector(switches::kBypassCSPSchemes,
+                                &schemes->csp_bypassing_schemes);
+  AppendDelimitedSwitchToVector(switches::kCORSSchemes,
+                                &schemes->cors_enabled_schemes);
+
   schemes->service_worker_schemes.push_back(url::kFileScheme);
-
-  ConvertStringWithSeparatorToVector(&splited, ",", switches::kStandardSchemes);
-  for (const std::string& scheme : splited)
-    schemes->standard_schemes.push_back(scheme);
   schemes->standard_schemes.push_back("chrome-extension");
-
-  ConvertStringWithSeparatorToVector(&splited, ",", switches::kSecureSchemes);
-  for (const std::string& scheme : splited)
-    schemes->secure_schemes.push_back(scheme);
-
-  ConvertStringWithSeparatorToVector(&splited, ",",
-                                     switches::kBypassCSPSchemes);
-  for (const std::string& scheme : splited)
-    schemes->csp_bypassing_schemes.push_back(scheme);
-
-  ConvertStringWithSeparatorToVector(&splited, ",", switches::kCORSSchemes);
-  for (const std::string& scheme : splited)
-    schemes->cors_enabled_schemes.push_back(scheme);
 }
 
 void AtomContentClient::AddPepperPlugins(
@@ -232,7 +235,9 @@ void AtomContentClient::AddPepperPlugins(
   base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
   AddPepperFlashFromCommandLine(command_line, plugins);
 #endif  // BUILDFLAG(ENABLE_PEPPER_FLASH)
+#if BUILDFLAG(ENABLE_PLUGINS)
   ComputeBuiltInPlugins(plugins);
+#endif  // BUILDFLAG(ENABLE_PLUGINS)
 }
 
 void AtomContentClient::AddContentDecryptionModules(
@@ -266,10 +271,6 @@ void AtomContentClient::AddContentDecryptionModules(
     }
 #endif  // defined(WIDEVINE_CDM_AVAILABLE)
   }
-}
-
-bool AtomContentClient::IsDataResourceGzipped(int resource_id) {
-  return ui::ResourceBundle::GetSharedInstance().IsGzipped(resource_id);
 }
 
 }  // namespace electron

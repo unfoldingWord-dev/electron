@@ -144,12 +144,6 @@ void AtomSandboxedRendererClient::InitializeBindings(
   process.SetReadOnly("sandboxed", true);
   process.SetReadOnly("type", "renderer");
   process.SetReadOnly("isMainFrame", is_main_frame);
-
-  // Pass in CLI flags needed to setup the renderer
-  base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
-  if (command_line->HasSwitch(switches::kGuestInstanceID))
-    b.Set(options::kGuestInstanceID,
-          command_line->GetSwitchValueASCII(switches::kGuestInstanceID));
 }
 
 void AtomSandboxedRendererClient::RenderFrameCreated(
@@ -165,6 +159,7 @@ void AtomSandboxedRendererClient::RenderViewCreated(
 
 void AtomSandboxedRendererClient::RunScriptsAtDocumentStart(
     content::RenderFrame* render_frame) {
+  RendererClientBase::RunScriptsAtDocumentStart(render_frame);
   if (injected_frames_.find(render_frame) == injected_frames_.end())
     return;
 
@@ -180,6 +175,7 @@ void AtomSandboxedRendererClient::RunScriptsAtDocumentStart(
 
 void AtomSandboxedRendererClient::RunScriptsAtDocumentEnd(
     content::RenderFrame* render_frame) {
+  RendererClientBase::RunScriptsAtDocumentEnd(render_frame);
   if (injected_frames_.find(render_frame) == injected_frames_.end())
     return;
 
@@ -295,6 +291,14 @@ void AtomSandboxedRendererClient::WillReleaseScriptContext(
   v8::HandleScope handle_scope(isolate);
   v8::Context::Scope context_scope(context);
   InvokeHiddenCallback(context, kLifecycleKey, "onExit");
+}
+
+bool AtomSandboxedRendererClient::ShouldFork(blink::WebLocalFrame* frame,
+                                             const GURL& url,
+                                             const std::string& http_method,
+                                             bool is_initial_navigation,
+                                             bool is_server_redirect) {
+  return true;
 }
 
 }  // namespace electron

@@ -13,17 +13,25 @@ class DictionaryValue;
 class ListValue;
 }  // namespace base
 
+namespace electron {
+struct VerifyRequestParams;
+}
+
 namespace net {
 class AuthChallengeInfo;
 class URLRequest;
 class X509Certificate;
 class HttpResponseHeaders;
+class HttpRequestHeaders;
 struct CertPrincipal;
+class HttpVersion;
+struct RedirectInfo;
 }  // namespace net
 
 namespace network {
+class ResourceRequestBody;
 struct ResourceRequest;
-}
+}  // namespace network
 
 namespace mate {
 
@@ -60,9 +68,39 @@ struct Converter<net::HttpResponseHeaders*> {
 };
 
 template <>
+struct Converter<net::HttpRequestHeaders> {
+  static v8::Local<v8::Value> ToV8(v8::Isolate* isolate,
+                                   const net::HttpRequestHeaders& headers);
+};
+
+template <>
+struct Converter<network::ResourceRequestBody> {
+  static v8::Local<v8::Value> ToV8(v8::Isolate* isolate,
+                                   const network::ResourceRequestBody& val);
+};
+
+template <>
 struct Converter<network::ResourceRequest> {
   static v8::Local<v8::Value> ToV8(v8::Isolate* isolate,
                                    const network::ResourceRequest& val);
+};
+
+template <>
+struct Converter<electron::VerifyRequestParams> {
+  static v8::Local<v8::Value> ToV8(v8::Isolate* isolate,
+                                   electron::VerifyRequestParams val);
+};
+
+template <>
+struct Converter<net::HttpVersion> {
+  static v8::Local<v8::Value> ToV8(v8::Isolate* isolate,
+                                   const net::HttpVersion& val);
+};
+
+template <>
+struct Converter<net::RedirectInfo> {
+  static v8::Local<v8::Value> ToV8(v8::Isolate* isolate,
+                                   const net::RedirectInfo& val);
 };
 
 }  // namespace mate

@@ -5,10 +5,10 @@ Subject: web_contents.patch
 
 
 diff --git a/content/browser/web_contents/web_contents_impl.cc b/content/browser/web_contents/web_contents_impl.cc
-index 37e9397ccf47519fd4a5867034df8513d8532366..e427908b3d284ae56f8592d3e7c5dc0d9a6a7684 100644
+index fbc1dc348385a9a1b97405342ded52e2308baf2c..b894dbb3d435ed3302bdd8e667ac0e628404a932 100644
 --- a/content/browser/web_contents/web_contents_impl.cc
 +++ b/content/browser/web_contents/web_contents_impl.cc
-@@ -2090,6 +2090,12 @@ void WebContentsImpl::Init(const WebContents::CreateParams& params) {
+@@ -2137,6 +2137,12 @@ void WebContentsImpl::Init(const WebContents::CreateParams& params) {
    std::string unique_name;
    frame_tree_.root()->SetFrameName(params.main_frame_name, unique_name);
  
@@ -21,7 +21,7 @@ index 37e9397ccf47519fd4a5867034df8513d8532366..e427908b3d284ae56f8592d3e7c5dc0d
    WebContentsViewDelegate* delegate =
        GetContentClient()->browser()->GetWebContentsViewDelegate(this);
  
-@@ -2105,6 +2111,7 @@ void WebContentsImpl::Init(const WebContents::CreateParams& params) {
+@@ -2152,6 +2158,7 @@ void WebContentsImpl::Init(const WebContents::CreateParams& params) {
            &render_view_host_delegate_view_);
      }
    }
@@ -92,10 +92,10 @@ index ecaf30bcb7b916a92a69641dd7b96a3633d407c0..0af625928ca6227a21cd4263a14a42b7
  
  RenderWidgetHostViewBase* WebContentsViewGuest::CreateViewForChildWidget(
 diff --git a/content/public/browser/web_contents.h b/content/public/browser/web_contents.h
-index 06536cf612f149dd6de7cd1b9105e2aa8da1d633..fbbf3d0023ae5900a3c51987e52d18645e5207e3 100644
+index b5ff1cc5d6f60d22839b9bc06ab4e2c55d9cc6c7..d22f0dcefa2a8ccb13d4d993bc37241beb664757 100644
 --- a/content/public/browser/web_contents.h
 +++ b/content/public/browser/web_contents.h
-@@ -75,9 +75,12 @@ class BrowserPluginGuestDelegate;
+@@ -78,9 +78,12 @@ class BrowserPluginGuestDelegate;
  class InterstitialPage;
  class RenderFrameHost;
  class RenderViewHost;
@@ -108,7 +108,7 @@ index 06536cf612f149dd6de7cd1b9105e2aa8da1d633..fbbf3d0023ae5900a3c51987e52d1864
  struct CustomContextMenuContext;
  struct DropData;
  struct MHTMLGenerationParams;
-@@ -213,6 +216,10 @@ class WebContents : public PageNavigator,
+@@ -216,6 +219,10 @@ class WebContents : public PageNavigator,
        kInitializeAndWarmupRendererProcess,
      } desired_renderer_state;
  

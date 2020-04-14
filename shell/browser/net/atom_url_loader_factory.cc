@@ -11,7 +11,8 @@
 #include "base/guid.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/storage_partition.h"
-#include "mojo/public/cpp/system/string_data_pipe_producer.h"
+#include "mojo/public/cpp/system/data_pipe_producer.h"
+#include "mojo/public/cpp/system/string_data_source.h"
 #include "net/base/filename_util.h"
 #include "net/http/http_status_code.h"
 #include "services/network/public/cpp/url_loader_completion_status.h"
@@ -77,7 +78,7 @@ bool ResponseMustBeObject(ProtocolType type) {
 
 // Helper to convert value to Dictionary.
 mate::Dictionary ToDict(v8::Isolate* isolate, v8::Local<v8::Value> value) {
-  if (value->IsObject())
+  if (!value->IsFunction() && value->IsObject())
     return mate::Dictionary(
         isolate,
         value->ToObject(isolate->GetCurrentContext()).ToLocalChecked());
@@ -122,9 +123,8 @@ network::ResourceResponseHead ToResponseHead(const mate::Dictionary& dict) {
       }
       // Some apps are passing content-type via headers, which is not accepted
       // in NetworkService.
-      if (base::ToLowerASCII(iter.first) == "content-type" &&
-          iter.second.is_string()) {
-        head.mime_type = iter.second.GetString();
+      if (base::ToLowerASCII(iter.first) == "content-type") {
+        head.headers->GetMimeTypeAndCharset(&head.mime_type, &head.charset);
         has_content_type = true;
       }
     }
@@ -141,7 +141,7 @@ network::ResourceResponseHead ToResponseHead(const mate::Dictionary& dict) {
 struct WriteData {
   network::mojom::URLLoaderClientPtr client;
   std::string data;
-  std::unique_ptr<mojo::StringDataPipeProducer> producer;
+  std::unique_ptr<mojo::DataPipeProducer> producer;
 };
 
 void OnWrite(std::unique_ptr<WriteData> write_data, MojoResult result) {
@@ -321,10 +321,14 @@ void AtomURLLoaderFactory::StartLoadingString(
     v8::Isolate* isolate,
     v8::Local<v8::Value> response) {
   std::string contents;
-  if (response->IsString())
+  if (response->IsString()) {
     contents = gin::V8ToString(isolate, response);
-  else if (!dict.IsEmpty())
+  } else if (!dict.IsEmpty()) {
     dict.Get("data", &contents);
+  } else {
+    client->OnComplete(network::URLLoaderCompletionStatus(net::ERR_FAILED));
+    return;
+  }
 
   SendContents(std::move(client), std::move(head), std::move(contents));
 }
@@ -391,12 +395,9 @@ void AtomURLLoaderFactory::StartLoadingHttp(
     }
   }
 
-  scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory =
-      content::BrowserContext::GetDefaultStoragePartition(browser_context.get())
-          ->GetURLLoaderFactoryForBrowserProcess();
   new URLPipeLoader(
-      url_loader_factory, std::move(request), std::move(loader),
-      std::move(client),
+      browser_context->GetURLLoaderFactory(), std::move(request),
+      std::move(loader), std::move(client),
       static_cast<net::NetworkTrafficAnnotationTag>(traffic_annotation),
       std::move(upload_data));
 }
@@ -469,13 +470,14 @@ void AtomURLLoaderFactory::SendContents(
   write_data->client = std::move(client);
   write_data->data = std::move(data);
   write_data->producer =
-      std::make_unique<mojo::StringDataPipeProducer>(std::move(producer));
+      std::make_unique<mojo::DataPipeProducer>(std::move(producer));
 
   base::StringPiece string_piece(write_data->data);
-  write_data->producer->Write(string_piece,
-                              mojo::StringDataPipeProducer::AsyncWritingMode::
-                                  STRING_STAYS_VALID_UNTIL_COMPLETION,
-                              base::BindOnce(OnWrite, std::move(write_data)));
+  write_data->producer->Write(
+      std::make_unique<mojo::StringDataSource>(
+          string_piece, mojo::StringDataSource::AsyncWritingMode::
+                            STRING_STAYS_VALID_UNTIL_COMPLETION),
+      base::BindOnce(OnWrite, std::move(write_data)));
 }
 
 }  // namespace electron

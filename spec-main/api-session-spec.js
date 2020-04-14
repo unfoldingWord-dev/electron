@@ -6,7 +6,7 @@ const fs = require('fs')
 const send = require('send')
 const auth = require('basic-auth')
 const ChildProcess = require('child_process')
-const { closeWindow } = require('./window-helpers')
+const { closeAllWindows } = require('./window-helpers')
 const { emittedOnce } = require('./events-helpers')
 
 const { session, BrowserWindow, net, ipcMain } = require('electron')
@@ -17,24 +17,7 @@ const { expect } = chai
 
 describe('session module', () => {
   const fixtures = path.resolve(__dirname, '..', 'spec', 'fixtures')
-  let w = null
   const url = 'http://127.0.0.1'
-
-  beforeEach(() => {
-    w = new BrowserWindow({
-      show: false,
-      width: 400,
-      height: 400,
-      webPreferences: {
-        nodeIntegration: true,
-        webviewTag: true,
-      }
-    })
-  })
-
-  afterEach(() => {
-    return closeWindow(w).then(() => { w = null })
-  })
 
   describe('session.defaultSession', () => {
     it('returns the default session', () => {
@@ -48,7 +31,7 @@ describe('session module', () => {
     })
 
     // TODO(codebytere): remove in Electron v8.0.0
-    it('created session is ref-counted (functions)', () => {
+    it.skip('created session is ref-counted (functions)', () => {
       const partition = 'test2'
       const userAgent = 'test-agent'
       const ses1 = session.fromPartition(partition)
@@ -74,6 +57,16 @@ describe('session module', () => {
   describe('ses.cookies', () => {
     const name = '0'
     const value = '0'
+    afterEach(closeAllWindows)
+
+    // Clear cookie of defaultSession after each test.
+    afterEach(async () => {
+      const { cookies } = session.defaultSession
+      const cs = await cookies.get({ url })
+      for (const c of cs) {
+        await cookies.remove(url, c.name)
+      }
+    })
 
     it('should get cookies', async () => {
       const server = http.createServer((req, res) => {
@@ -83,6 +76,7 @@ describe('session module', () => {
       })
       await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
       const { port } = server.address()
+      const w = new BrowserWindow({ show: false })
       await w.loadURL(`${url}:${port}`)
       const list = await w.webContents.session.cookies.get({ url })
       const cookie = list.find(cookie => cookie.name === name)
@@ -94,8 +88,42 @@ describe('session module', () => {
       const name = '1'
       const value = '1'
 
+      await cookies.set({ url, name, value, expirationDate: (+new Date()) / 1000 + 120 })
+      const c = (await cookies.get({ url }))[0]
+      expect(c.name).to.equal(name)
+      expect(c.value).to.equal(value)
+      expect(c.session).to.equal(false)
+    })
+
+    it('sets session cookies', async () => {
+      const { cookies } = session.defaultSession
+      const name = '2'
+      const value = '1'
+
+      await cookies.set({ url, name, value })
+      const c = (await cookies.get({ url }))[0]
+      expect(c.name).to.equal(name)
+      expect(c.value).to.equal(value)
+      expect(c.session).to.equal(true)
+    })
+
+    it('sets cookies without name', async () => {
+      const { cookies } = session.defaultSession
+      const value = '3'
+
+      await cookies.set({ url, value })
+      const c = (await cookies.get({ url }))[0]
+      expect(c.name).to.be.empty()
+      expect(c.value).to.equal(value)
+    })
+
+    it('gets cookies without url', async () => {
+      const { cookies } = session.defaultSession
+      const name = '1'
+      const value = '1'
+
       await cookies.set({ url, name, value, expirationDate: (+new Date) / 1000 + 120 })
-      const cs = await cookies.get({ url })
+      const cs = await cookies.get({ domain: '127.0.0.1' })
       expect(cs.some(c => c.name === name && c.value === value)).to.equal(true)
     })
 
@@ -142,7 +170,7 @@ describe('session module', () => {
       expect(list.some(cookie => cookie.name === name && cookie.value === value)).to.equal(false)
     })
 
-    it('should set cookie for standard scheme', async () => {
+    it.skip('should set cookie for standard scheme', async () => {
       const { cookies } = session.defaultSession
       const standardScheme = global.standardScheme
       const domain = 'fake-host'
@@ -223,7 +251,9 @@ describe('session module', () => {
   })
 
   describe('ses.clearStorageData(options)', () => {
+    afterEach(closeAllWindows)
     it('clears localstorage data', async () => {
+      const w = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true } })
       await w.loadFile(path.join(fixtures, 'api', 'localstorage.html'))
       const options = {
         origin: 'file://',
@@ -239,7 +269,9 @@ describe('session module', () => {
   })
 
   describe('will-download event', () => {
+    afterEach(closeAllWindows)
     it('can cancel default download behavior', async () => {
+      const w = new BrowserWindow({ show: false })
       const mockFile = Buffer.alloc(1024)
       const contentDisposition = 'inline; filename="mockFile.txt"'
       const downloadServer = http.createServer((req, res) => {
@@ -281,14 +313,6 @@ describe('session module', () => {
     }
 
     beforeEach(async () => {
-      if (w != null) w.destroy()
-      w = new BrowserWindow({
-        show: false,
-        webPreferences: {
-          partition: partitionName,
-          nodeIntegration: true,
-        }
-      })
       customSession = session.fromPartition(partitionName)
       await customSession.protocol.registerStringProtocol(protocolName, handler)
     })
@@ -297,6 +321,7 @@ describe('session module', () => {
       await customSession.protocol.unregisterProtocol(protocolName)
       customSession = null
     })
+    afterEach(closeAllWindows)
 
     it('does not affect defaultSession', async () => {
       const result1 = await protocol.isProtocolHandled(protocolName)
@@ -307,6 +332,15 @@ describe('session module', () => {
     })
 
     it('handles requests from partition', async () => {
+      const w = new BrowserWindow({
+        show: false,
+        webPreferences: {
+          partition: partitionName,
+          nodeIntegration: true,
+        }
+      })
+      customSession = session.fromPartition(partitionName)
+      await customSession.protocol.registerStringProtocol(protocolName, handler)
       w.loadURL(`${protocolName}://fake-host`)
       await emittedOnce(ipcMain, 'hello')
     })
@@ -318,11 +352,6 @@ describe('session module', () => {
 
     beforeEach(async () => {
       customSession = session.fromPartition('proxyconfig')
-      // FIXME(deepak1556): This is just a hack to force
-      // creation of request context which in turn initializes
-      // the network context, can be removed with network
-      // service enabled.
-      await customSession.clearHostResolverCache()
     })
 
     afterEach(() => {
@@ -389,6 +418,7 @@ describe('session module', () => {
     after(async () => {
       await protocol.unregisterProtocol(scheme)
     })
+    afterEach(closeAllWindows)
 
     it('returns blob data for uuid', (done) => {
       const postData = JSON.stringify({
@@ -416,6 +446,7 @@ describe('session module', () => {
         }
       }, (error) => {
         if (error) return done(error)
+        const w = new BrowserWindow({ show: false })
         w.loadURL(url)
       })
     })
@@ -448,6 +479,7 @@ describe('session module', () => {
       session.defaultSession.setCertificateVerifyProc(null)
       server.close(done)
     })
+    afterEach(closeAllWindows)
 
     it('accepts the request when the callback is called with 0', async () => {
       session.defaultSession.setCertificateVerifyProc(({ hostname, certificate, verificationResult, errorCode }, callback) => {
@@ -456,6 +488,7 @@ describe('session module', () => {
         callback(0)
       })
 
+      const w = new BrowserWindow({ show: false })
       await w.loadURL(`https://127.0.0.1:${server.address().port}`)
       expect(w.webContents.getTitle()).to.equal('hello')
     })
@@ -477,6 +510,7 @@ describe('session module', () => {
       })
 
       const url = `https://127.0.0.1:${server.address().port}`
+      const w = new BrowserWindow({ show: false })
       await expect(w.loadURL(url)).to.eventually.be.rejectedWith(/ERR_FAILED/)
       expect(w.webContents.getTitle()).to.equal(url)
     })
@@ -489,21 +523,17 @@ describe('session module', () => {
       })
 
       const url = `https://127.0.0.1:${server.address().port}`
+      const w = new BrowserWindow({ show: false })
       await expect(w.loadURL(url), 'first load').to.eventually.be.rejectedWith(/ERR_FAILED/)
       await emittedOnce(w.webContents, 'did-stop-loading')
       await expect(w.loadURL(url + '/test'), 'second load').to.eventually.be.rejectedWith(/ERR_FAILED/)
       expect(w.webContents.getTitle()).to.equal(url + '/test')
-
-      // TODO(nornagon): there's no way to check if the network service is
-      // enabled from JS, so once we switch it on by default just change this
-      // test :)
-      const networkServiceEnabled = false
-      expect(numVerificationRequests).to.equal(networkServiceEnabled ? 1 : 2)
+      expect(numVerificationRequests).to.equal(1)
     })
   })
 
   describe('ses.clearAuthCache(options)', () => {
-    it('can clear http auth info from cache', (done) => {
+    it('can clear http auth info from cache', async () => {
       const ses = session.fromPartition('auth-cache')
       const server = http.createServer((req, res) => {
         const credentials = auth(req)
@@ -515,44 +545,39 @@ describe('session module', () => {
           res.end('authenticated')
         }
       })
-      server.listen(0, '127.0.0.1', () => {
-        const port = server.address().port
-        function issueLoginRequest (attempt = 1) {
-          if (attempt > 2) {
-            server.close()
-            return done()
-          }
-          const request = net.request({
-            url: `http://127.0.0.1:${port}`,
-            session: ses
+      await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+      const port = server.address().port
+      const fetch = (url) => new Promise((resolve, reject) => {
+        const request = net.request({ url, session: ses })
+        request.on('response', (response) => {
+          let data = null
+          response.on('data', (chunk) => {
+            if (!data) {
+              data = ''
+            }
+            data += chunk
           })
-          request.on('login', (info, callback) => {
-            attempt += 1
-            expect(info.scheme).to.equal('basic')
-            expect(info.realm).to.equal('Restricted')
-            callback('test', 'test')
+          response.on('end', () => {
+            if (!data) {
+              reject(new Error('Empty response'))
+            } else {
+              resolve(data)
+            }
           })
-          request.on('response', (response) => {
-            let data = ''
-            response.pause()
-            response.on('data', (chunk) => {
-              data += chunk
-            })
-            response.on('end', () => {
-              expect(data).to.equal('authenticated')
-              ses.clearAuthCache({ type: 'password' }).then(() => {
-                issueLoginRequest(attempt)
-              })
-            })
-            response.on('error', (error) => { done(error) })
-            response.resume()
-          })
-          // Internal api to bypass cache for testing.
-          request.urlRequest._setLoadFlags(1 << 1)
-          request.end()
-        }
-        issueLoginRequest()
+          response.on('error', (error) => { reject(new Error(error)) })
+        });
+        request.on('error', (error) => { reject(new Error(error)) })
+        request.end()
       })
+      // the first time should throw due to unauthenticated
+      await expect(fetch(`http://127.0.0.1:${port}`)).to.eventually.be.rejected()
+      // passing the password should let us in
+      expect(await fetch(`http://test:test@127.0.0.1:${port}`)).to.equal('authenticated')
+      // subsequently, the credentials are cached
+      expect(await fetch(`http://127.0.0.1:${port}`)).to.equal('authenticated')
+      await ses.clearAuthCache({ type: 'password' })
+      // once the cache is cleared, we should get an error again
+      await expect(fetch(`http://127.0.0.1:${port}`)).to.eventually.be.rejected()
     })
   })
 
@@ -578,6 +603,7 @@ describe('session module', () => {
     after(async () => {
       await new Promise(resolve => downloadServer.close(resolve))
     })
+    afterEach(closeAllWindows)
 
     const isPathEqual = (path1, path2) => {
       return path.relative(path1, path2) === ''
@@ -602,6 +628,7 @@ describe('session module', () => {
 
     it('can download using WebContents.downloadURL', (done) => {
       const port = downloadServer.address().port
+      const w = new BrowserWindow({ show: false })
       w.webContents.session.once('will-download', function (e, item) {
         item.savePath = downloadFilePath
         item.on('done', function (e, state) {
@@ -620,6 +647,7 @@ describe('session module', () => {
       }
       protocol.registerHttpProtocol(protocolName, handler, (error) => {
         if (error) return done(error)
+        const w = new BrowserWindow({ show: false })
         w.webContents.session.once('will-download', function (e, item) {
           item.savePath = downloadFilePath
           item.on('done', function (e, state) {
@@ -632,7 +660,8 @@ describe('session module', () => {
     })
 
     it('can download using WebView.downloadURL', async () => {
-      const port = downloadServer.address().port
+      const port = address.port
+      const w = new BrowserWindow({ show: false, webPreferences: { webviewTag: true } })
       await w.loadURL('about:blank')
       function webviewDownload({fixtures, url, port}) {
         const webview = new WebView()
@@ -656,7 +685,8 @@ describe('session module', () => {
     })
 
     it('can cancel download', (done) => {
-      const port = downloadServer.address().port
+      const port = address.port
+      const w = new BrowserWindow({ show: false })
       w.webContents.session.once('will-download', function (e, item) {
         item.savePath = downloadFilePath
         item.on('done', function (e, state) {
@@ -680,7 +710,8 @@ describe('session module', () => {
         return done()
       }
 
-      const port = downloadServer.address().port
+      const port = address.port
+      const w = new BrowserWindow({ show: false })
       w.webContents.session.once('will-download', function (e, item) {
         item.savePath = downloadFilePath
         item.on('done', function (e, state) {
@@ -711,6 +742,7 @@ describe('session module', () => {
         securityScopedBookmarks: true
       }
 
+      const w = new BrowserWindow({ show: false })
       w.webContents.session.once('will-download', function (e, item) {
         item.setSavePath(filePath)
         item.setSaveDialogOptions(options)
@@ -725,6 +757,7 @@ describe('session module', () => {
 
     describe('when a save path is specified and the URL is unavailable', () => {
       it('does not display a save dialog and reports the done state as interrupted', (done) => {
+        const w = new BrowserWindow({ show: false })
         w.webContents.session.once('will-download', function (e, item) {
           item.savePath = downloadFilePath
           if (item.getState() === 'interrupted') {
@@ -741,6 +774,7 @@ describe('session module', () => {
   })
 
   describe('ses.createInterruptedDownload(options)', () => {
+    afterEach(closeAllWindows)
     it('can create an interrupted download item', (done) => {
       const downloadFilePath = path.join(__dirname, '..', 'fixtures', 'mock.pdf')
       const options = {
@@ -750,6 +784,7 @@ describe('session module', () => {
         offset: 0,
         length: 5242880
       }
+      const w = new BrowserWindow({ show: false })
       w.webContents.session.once('will-download', function (e, item) {
         expect(item.getState()).to.equal('interrupted')
         item.cancel()
@@ -773,6 +808,7 @@ describe('session module', () => {
       try {
         await new Promise(resolve => rangeServer.listen(0, '127.0.0.1', resolve))
         const port = rangeServer.address().port
+        const w = new BrowserWindow({ show: false })
         const downloadCancelled = new Promise((resolve) => {
           w.webContents.session.once('will-download', function (e, item) {
             item.setSavePath(downloadFilePath)
@@ -823,9 +859,9 @@ describe('session module', () => {
   })
 
   describe('ses.setPermissionRequestHandler(handler)', () => {
+    afterEach(closeAllWindows)
     it('cancels any pending requests when cleared', async () => {
-      if (w != null) w.destroy()
-      w = new BrowserWindow({
+      const w = new BrowserWindow({
         show: false,
         webPreferences: {
           partition: `very-temp-permision-handler`,
@@ -854,6 +890,33 @@ describe('session module', () => {
 
       const [,name] = await result
       expect(name).to.deep.equal('SecurityError')
+    })
+  })
+
+  describe('ses.setUserAgent()', () => {
+    afterEach(closeAllWindows)
+
+    it('can be retrieved with getUserAgent()', () => {
+      const userAgent = 'test-agent'
+      const ses = session.fromPartition(''+Math.random())
+      ses.setUserAgent(userAgent)
+      expect(ses.getUserAgent()).to.equal(userAgent)
+    })
+
+    it('sets the User-Agent header for web requests made from renderers', async () => {
+      const userAgent = 'test-agent'
+      const ses = session.fromPartition(''+Math.random())
+      ses.setUserAgent(userAgent)
+      const w = new BrowserWindow({ show: false, webPreferences: { session: ses } })
+      let headers = null
+      const server = http.createServer((req, res) => {
+        headers = req.headers
+        res.end()
+        server.close()
+      })
+      await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+      await w.loadURL(`http://127.0.0.1:${server.address().port}`)
+      expect(headers['user-agent']).to.equal(userAgent)
     })
   })
 })

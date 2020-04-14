@@ -4,20 +4,11 @@ import argparse
 import os
 import sys
 
+from lib.config import LINUX_BINARIES
 from lib.util import execute, get_out_dir
 
-LINUX_BINARIES_TO_STRIP = [
-  'electron',
-  'libffmpeg.so',
-  'libGLESv2.so',
-  'libEGL.so',
-  'swiftshader/libGLESv2.so',
-  'swiftshader/libEGL.so',
-  'swiftshader/libvulkan.so'
-]
-
 def strip_binaries(directory, target_cpu):
-  for binary in LINUX_BINARIES_TO_STRIP:
+  for binary in LINUX_BINARIES:
     binary_path = os.path.join(directory, binary)
     if os.path.isfile(binary_path):
       strip_binary(binary_path, target_cpu)
@@ -31,11 +22,10 @@ def strip_binary(binary_path, target_cpu):
     strip = 'mips64el-redhat-linux-strip'
   else:
     strip = 'strip'
-  execute([strip, binary_path])
+  execute([strip, '--preserve-dates', binary_path])
 
 def main():
   args = parse_args()
-  print(args)
   if args.file:
     strip_binary(args.file, args.target_cpu)
   else:

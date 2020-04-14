@@ -5,17 +5,22 @@
 #ifndef SHELL_BROWSER_NET_PROXYING_URL_LOADER_FACTORY_H_
 #define SHELL_BROWSER_NET_PROXYING_URL_LOADER_FACTORY_H_
 
+#include <map>
 #include <memory>
 #include <set>
 #include <string>
 #include <vector>
 
 #include "base/optional.h"
+#include "content/public/browser/content_browser_client.h"
+#include "extensions/browser/api/web_request/web_request_info.h"
+#include "mojo/public/cpp/bindings/receiver.h"
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/cpp/resource_response.h"
 #include "services/network/public/mojom/network_context.mojom.h"
 #include "services/network/public/mojom/url_loader.mojom.h"
 #include "shell/browser/net/atom_url_loader_factory.h"
+#include "shell/browser/net/web_request_api_interface.h"
 
 namespace electron {
 
@@ -35,6 +40,7 @@ class ProxyingURLLoaderFactory
    public:
     InProgressRequest(
         ProxyingURLLoaderFactory* factory,
+        int64_t web_request_id,
         int32_t routing_id,
         int32_t network_service_request_id,
         uint32_t options,
@@ -50,16 +56,15 @@ class ProxyingURLLoaderFactory
     void FollowRedirect(const std::vector<std::string>& removed_headers,
                         const net::HttpRequestHeaders& modified_headers,
                         const base::Optional<GURL>& new_url) override;
-    void ProceedWithResponse() override;
     void SetPriority(net::RequestPriority priority,
                      int32_t intra_priority_value) override;
     void PauseReadingBodyFromNet() override;
     void ResumeReadingBodyFromNet() override;
 
     // network::mojom::URLLoaderClient:
-    void OnReceiveResponse(const network::ResourceResponseHead& head) override;
+    void OnReceiveResponse(network::mojom::URLResponseHeadPtr head) override;
     void OnReceiveRedirect(const net::RedirectInfo& redirect_info,
-                           const network::ResourceResponseHead& head) override;
+                           network::mojom::URLResponseHeadPtr head) override;
     void OnUploadProgress(int64_t current_position,
                           int64_t total_size,
                           OnUploadProgressCallback callback) override;
@@ -69,7 +74,8 @@ class ProxyingURLLoaderFactory
         mojo::ScopedDataPipeConsumerHandle body) override;
     void OnComplete(const network::URLLoaderCompletionStatus& status) override;
 
-    void OnLoaderCreated(network::mojom::TrustedHeaderClientRequest request);
+    void OnLoaderCreated(
+        mojo::PendingReceiver<network::mojom::TrustedHeaderClient> receiver);
 
     // network::mojom::TrustedHeaderClient:
     void OnBeforeSendHeaders(const net::HttpRequestHeaders& headers,
@@ -99,12 +105,15 @@ class ProxyingURLLoaderFactory
     ProxyingURLLoaderFactory* factory_;
     network::ResourceRequest request_;
     const base::Optional<url::Origin> original_initiator_;
+    const uint64_t request_id_;
     const int32_t routing_id_;
     const int32_t network_service_request_id_;
     const uint32_t options_;
     const net::MutableNetworkTrafficAnnotationTag traffic_annotation_;
     mojo::Binding<network::mojom::URLLoader> proxied_loader_binding_;
     network::mojom::URLLoaderClientPtr target_client_;
+
+    base::Optional<extensions::WebRequestInfo> info_;
 
     network::ResourceResponseHead current_response_;
     scoped_refptr<net::HttpResponseHeaders> override_headers_;
@@ -125,7 +134,8 @@ class ProxyingURLLoaderFactory
     bool current_request_uses_header_client_ = false;
     OnBeforeSendHeadersCallback on_before_send_headers_callback_;
     OnHeadersReceivedCallback on_headers_received_callback_;
-    mojo::Binding<network::mojom::TrustedHeaderClient> header_client_binding_;
+    mojo::Receiver<network::mojom::TrustedHeaderClient> header_client_receiver_{
+        this};
 
     // If |has_any_extra_headers_listeners_| is set to false and a redirect is
     // in progress, this stores the parameters to FollowRedirect that came from
@@ -148,11 +158,15 @@ class ProxyingURLLoaderFactory
   };
 
   ProxyingURLLoaderFactory(
+      WebRequestAPI* web_request_api,
       const HandlersMap& intercepted_handlers,
+      int render_process_id,
+      uint64_t* request_id_generator,
       network::mojom::URLLoaderFactoryRequest loader_request,
       network::mojom::URLLoaderFactoryPtrInfo target_factory_info,
-      network::mojom::TrustedURLLoaderHeaderClientRequest
-          header_client_request);
+      mojo::PendingReceiver<network::mojom::TrustedURLLoaderHeaderClient>
+          header_client_receiver,
+      content::ContentBrowserClient::URLLoaderFactoryType loader_factory_type);
   ~ProxyingURLLoaderFactory() override;
 
   // network::mojom::URLLoaderFactory:
@@ -169,11 +183,23 @@ class ProxyingURLLoaderFactory
   // network::mojom::TrustedURLLoaderHeaderClient:
   void OnLoaderCreated(
       int32_t request_id,
-      network::mojom::TrustedHeaderClientRequest request) override;
+      mojo::PendingReceiver<network::mojom::TrustedHeaderClient> receiver)
+      override;
+
+  WebRequestAPI* web_request_api() { return web_request_api_; }
+
+  bool IsForServiceWorkerScript() const;
 
  private:
   void OnTargetFactoryError();
   void OnProxyBindingError();
+  void RemoveRequest(int32_t network_service_request_id, uint64_t request_id);
+  void MaybeDeleteThis();
+
+  bool ShouldIgnoreConnectionsLimit(const network::ResourceRequest& request);
+
+  // Passed from api::WebRequestNS.
+  WebRequestAPI* web_request_api_;
 
   // This is passed from api::ProtocolNS.
   //
@@ -184,10 +210,24 @@ class ProxyingURLLoaderFactory
   // In this way we can avoid using code from api namespace in this file.
   const HandlersMap& intercepted_handlers_;
 
+  const int render_process_id_;
   mojo::BindingSet<network::mojom::URLLoaderFactory> proxy_bindings_;
   network::mojom::URLLoaderFactoryPtr target_factory_;
-  mojo::Binding<network::mojom::TrustedURLLoaderHeaderClient>
-      url_loader_header_client_binding_;
+  uint64_t* request_id_generator_;  // managed by AtomBrowserClient
+  mojo::Receiver<network::mojom::TrustedURLLoaderHeaderClient>
+      url_loader_header_client_receiver_{this};
+  const content::ContentBrowserClient::URLLoaderFactoryType
+      loader_factory_type_;
+
+  // Mapping from our own internally generated request ID to an
+  // InProgressRequest instance.
+  std::map<uint64_t, std::unique_ptr<InProgressRequest>> requests_;
+
+  // A mapping from the network stack's notion of request ID to our own
+  // internally generated request ID for the same request.
+  std::map<int32_t, uint64_t> network_request_id_to_web_request_id_;
+
+  std::vector<std::string> ignore_connections_limit_domains_;
 
   DISALLOW_COPY_AND_ASSIGN(ProxyingURLLoaderFactory);
 };

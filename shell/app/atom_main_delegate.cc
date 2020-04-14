@@ -24,6 +24,7 @@
 #include "ipc/ipc_buildflags.h"
 #include "services/service_manager/embedder/switches.h"
 #include "services/service_manager/sandbox/switches.h"
+#include "services/tracing/public/cpp/stack_sampling/tracing_sampler_profiler.h"
 #include "shell/app/atom_content_client.h"
 #include "shell/browser/atom_browser_client.h"
 #include "shell/browser/atom_gpu_client.h"
@@ -149,7 +150,7 @@ bool AtomMainDelegate::BasicStartupComplete(int* exit_code) {
   base::FilePath log_filename;
   base::PathService::Get(base::DIR_EXE, &log_filename);
   log_filename = log_filename.AppendASCII("debug.log");
-  settings.log_file = log_filename.value().c_str();
+  settings.log_file_path = log_filename.value().c_str();
   settings.lock_log = logging::LOCK_LOG_FILE;
   settings.delete_old = logging::DELETE_OLD_LOG_FILE;
 #else
@@ -182,6 +183,9 @@ bool AtomMainDelegate::BasicStartupComplete(int* exit_code) {
   if (env->HasVar("ELECTRON_DISABLE_SANDBOX"))
     command_line->AppendSwitch(service_manager::switches::kNoSandbox);
 
+  tracing_sampler_profiler_ =
+      tracing::TracingSamplerProfiler::CreateOnMainThread();
+
   chrome::RegisterPathProvider();
 
 #if defined(OS_MACOSX)
@@ -207,6 +211,21 @@ bool AtomMainDelegate::BasicStartupComplete(int* exit_code) {
     LOG(FATAL) << "Running as root without --"
                << service_manager::switches::kNoSandbox
                << " is not supported. See https://crbug.com/638180.";
+#endif
+
+#if defined(MAS_BUILD)
+  // In MAS build we are using --disable-remote-core-animation.
+  //
+  // According to ccameron:
+  // If you're running with --disable-remote-core-animation, you may want to
+  // also run with --disable-gpu-memory-buffer-compositor-resources as well.
+  // That flag makes it so we use regular GL textures instead of IOSurfaces
+  // for compositor resources. IOSurfaces are very heavyweight to
+  // create/destroy, but they can be displayed directly by CoreAnimation (and
+  // --disable-remote-core-animation makes it so we don't use this property,
+  // so they're just heavyweight with no upside).
+  command_line->AppendSwitch(
+      ::switches::kDisableGpuMemoryBufferCompositorResources);
 #endif
 
   content_client_ = std::make_unique<AtomContentClient>();
@@ -320,10 +339,6 @@ int AtomMainDelegate::RunProcess(
 }
 
 #if defined(OS_MACOSX)
-bool AtomMainDelegate::ShouldSendMachPort(const std::string& process_type) {
-  return process_type != kRelauncherProcess;
-}
-
 bool AtomMainDelegate::DelaySandboxInitialization(
     const std::string& process_type) {
   return process_type == kRelauncherProcess;

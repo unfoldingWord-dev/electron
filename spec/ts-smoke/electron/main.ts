@@ -129,7 +129,7 @@ app.on('ready', () => {
     console.log('Debugger detached due to : ', reason)
   })
 
-  mainWindow.webContents.debugger.on('message', function (event, method, params) {
+  mainWindow.webContents.debugger.on('message', function (event, method, params: any) {
     if (method === 'Network.requestWillBeSent') {
       if (params.request.url === 'https://www.github.com') {
         mainWindow.webContents.debugger.detach()
@@ -318,17 +318,6 @@ app.setAboutPanelOptions({
   version: '1.2.3'
 })
 
-let window = new BrowserWindow()
-window.setProgressBar(0.5)
-window.setRepresentedFilename('/etc/passwd')
-window.setDocumentEdited(true)
-window.previewFile('/path/to/file')
-window.previewFile('/path/to/file', 'Displayed Name')
-window.setVibrancy('menu')
-window.setVibrancy('titlebar')
-window.setVibrancy('selection')
-window.setVibrancy('popover')
-
 // Online/Offline Event Detection
 // https://github.com/atom/electron/blob/master/docs/tutorial/online-offline-events.md
 
@@ -448,7 +437,7 @@ autoUpdater.on('update-downloaded', (event, releaseNotes, releaseName, releaseDa
   console.log('update-downloaded', releaseNotes, releaseName, releaseDate, updateURL)
 })
 
-// browser-window
+// BrowserWindow
 // https://github.com/atom/electron/blob/master/docs/api/browser-window.md
 
 let win3 = new BrowserWindow({ width: 800, height: 600, show: false })
@@ -461,6 +450,18 @@ win3.show()
 
 const toolbarRect = document.getElementById('toolbar').getBoundingClientRect()
 win3.setSheetOffset(toolbarRect.height)
+
+let window = new BrowserWindow()
+window.setProgressBar(0.5)
+window.setRepresentedFilename('/etc/passwd')
+window.setDocumentEdited(true)
+window.previewFile('/path/to/file')
+window.previewFile('/path/to/file', 'Displayed Name')
+window.setVibrancy('menu')
+window.setVibrancy('titlebar')
+window.setVibrancy('selection')
+window.setVibrancy('popover')
+window.setIcon('/path/to/icon')
 
 const installed = BrowserWindow.getDevToolsExtensions().hasOwnProperty('devtron')
 
@@ -754,6 +755,54 @@ Menu.buildFromTemplate([
   { label: '2' },
   { label: 'c' },
   { label: '3' }
+])
+
+// All possible MenuItem roles
+Menu.buildFromTemplate([
+  { role: 'undo' },
+  { role: 'redo' },
+  { role: 'cut' },
+  { role: 'copy' },
+  { role: 'paste' },
+  { role: 'pasteAndMatchStyle' },
+  { role: 'delete' },
+  { role: 'selectAll' },
+  { role: 'reload' },
+  { role: 'forceReload' },
+  { role: 'toggleDevTools' },
+  { role: 'resetZoom' },
+  { role: 'zoomIn' },
+  { role: 'zoomOut' },
+  { role: 'togglefullscreen' },
+  { role: 'window' },
+  { role: 'minimize' },
+  { role: 'close' },
+  { role: 'help' },
+  { role: 'about' },
+  { role: 'services' },
+  { role: 'hide' },
+  { role: 'hideOthers' },
+  { role: 'unhide' },
+  { role: 'quit' },
+  { role: 'startSpeaking' },
+  { role: 'stopSpeaking' },
+  { role: 'close' },
+  { role: 'minimize' },
+  { role: 'zoom'  },
+  { role: 'front' },
+  { role: 'appMenu' },
+  { role: 'fileMenu' },
+  { role: 'editMenu' },
+  { role: 'viewMenu' },
+  { role: 'windowMenu' },
+  { role: 'recentDocuments' },
+  { role: 'clearRecentDocuments' },
+  { role: 'toggleTabBar' },
+  { role: 'selectNextTab' },
+  { role: 'selectPreviousTab' },
+  { role: 'mergeAllWindows' },
+  { role: 'clearRecentDocuments' },
+  { role : 'moveTabToNewWindow'}
 ])
 
 // net

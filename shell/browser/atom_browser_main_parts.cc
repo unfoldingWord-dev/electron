@@ -30,6 +30,7 @@
 #include "services/device/public/mojom/constants.mojom.h"
 #include "services/network/public/cpp/features.h"
 #include "services/service_manager/public/cpp/connector.h"
+#include "services/tracing/public/cpp/stack_sampling/tracing_sampler_profiler.h"
 #include "shell/app/atom_main_delegate.h"
 #include "shell/browser/api/atom_api_app.h"
 #include "shell/browser/api/trackable_object.h"
@@ -91,6 +92,15 @@
 #include "device/bluetooth/bluetooth_adapter_factory.h"
 #include "device/bluetooth/dbus/dbus_bluez_manager_wrapper_linux.h"
 #endif
+
+#if BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
+#include "extensions/browser/browser_context_keyed_service_factories.h"
+#include "extensions/common/extension_api.h"
+#include "shell/browser/extensions/atom_browser_context_keyed_service_factories.h"
+#include "shell/browser/extensions/atom_extensions_browser_client.h"
+#include "shell/common/extensions/atom_extensions_client.h"
+#endif  // BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
 
 namespace electron {
 
@@ -374,7 +384,17 @@ int AtomBrowserMainParts::PreCreateThreads() {
   return 0;
 }
 
+void AtomBrowserMainParts::PostCreateThreads() {
+  base::PostTask(
+      FROM_HERE, {content::BrowserThread::IO},
+      base::BindOnce(&tracing::TracingSamplerProfiler::CreateOnChildThread));
+}
+
 void AtomBrowserMainParts::PostDestroyThreads() {
+#if BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
+  extensions_browser_client_.reset();
+  extensions::ExtensionsBrowserClient::Set(nullptr);
+#endif
 #if defined(OS_LINUX)
   device::BluetoothAdapterFactory::Shutdown();
   bluez::DBusBluezManagerWrapperLinux::Shutdown();
@@ -415,6 +435,18 @@ void AtomBrowserMainParts::PreMainMessageLoopRun() {
   node_bindings_->PrepareMessageLoop();
   node_bindings_->RunMessageLoop();
 
+#if BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
+  extensions_client_ = std::make_unique<AtomExtensionsClient>();
+  extensions::ExtensionsClient::Set(extensions_client_.get());
+
+  // BrowserContextKeyedAPIServiceFactories require an ExtensionsBrowserClient.
+  extensions_browser_client_ = std::make_unique<AtomExtensionsBrowserClient>();
+  extensions::ExtensionsBrowserClient::Set(extensions_browser_client_.get());
+
+  extensions::EnsureBrowserContextKeyedServiceFactoriesBuilt();
+  extensions::electron::EnsureBrowserContextKeyedServiceFactoriesBuilt();
+#endif
+
   // url::Add*Scheme are not threadsafe, this helps prevent data races.
   url::LockSchemeRegistries();
 
@@ -434,10 +466,6 @@ void AtomBrowserMainParts::PreMainMessageLoopRun() {
   auto* command_line = base::CommandLine::ForCurrentProcess();
   if (command_line->HasSwitch(switches::kRemoteDebuggingPort))
     DevToolsManagerDelegate::StartHttpHandler();
-
-#if defined(USE_X11)
-  libgtkui::GtkInitFromCommandLine(*base::CommandLine::ForCurrentProcess());
-#endif
 
 #if !defined(OS_MACOSX)
   // The corresponding call in macOS is in AtomApplicationDelegate.
@@ -483,9 +511,6 @@ void AtomBrowserMainParts::PostMainMessageLoopRun() {
   ui::SetX11ErrorHandlers(X11EmptyErrorHandler, X11EmptyIOErrorHandler);
 #endif
 
-  node_debugger_->Stop();
-  js_env_->OnMessageLoopDestroying();
-
 #if defined(OS_MACOSX)
   FreeAppDelegate();
 #endif
@@ -502,6 +527,11 @@ void AtomBrowserMainParts::PostMainMessageLoopRun() {
     ++iter;
   }
 
+  // Destroy node platform after all destructors_ are executed, as they may
+  // invoke Node/V8 APIs inside them.
+  node_debugger_->Stop();
+  js_env_->OnMessageLoopDestroying();
+
   fake_browser_process_->PostMainMessageLoopRun();
 }
 
@@ -513,7 +543,8 @@ void AtomBrowserMainParts::PreMainMessageLoopStart() {
 
 void AtomBrowserMainParts::PreMainMessageLoopStartCommon() {
 #if defined(OS_MACOSX)
-  InitializeEmptyApplicationMenu();
+  InitializeMainNib();
+  RegisterURLHandler();
 #endif
   media::SetLocalizedStringProvider(MediaStringProvider);
 }

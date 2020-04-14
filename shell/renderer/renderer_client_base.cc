@@ -11,10 +11,12 @@
 #include "base/command_line.h"
 #include "base/strings/string_split.h"
 #include "base/strings/stringprintf.h"
+#include "components/network_hints/renderer/prescient_networking_dispatcher.h"
 #include "content/common/buildflags.h"
 #include "content/public/common/content_constants.h"
 #include "content/public/common/content_switches.h"
 #include "content/public/renderer/render_frame.h"
+#include "content/public/renderer/render_thread.h"
 #include "content/public/renderer/render_view.h"
 #include "electron/buildflags/buildflags.h"
 #include "native_mate/dictionary.h"
@@ -52,15 +54,22 @@
 #include "chrome/renderer/pepper/pepper_helper.h"
 #endif  // BUILDFLAG(ENABLE_PEPPER_FLASH)
 
-#if BUILDFLAG(ENABLE_TTS)
-#include "chrome/renderer/tts_dispatcher.h"
-#endif  // BUILDFLAG(ENABLE_TTS)
-
 #if BUILDFLAG(ENABLE_PRINTING)
 #include "components/printing/renderer/print_render_frame_helper.h"
 #include "printing/print_settings.h"
 #include "shell/renderer/printing/print_render_frame_helper_delegate.h"
 #endif  // BUILDFLAG(ENABLE_PRINTING)
+
+#if BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
+#include "extensions/common/extensions_client.h"
+#include "extensions/renderer/dispatcher.h"
+#include "extensions/renderer/extension_frame_helper.h"
+#include "extensions/renderer/guest_view/extensions_guest_view_container.h"
+#include "extensions/renderer/guest_view/extensions_guest_view_container_dispatcher.h"
+#include "extensions/renderer/guest_view/mime_handler_view/mime_handler_view_container.h"
+#include "shell/common/extensions/atom_extensions_client.h"
+#include "shell/renderer/extensions/atom_extensions_renderer_client.h"
+#endif  // BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
 
 namespace electron {
 
@@ -128,6 +137,18 @@ void RendererClientBase::RenderThreadStarted() {
   }
 #endif
 
+#if BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
+  auto* thread = content::RenderThread::Get();
+
+  extensions_client_.reset(CreateExtensionsClient());
+  extensions::ExtensionsClient::Set(extensions_client_.get());
+
+  extensions_renderer_client_.reset(new AtomExtensionsRendererClient);
+  extensions::ExtensionsRendererClient::Set(extensions_renderer_client_.get());
+
+  thread->AddObserver(extensions_renderer_client_->GetDispatcher());
+#endif
+
   blink::WebCustomElement::AddEmbedderCustomElementName("webview");
   blink::WebCustomElement::AddEmbedderCustomElementName("browserplugin");
 
@@ -177,6 +198,9 @@ void RendererClientBase::RenderThreadStarted() {
   blink::WebSecurityPolicy::RegisterURLSchemeAsAllowingServiceWorkers("file");
   blink::SchemeRegistry::RegisterURLSchemeAsSupportingFetchAPI("file");
 
+  prescient_networking_dispatcher_.reset(
+      new network_hints::PrescientNetworkingDispatcher());
+
 #if defined(OS_WIN)
   // Set ApplicationUserModelID in renderer process.
   base::string16 app_id =
@@ -203,17 +227,12 @@ void RendererClientBase::RenderFrameCreated(
       std::make_unique<electron::PrintRenderFrameHelperDelegate>());
 #endif
 
-  // TODO(nornagon): it might be possible for an IPC message sent to this
-  // service to trigger v8 context creation before the page has begun loading.
-  // However, it's unclear whether such a timing is possible to trigger, and we
-  // don't have any test to confirm it. Add a test that confirms that a
-  // main->renderer IPC can't cause the preload script to be executed twice. If
-  // it is possible to trigger the preload script before the document is ready
-  // through this interface, we should delay adding it to the registry until
-  // the document is ready.
+  // Note: ElectronApiServiceImpl has to be created now to capture the
+  // DidCreateDocumentElement event.
+  auto* service = new ElectronApiServiceImpl(render_frame, this);
   render_frame->GetAssociatedInterfaceRegistry()->AddInterface(
-      base::BindRepeating(&ElectronApiServiceImpl::CreateMojoService,
-                          render_frame, this));
+      base::BindRepeating(&ElectronApiServiceImpl::BindTo,
+                          service->GetWeakPtr()));
 
 #if BUILDFLAG(ENABLE_PDF_VIEWER)
   // Allow access to file scheme from pdf viewer.
@@ -236,22 +255,20 @@ void RendererClientBase::RenderFrameCreated(
       }
     }
   }
+
+#if BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
+  auto* dispatcher = extensions_renderer_client_->GetDispatcher();
+  // ExtensionFrameHelper destroys itself when the RenderFrame is destroyed.
+  new extensions::ExtensionFrameHelper(render_frame, dispatcher);
+
+  dispatcher->OnRenderFrameCreated(render_frame);
+#endif
 }
 
 void RendererClientBase::DidClearWindowObject(
     content::RenderFrame* render_frame) {
   // Make sure every page will get a script context created.
   render_frame->GetWebFrame()->ExecuteScript(blink::WebScriptSource("void 0"));
-}
-
-std::unique_ptr<blink::WebSpeechSynthesizer>
-RendererClientBase::OverrideSpeechSynthesizer(
-    blink::WebSpeechSynthesizerClient* client) {
-#if BUILDFLAG(ENABLE_TTS)
-  return std::make_unique<TtsDispatcher>(client);
-#else
-  return nullptr;
-#endif
 }
 
 bool RendererClientBase::OverrideCreatePlugin(
@@ -291,6 +308,31 @@ void RendererClientBase::DidSetUserAgent(const std::string& user_agent) {
 #endif
 }
 
+blink::WebPrescientNetworking* RendererClientBase::GetPrescientNetworking() {
+  return prescient_networking_dispatcher_.get();
+}
+
+void RendererClientBase::RunScriptsAtDocumentStart(
+    content::RenderFrame* render_frame) {
+#if BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
+  extensions_renderer_client_.get()->RunScriptsAtDocumentStart(render_frame);
+#endif
+}
+
+void RendererClientBase::RunScriptsAtDocumentIdle(
+    content::RenderFrame* render_frame) {
+#if BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
+  extensions_renderer_client_.get()->RunScriptsAtDocumentIdle(render_frame);
+#endif
+}
+
+void RendererClientBase::RunScriptsAtDocumentEnd(
+    content::RenderFrame* render_frame) {
+#if BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
+  extensions_renderer_client_.get()->RunScriptsAtDocumentEnd(render_frame);
+#endif
+}
+
 v8::Local<v8::Context> RendererClientBase::GetContext(
     blink::WebLocalFrame* frame,
     v8::Isolate* isolate) const {
@@ -309,6 +351,12 @@ v8::Local<v8::Value> RendererClientBase::RunScript(
     return v8::Local<v8::Value>();
   return script->Run(context).ToLocalChecked();
 }
+
+#if BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
+extensions::ExtensionsClient* RendererClientBase::CreateExtensionsClient() {
+  return new AtomExtensionsClient;
+}
+#endif
 
 bool RendererClientBase::IsWebViewFrame(
     v8::Handle<v8::Context> context,

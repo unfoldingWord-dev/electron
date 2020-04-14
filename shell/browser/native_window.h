@@ -123,11 +123,11 @@ class NativeWindow : public base::SupportsUserData,
   virtual bool IsFullScreenable() = 0;
   virtual void SetClosable(bool closable) = 0;
   virtual bool IsClosable() = 0;
-  virtual void SetAlwaysOnTop(bool top,
+  virtual void SetAlwaysOnTop(ui::ZOrderLevel z_order,
                               const std::string& level = "floating",
                               int relativeLevel = 0,
                               std::string* error = nullptr) = 0;
-  virtual bool IsAlwaysOnTop() = 0;
+  virtual ui::ZOrderLevel GetZOrderLevel() = 0;
   virtual void Center() = 0;
   virtual void Invalidate() = 0;
   virtual void SetTitle(const std::string& title) = 0;
@@ -218,6 +218,8 @@ class NativeWindow : public base::SupportsUserData,
                            const std::string& display_name);
   virtual void CloseFilePreview();
 
+  virtual void SetGTKDarkThemeEnabled(bool use_dark_theme) = 0;
+
   // Converts between content bounds and window bounds.
   virtual gfx::Rect ContentBoundsToWindowBounds(
       const gfx::Rect& bounds) const = 0;
@@ -256,6 +258,7 @@ class NativeWindow : public base::SupportsUserData,
   void NotifyWindowScrollTouchBegin();
   void NotifyWindowScrollTouchEnd();
   void NotifyWindowSwipe(const std::string& direction);
+  void NotifyWindowRotateGesture(float rotation);
   void NotifyWindowSheetBegin();
   void NotifyWindowSheetEnd();
   void NotifyWindowEnterFullScreen();

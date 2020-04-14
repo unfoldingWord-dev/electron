@@ -18,6 +18,10 @@ declare_args() {
 
   enable_color_chooser = true
 
+  enable_picture_in_picture = true
+
+  enable_media_key_overrides = true
+
   # Provide a fake location provider for mocking
   # the geolocation responses. Disable it if you
   # need to test with chromium's location provider.
@@ -26,4 +30,7 @@ declare_args() {
 
   # Enable flash plugin support.
   enable_pepper_flash = true
+
+  # Enable Chrome extensions support.
+  enable_electron_extensions = false
 }

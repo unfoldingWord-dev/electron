@@ -5,6 +5,7 @@
 #import "shell/browser/ui/cocoa/atom_touch_bar.h"
 
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "base/strings/sys_string_conversions.h"
@@ -54,8 +55,7 @@ static NSString* const ImageScrubberItemIdentifier = @"scrubber.image.item";
 }
 
 - (NSTouchBar*)touchBarFromItemIdentifiers:(NSMutableArray*)items {
-  base::scoped_nsobject<NSTouchBar> bar(
-      [[NSClassFromString(@"NSTouchBar") alloc] init]);
+  base::scoped_nsobject<NSTouchBar> bar([[NSTouchBar alloc] init]);
   [bar setDelegate:delegate_];
   [bar setDefaultItemIdentifiers:items];
   return bar.autorelease();
@@ -341,8 +341,8 @@ static NSString* const ImageScrubberItemIdentifier = @"scrubber.image.item";
     return nil;
 
   mate::PersistentDictionary settings = settings_[s_id];
-  base::scoped_nsobject<NSCustomTouchBarItem> item([[NSClassFromString(
-      @"NSCustomTouchBarItem") alloc] initWithIdentifier:identifier]);
+  base::scoped_nsobject<NSCustomTouchBarItem> item(
+      [[NSCustomTouchBarItem alloc] initWithIdentifier:identifier]);
   NSButton* button = [NSButton buttonWithTitle:@""
                                         target:self
                                         action:@selector(buttonAction:)];
@@ -357,8 +357,11 @@ static NSString* const ImageScrubberItemIdentifier = @"scrubber.image.item";
   NSButton* button = (NSButton*)item.view;
 
   std::string backgroundColor;
-  if (settings.Get("backgroundColor", &backgroundColor)) {
+  if (settings.Get("backgroundColor", &backgroundColor) &&
+      !backgroundColor.empty()) {
     button.bezelColor = [self colorFromHexColorString:backgroundColor];
+  } else {
+    button.bezelColor = nil;
   }
 
   std::string label;
@@ -388,8 +391,8 @@ static NSString* const ImageScrubberItemIdentifier = @"scrubber.image.item";
     return nil;
 
   mate::PersistentDictionary settings = settings_[s_id];
-  base::scoped_nsobject<NSCustomTouchBarItem> item([[NSClassFromString(
-      @"NSCustomTouchBarItem") alloc] initWithIdentifier:identifier]);
+  base::scoped_nsobject<NSCustomTouchBarItem> item(
+      [[NSCustomTouchBarItem alloc] initWithIdentifier:identifier]);
   [item setView:[NSTextField labelWithString:@""]];
   [self updateLabel:item withSettings:settings];
   return item.autorelease();
@@ -418,8 +421,8 @@ static NSString* const ImageScrubberItemIdentifier = @"scrubber.image.item";
     return nil;
 
   mate::PersistentDictionary settings = settings_[s_id];
-  base::scoped_nsobject<NSColorPickerTouchBarItem> item([[NSClassFromString(
-      @"NSColorPickerTouchBarItem") alloc] initWithIdentifier:identifier]);
+  base::scoped_nsobject<NSColorPickerTouchBarItem> item(
+      [[NSColorPickerTouchBarItem alloc] initWithIdentifier:identifier]);
   [item setTarget:self];
   [item setAction:@selector(colorPickerAction:)];
   [self updateColorPicker:item withSettings:settings];
@@ -453,8 +456,8 @@ static NSString* const ImageScrubberItemIdentifier = @"scrubber.image.item";
     return nil;
 
   mate::PersistentDictionary settings = settings_[s_id];
-  base::scoped_nsobject<NSSliderTouchBarItem> item([[NSClassFromString(
-      @"NSSliderTouchBarItem") alloc] initWithIdentifier:identifier]);
+  base::scoped_nsobject<NSSliderTouchBarItem> item(
+      [[NSSliderTouchBarItem alloc] initWithIdentifier:identifier]);
   [item setTarget:self];
   [item setAction:@selector(sliderAction:)];
   [self updateSlider:item withSettings:settings];
@@ -486,8 +489,8 @@ static NSString* const ImageScrubberItemIdentifier = @"scrubber.image.item";
     return nil;
 
   mate::PersistentDictionary settings = settings_[s_id];
-  base::scoped_nsobject<NSPopoverTouchBarItem> item([[NSClassFromString(
-      @"NSPopoverTouchBarItem") alloc] initWithIdentifier:identifier]);
+  base::scoped_nsobject<NSPopoverTouchBarItem> item(
+      [[NSPopoverTouchBarItem alloc] initWithIdentifier:identifier]);
   [self updatePopover:item withSettings:settings];
   return item.autorelease();
 }
@@ -541,9 +544,8 @@ static NSString* const ImageScrubberItemIdentifier = @"scrubber.image.item";
       }
     }
   }
-  return [NSClassFromString(@"NSGroupTouchBarItem")
-      groupItemWithIdentifier:identifier
-                        items:generatedItems];
+  return [NSGroupTouchBarItem groupItemWithIdentifier:identifier
+                                                items:generatedItems];
 }
 
 - (void)updateGroup:(NSGroupTouchBarItem*)item
@@ -568,8 +570,8 @@ static NSString* const ImageScrubberItemIdentifier = @"scrubber.image.item";
     return nil;
 
   mate::PersistentDictionary settings = settings_[s_id];
-  base::scoped_nsobject<NSCustomTouchBarItem> item([[NSClassFromString(
-      @"NSCustomTouchBarItem") alloc] initWithIdentifier:identifier]);
+  base::scoped_nsobject<NSCustomTouchBarItem> item(
+      [[NSCustomTouchBarItem alloc] initWithIdentifier:identifier]);
 
   NSSegmentedControl* control = [NSSegmentedControl
       segmentedControlWithLabels:[NSMutableArray array]
@@ -653,15 +655,15 @@ static NSString* const ImageScrubberItemIdentifier = @"scrubber.image.item";
     return nil;
 
   mate::PersistentDictionary settings = settings_[s_id];
-  base::scoped_nsobject<NSCustomTouchBarItem> item([[NSClassFromString(
-      @"NSCustomTouchBarItem") alloc] initWithIdentifier:identifier]);
+  base::scoped_nsobject<NSCustomTouchBarItem> item(
+      [[NSCustomTouchBarItem alloc] initWithIdentifier:identifier]);
 
-  NSScrubber* scrubber = [[[NSClassFromString(@"NSScrubber") alloc]
-      initWithFrame:NSZeroRect] autorelease];
+  NSScrubber* scrubber =
+      [[[NSScrubber alloc] initWithFrame:NSZeroRect] autorelease];
 
-  [scrubber registerClass:NSClassFromString(@"NSScrubberTextItemView")
+  [scrubber registerClass:[NSScrubberTextItemView class]
         forItemIdentifier:TextScrubberItemIdentifier];
-  [scrubber registerClass:NSClassFromString(@"NSScrubberImageItemView")
+  [scrubber registerClass:[NSScrubberImageItemView class]
         forItemIdentifier:ImageScrubberItemIdentifier];
 
   scrubber.delegate = self;
@@ -690,20 +692,20 @@ static NSString* const ImageScrubberItemIdentifier = @"scrubber.image.item";
 
   if (selectedStyle == "outline") {
     scrubber.selectionBackgroundStyle =
-        [NSClassFromString(@"NSScrubberSelectionStyle") outlineOverlayStyle];
+        [NSScrubberSelectionStyle outlineOverlayStyle];
   } else if (selectedStyle == "background") {
     scrubber.selectionBackgroundStyle =
-        [NSClassFromString(@"NSScrubberSelectionStyle") roundedBackgroundStyle];
+        [NSScrubberSelectionStyle roundedBackgroundStyle];
   } else {
     scrubber.selectionBackgroundStyle = nil;
   }
 
   if (overlayStyle == "outline") {
     scrubber.selectionOverlayStyle =
-        [NSClassFromString(@"NSScrubberSelectionStyle") outlineOverlayStyle];
+        [NSScrubberSelectionStyle outlineOverlayStyle];
   } else if (overlayStyle == "background") {
     scrubber.selectionOverlayStyle =
-        [NSClassFromString(@"NSScrubberSelectionStyle") roundedBackgroundStyle];
+        [NSScrubberSelectionStyle roundedBackgroundStyle];
   } else {
     scrubber.selectionOverlayStyle = nil;
   }

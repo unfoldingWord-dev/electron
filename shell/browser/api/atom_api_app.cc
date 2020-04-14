@@ -11,6 +11,7 @@
 #include "base/environment.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
+#include "base/optional.h"
 #include "base/path_service.h"
 #include "base/system/sys_info.h"
 #include "chrome/browser/browser_process.h"
@@ -494,15 +495,6 @@ void OnClientCertificateSelected(
   }
 }
 
-void PassLoginInformation(scoped_refptr<LoginHandler> login_handler,
-                          mate::Arguments* args) {
-  base::string16 username, password;
-  if (args->GetNext(&username) && args->GetNext(&password))
-    login_handler->Login(username, password);
-  else
-    login_handler->CancelAuth();
-}
-
 #if defined(USE_NSS_CERTS)
 int ImportIntoCertStore(CertificateManagerModel* model,
                         const base::DictionaryValue& options) {
@@ -665,25 +657,6 @@ void App::OnNewWindowForTab() {
 }
 #endif
 
-void App::OnLogin(scoped_refptr<LoginHandler> login_handler,
-                  const base::DictionaryValue& request_details) {
-  v8::Locker locker(isolate());
-  v8::HandleScope handle_scope(isolate());
-  bool prevent_default = false;
-  content::WebContents* web_contents = login_handler->GetWebContents();
-  if (web_contents) {
-    prevent_default =
-        Emit("login", WebContents::FromOrCreate(isolate(), web_contents),
-             request_details, *login_handler->auth_info(),
-             base::BindOnce(&PassLoginInformation,
-                            base::RetainedRef(login_handler)));
-  }
-
-  // Default behavior is to always cancel the auth.
-  if (!prevent_default)
-    login_handler->CancelAuth();
-}
-
 bool App::CanCreateWindow(
     content::RenderFrameHost* opener,
     const GURL& opener_url,
@@ -723,7 +696,6 @@ void App::AllowCertificateError(
     const GURL& request_url,
     bool is_main_frame_request,
     bool strict_enforcement,
-    bool expired_previous_decision,
     const base::RepeatingCallback<void(content::CertificateRequestResultType)>&
         callback) {
   v8::Locker locker(isolate());
@@ -846,14 +818,14 @@ void App::SetAppPath(const base::FilePath& app_path) {
 }
 
 #if !defined(OS_MACOSX)
-void App::SetAppLogsPath(mate::Arguments* args) {
-  base::FilePath custom_path;
-  if (args->GetNext(&custom_path)) {
-    if (!custom_path.IsAbsolute()) {
+void App::SetAppLogsPath(base::Optional<base::FilePath> custom_path,
+                         mate::Arguments* args) {
+  if (custom_path.has_value()) {
+    if (!custom_path->IsAbsolute()) {
       args->ThrowError("Path must be absolute");
       return;
     }
-    base::PathService::Override(DIR_APP_LOGS, custom_path);
+    base::PathService::Override(DIR_APP_LOGS, custom_path.value());
   } else {
     base::FilePath path;
     if (base::PathService::Get(DIR_USER_DATA, &path)) {
@@ -868,11 +840,22 @@ void App::SetAppLogsPath(mate::Arguments* args) {
 base::FilePath App::GetPath(mate::Arguments* args, const std::string& name) {
   bool succeed = false;
   base::FilePath path;
+
   int key = GetPathConstant(name);
-  if (key >= 0)
+  if (key >= 0) {
     succeed = base::PathService::Get(key, &path);
+    // If users try to get the logs path before setting a logs path,
+    // set the path to a sensible default and then try to get it again
+    if (!succeed && name == "logs") {
+      base::ThreadRestrictions::ScopedAllowIO allow_io;
+      SetAppLogsPath(base::Optional<base::FilePath>(), args);
+      succeed = base::PathService::Get(key, &path);
+    }
+  }
+
   if (!succeed)
     args->ThrowError("Failed to get '" + name + "' path");
+
   return path;
 }
 
@@ -1218,6 +1201,25 @@ std::vector<mate::Dictionary> App::GetAppMetrics(v8::Isolate* isolate) {
     pid_dict.Set("creationTime",
                  process_metric.second->process.CreationTime().ToJsTime());
 
+#if !defined(OS_LINUX)
+    auto memory_info = process_metric.second->GetMemoryInfo();
+
+    mate::Dictionary memory_dict = mate::Dictionary::CreateEmpty(isolate);
+    memory_dict.SetHidden("simple", true);
+    memory_dict.Set("workingSetSize",
+                    static_cast<double>(memory_info.working_set_size >> 10));
+    memory_dict.Set(
+        "peakWorkingSetSize",
+        static_cast<double>(memory_info.peak_working_set_size >> 10));
+
+#if defined(OS_WIN)
+    memory_dict.Set("privateBytes",
+                    static_cast<double>(memory_info.private_bytes >> 10));
+#endif
+
+    pid_dict.Set("memory", memory_dict);
+#endif
+
 #if defined(OS_MACOSX)
     pid_dict.Set("sandboxed", process_metric.second->IsSandboxed());
 #elif defined(OS_WIN)
@@ -1319,8 +1321,11 @@ bool App::IsInApplicationsFolder() {
   return ui::cocoa::AtomBundleMover::IsCurrentAppInApplicationsFolder();
 }
 
-int DockBounce(const std::string& type) {
+int DockBounce(mate::Arguments* args) {
   int request_id = -1;
+  std::string type = "informational";
+  args->GetNext(&type);
+
   if (type == "critical")
     request_id = Browser::Get()->DockBounce(Browser::BounceType::CRITICAL);
   else if (type == "informational")

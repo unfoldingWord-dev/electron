@@ -20,13 +20,15 @@
 #include "net/cert/x509_certificate.h"
 #include "net/cert/x509_util.h"
 #include "net/http/http_response_headers.h"
-#include "net/url_request/url_request.h"
+#include "net/http/http_version.h"
+#include "net/url_request/redirect_info.h"
 #include "services/network/public/cpp/resource_request.h"
+#include "shell/browser/api/atom_api_data_pipe_holder.h"
+#include "shell/browser/net/cert_verifier_client.h"
 #include "shell/common/native_mate_converters/gurl_converter.h"
 #include "shell/common/native_mate_converters/string16_converter.h"
 #include "shell/common/native_mate_converters/value_converter.h"
 #include "shell/common/node_includes.h"
-#include "storage/browser/blob/upload_blob_element_reader.h"
 
 namespace mate {
 
@@ -161,15 +163,10 @@ v8::Local<v8::Value> Converter<net::HttpResponseHeaders*>::ToV8(
     std::string value;
     while (headers->EnumerateHeaderLines(&iter, &key, &value)) {
       key = base::ToLowerASCII(key);
-      if (response_headers.FindKey(key)) {
-        base::ListValue* values = nullptr;
-        if (response_headers.GetList(key, &values))
-          values->AppendString(value);
-      } else {
-        auto values = std::make_unique<base::ListValue>();
-        values->AppendString(value);
-        response_headers.Set(key, std::move(values));
-      }
+      base::Value* values = response_headers.FindListKey(key);
+      if (!values)
+        values = response_headers.SetKey(key, base::ListValue());
+      values->GetList().emplace_back(value);
     }
   }
   return ConvertToV8(isolate, response_headers);
@@ -227,6 +224,54 @@ bool Converter<net::HttpResponseHeaders*>::FromV8(
 }
 
 // static
+v8::Local<v8::Value> Converter<net::HttpRequestHeaders>::ToV8(
+    v8::Isolate* isolate,
+    const net::HttpRequestHeaders& val) {
+  mate::Dictionary headers(isolate, v8::Object::New(isolate));
+  for (net::HttpRequestHeaders::Iterator it(val); it.GetNext();)
+    headers.Set(it.name(), it.value());
+  return ConvertToV8(isolate, headers);
+}
+
+// static
+v8::Local<v8::Value> Converter<network::ResourceRequestBody>::ToV8(
+    v8::Isolate* isolate,
+    const network::ResourceRequestBody& val) {
+  const auto& elements = *val.elements();
+  v8::Local<v8::Array> arr = v8::Array::New(isolate, elements.size());
+  for (size_t i = 0; i < elements.size(); ++i) {
+    const auto& element = elements[i];
+    mate::Dictionary upload_data(isolate, v8::Object::New(isolate));
+    switch (element.type()) {
+      case network::mojom::DataElementType::kFile:
+        upload_data.Set("file", element.path().value());
+        break;
+      case network::mojom::DataElementType::kBytes:
+        upload_data.Set("bytes", node::Buffer::Copy(isolate, element.bytes(),
+                                                    element.length())
+                                     .ToLocalChecked());
+        break;
+      case network::mojom::DataElementType::kDataPipe: {
+        // TODO(zcbenz): After the NetworkService refactor, the old blobUUID API
+        // becomes unecessarily complex, we should deprecate the getBlobData API
+        // and return the DataPipeHolder wrapper directly.
+        auto holder = electron::api::DataPipeHolder::Create(isolate, element);
+        upload_data.Set("blobUUID", holder->id());
+        // The lifetime of data pipe is bound to the uploadData object.
+        upload_data.Set("dataPipe", gin::ConvertToV8(isolate, holder));
+        break;
+      }
+      default:
+        NOTREACHED() << "Found unsupported data element";
+    }
+    arr->Set(isolate->GetCurrentContext(), static_cast<uint32_t>(i),
+             ConvertToV8(isolate, upload_data))
+        .Check();
+  }
+  return arr;
+}
+
+// static
 v8::Local<v8::Value> Converter<network::ResourceRequest>::ToV8(
     v8::Isolate* isolate,
     const network::ResourceRequest& val) {
@@ -234,38 +279,50 @@ v8::Local<v8::Value> Converter<network::ResourceRequest>::ToV8(
   dict.Set("method", val.method);
   dict.Set("url", val.url.spec());
   dict.Set("referrer", val.referrer.spec());
-  mate::Dictionary headers(isolate, v8::Object::New(isolate));
-  for (net::HttpRequestHeaders::Iterator it(val.headers); it.GetNext();)
-    headers.Set(it.name(), it.value());
-  dict.Set("headers", headers);
-  if (val.request_body) {
-    const auto& elements = *val.request_body->elements();
-    v8::Local<v8::Array> arr = v8::Array::New(isolate, elements.size());
-    for (size_t i = 0; i < elements.size(); ++i) {
-      const auto& element = elements[i];
-      mate::Dictionary upload_data(isolate, v8::Object::New(isolate));
-      switch (element.type()) {
-        case network::mojom::DataElementType::kFile:
-          upload_data.Set("file", element.path().value());
-          break;
-        case network::mojom::DataElementType::kBytes:
-          upload_data.Set("bytes", node::Buffer::Copy(isolate, element.bytes(),
-                                                      element.length())
-                                       .ToLocalChecked());
-          break;
-        case network::mojom::DataElementType::kBlob:
-          upload_data.Set("blobUUID", element.blob_uuid());
-          break;
-        default:
-          NOTREACHED() << "Found unsupported data element";
-      }
-      arr->Set(isolate->GetCurrentContext(), static_cast<uint32_t>(i),
-               upload_data.GetHandle())
-          .Check();
-    }
-    dict.Set("uploadData", arr);
-  }
+  dict.Set("headers", val.headers);
+  if (val.request_body)
+    dict.Set("uploadData", ConvertToV8(isolate, *val.request_body));
+  return ConvertToV8(isolate, dict);
+}
+
+// static
+v8::Local<v8::Value> Converter<electron::VerifyRequestParams>::ToV8(
+    v8::Isolate* isolate,
+    electron::VerifyRequestParams val) {
+  mate::Dictionary dict = mate::Dictionary::CreateEmpty(isolate);
+  dict.Set("hostname", val.hostname);
+  dict.Set("certificate", val.certificate);
+  dict.Set("verificationResult", val.default_result);
+  dict.Set("errorCode", val.error_code);
   return dict.GetHandle();
+}
+
+// static
+v8::Local<v8::Value> Converter<net::HttpVersion>::ToV8(
+    v8::Isolate* isolate,
+    const net::HttpVersion& val) {
+  mate::Dictionary dict = mate::Dictionary::CreateEmpty(isolate);
+  dict.Set("major", static_cast<uint32_t>(val.major_value()));
+  dict.Set("minor", static_cast<uint32_t>(val.minor_value()));
+  return ConvertToV8(isolate, dict);
+}
+
+// static
+v8::Local<v8::Value> Converter<net::RedirectInfo>::ToV8(
+    v8::Isolate* isolate,
+    const net::RedirectInfo& val) {
+  mate::Dictionary dict = mate::Dictionary::CreateEmpty(isolate);
+
+  dict.Set("statusCode", val.status_code);
+  dict.Set("newMethod", val.new_method);
+  dict.Set("newUrl", val.new_url);
+  dict.Set("newSiteForCookies", val.new_site_for_cookies);
+  dict.Set("newReferrer", val.new_referrer);
+  dict.Set("insecureSchemeWasUpgraded", val.insecure_scheme_was_upgraded);
+  dict.Set("isSignedExchangeFallbackRedirect",
+           val.is_signed_exchange_fallback_redirect);
+
+  return ConvertToV8(isolate, dict);
 }
 
 }  // namespace mate
@@ -312,11 +369,12 @@ void GetUploadData(base::ListValue* upload_data_list,
       const net::UploadFileElementReader* file_reader = reader->AsFileReader();
       auto file_path = file_reader->path().AsUTF8Unsafe();
       upload_data_dict->SetKey("file", base::Value(file_path));
-    } else {
-      const storage::UploadBlobElementReader* blob_reader =
-          static_cast<storage::UploadBlobElementReader*>(reader.get());
-      upload_data_dict->SetString("blobUUID", blob_reader->uuid());
     }
+    // else {
+    //   const storage::UploadBlobElementReader* blob_reader =
+    //       static_cast<storage::UploadBlobElementReader*>(reader.get());
+    //   upload_data_dict->SetString("blobUUID", blob_reader->uuid());
+    // }
     upload_data_list->Append(std::move(upload_data_dict));
   }
 }

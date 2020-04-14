@@ -10,9 +10,9 @@
 
 #include "base/values.h"
 #include "content/public/browser/download_manager.h"
+#include "electron/buildflags/buildflags.h"
 #include "native_mate/handle.h"
 #include "shell/browser/api/trackable_object.h"
-#include "shell/browser/atom_blob_reader.h"
 #include "shell/browser/net/resolve_proxy_helper.h"
 #include "shell/common/promise_util.h"
 
@@ -85,6 +85,11 @@ class Session : public mate::TrackableObject<Session>,
   v8::Local<v8::Value> Protocol(v8::Isolate* isolate);
   v8::Local<v8::Value> WebRequest(v8::Isolate* isolate);
   v8::Local<v8::Value> NetLog(v8::Isolate* isolate);
+  void Preconnect(const mate::Dictionary& options, mate::Arguments* args);
+
+#if BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
+  void LoadChromeExtension(const base::FilePath extension_path);
+#endif
 
  protected:
   Session(v8::Isolate* isolate, AtomBrowserContext* browser_context);
@@ -95,11 +100,13 @@ class Session : public mate::TrackableObject<Session>,
                          download::DownloadItem* item) override;
 
  private:
-  // Cached object.
+  // Cached mate::Wrappable objects.
   v8::Global<v8::Value> cookies_;
   v8::Global<v8::Value> protocol_;
-  v8::Global<v8::Value> web_request_;
   v8::Global<v8::Value> net_log_;
+
+  // Cached object.
+  v8::Global<v8::Value> web_request_;
 
   // The client id to enable the network throttler.
   base::UnguessableToken network_emulation_token_;

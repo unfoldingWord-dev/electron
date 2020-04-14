@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "base/macros.h"
+#include "base/optional.h"
 #include "native_mate/converter.h"
 
 namespace mate {
@@ -26,12 +27,23 @@ class Arguments {
 
   template <typename T>
   bool GetHolder(T* out) {
-    return ConvertFromV8(isolate_, info_->Holder(), out);
+    return mate::ConvertFromV8(isolate_, info_->Holder(), out);
   }
 
   template <typename T>
   bool GetData(T* out) {
     return ConvertFromV8(isolate_, info_->Data(), out);
+  }
+
+  template <typename T>
+  bool GetNext(base::Optional<T>* out) {
+    if (next_ >= info_->Length())
+      return true;
+    v8::Local<v8::Value> val = (*info_)[next_];
+    bool success = ConvertFromV8(isolate_, val, out);
+    if (success)
+      next_++;
+    return success;
   }
 
   template <typename T>
@@ -41,7 +53,7 @@ class Arguments {
       return false;
     }
     v8::Local<v8::Value> val = (*info_)[next_];
-    bool success = ConvertFromV8(isolate_, val, out);
+    bool success = mate::ConvertFromV8(isolate_, val, out);
     if (success)
       next_++;
     return success;

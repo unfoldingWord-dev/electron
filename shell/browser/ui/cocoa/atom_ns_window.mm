@@ -72,6 +72,10 @@ bool ScopedDisableResize::disable_resize_ = false;
   }
 }
 
+- (void)rotateWithEvent:(NSEvent*)event {
+  shell_->NotifyWindowRotateGesture(event.rotation);
+}
+
 - (NSRect)contentRectForFrameRect:(NSRect)frameRect {
   if (shell_->has_frame())
     return [super contentRectForFrameRect:frameRect];
@@ -99,8 +103,6 @@ bool ScopedDisableResize::disable_resize_ = false;
 }
 
 - (id)accessibilityAttributeValue:(NSString*)attribute {
-  if ([attribute isEqual:NSAccessibilityTitleAttribute])
-    return base::SysUTF8ToNSString(shell_->GetTitle());
   if ([attribute isEqual:NSAccessibilityEnabledAttribute])
     return [NSNumber numberWithBool:YES];
   if (![attribute isEqualToString:@"AXChildren"])
@@ -119,6 +121,10 @@ bool ScopedDisableResize::disable_resize_ = false;
 
   NSArray* children = [super accessibilityAttributeValue:attribute];
   return [children filteredArrayUsingPredicate:predicate];
+}
+
+- (NSString*)accessibilityTitle {
+  return base::SysUTF8ToNSString(shell_->GetTitle());
 }
 
 - (BOOL)canBecomeMainWindow {
@@ -174,8 +180,14 @@ bool ScopedDisableResize::disable_resize_ = false;
 }
 
 - (void)toggleFullScreenMode:(id)sender {
-  if (shell_->simple_fullscreen())
-    shell_->SetSimpleFullScreen(!shell_->IsSimpleFullScreen());
+  bool is_simple_fs = shell_->IsSimpleFullScreen();
+  bool always_simple_fs = shell_->always_simple_fullscreen();
+
+  // If we're in simple fullscreen mode and trying to exit it
+  // we need to ensure we exit it properly to prevent a crash
+  // with NSWindowStyleMaskTitled mode
+  if (is_simple_fs || always_simple_fs)
+    shell_->SetSimpleFullScreen(!is_simple_fs);
   else
     [super toggleFullScreen:sender];
 }

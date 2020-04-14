@@ -55,6 +55,10 @@
 #include "shell/browser/printing/print_preview_message_handler.h"
 #endif
 
+#if BUILDFLAG(ENABLE_PICTURE_IN_PICTURE)
+#include "chrome/browser/picture_in_picture/picture_in_picture_window_manager.h"
+#endif
+
 using content::BrowserThread;
 
 namespace electron {
@@ -174,8 +178,8 @@ bool IsDevToolsFileSystemAdded(content::WebContents* web_contents,
 
 CommonWebContentsDelegate::CommonWebContentsDelegate()
     : devtools_file_system_indexer_(new DevToolsFileSystemIndexer),
-      file_task_runner_(
-          base::CreateSequencedTaskRunnerWithTraits({base::MayBlock()})),
+      file_task_runner_(base::CreateSequencedTaskRunner(
+          {base::ThreadPool(), base::MayBlock()})),
       weak_factory_(this) {}
 
 CommonWebContentsDelegate::~CommonWebContentsDelegate() {}
@@ -279,8 +283,21 @@ content::WebContents* CommonWebContentsDelegate::OpenURLFromTab(
   load_url_params.should_replace_current_entry =
       params.should_replace_current_entry;
   load_url_params.is_renderer_initiated = params.is_renderer_initiated;
+  load_url_params.started_from_context_menu = params.started_from_context_menu;
   load_url_params.initiator_origin = params.initiator_origin;
-  load_url_params.should_clear_history_list = true;
+  load_url_params.source_site_instance = params.source_site_instance;
+  load_url_params.frame_tree_node_id = params.frame_tree_node_id;
+  load_url_params.redirect_chain = params.redirect_chain;
+  load_url_params.has_user_gesture = params.user_gesture;
+  load_url_params.blob_url_loader_factory = params.blob_url_loader_factory;
+  load_url_params.href_translate = params.href_translate;
+  load_url_params.reload_type = params.reload_type;
+
+  if (params.post_data) {
+    load_url_params.load_type =
+        content::NavigationController::LOAD_TYPE_HTTP_POST;
+    load_url_params.post_data = params.post_data;
+  }
 
   source->GetController().LoadURLWithParams(load_url_params);
   return source;
@@ -340,6 +357,13 @@ void CommonWebContentsDelegate::ExitFullscreenModeForTab(
     return;
   SetHtmlApiFullscreen(false);
   owner_window_->NotifyWindowLeaveHtmlFullScreen();
+
+  if (native_fullscreen_) {
+    // Explicitly trigger a view resize, as the size is not actually changing if
+    // the browser is fullscreened, too. Chrome does this indirectly from
+    // `chrome/browser/ui/exclusive_access/fullscreen_controller.cc`.
+    source->GetRenderViewHost()->GetWidget()->SynchronizeVisualProperties();
+  }
 }
 
 bool CommonWebContentsDelegate::IsFullscreenForTabOrPending(
@@ -635,6 +659,25 @@ void CommonWebContentsDelegate::SetHtmlApiFullscreen(bool enter_fullscreen) {
 
   html_fullscreen_ = enter_fullscreen;
   native_fullscreen_ = false;
+}
+
+content::PictureInPictureResult
+CommonWebContentsDelegate::EnterPictureInPicture(
+    content::WebContents* web_contents,
+    const viz::SurfaceId& surface_id,
+    const gfx::Size& natural_size) {
+#if BUILDFLAG(ENABLE_PICTURE_IN_PICTURE)
+  return PictureInPictureWindowManager::GetInstance()->EnterPictureInPicture(
+      web_contents, surface_id, natural_size);
+#else
+  return content::PictureInPictureResult::kNotSupported;
+#endif
+}
+
+void CommonWebContentsDelegate::ExitPictureInPicture() {
+#if BUILDFLAG(ENABLE_PICTURE_IN_PICTURE)
+  PictureInPictureWindowManager::GetInstance()->ExitPictureInPicture();
+#endif
 }
 
 void CommonWebContentsDelegate::ShowAutofillPopup(

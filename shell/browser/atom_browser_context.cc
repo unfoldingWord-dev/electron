@@ -10,6 +10,7 @@
 #include "base/files/file_path.h"
 #include "base/path_service.h"
 #include "base/strings/string_util.h"
+#include "base/task/post_task.h"
 #include "base/threading/sequenced_task_runner_handle.h"
 #include "base/threading/thread_restrictions.h"
 #include "chrome/common/chrome_paths.h"
@@ -25,9 +26,12 @@
 #include "content/browser/blob_storage/chrome_blob_storage_context.h"  // nogncheck
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/storage_partition.h"
+#include "mojo/public/cpp/bindings/self_owned_receiver.h"
 #include "net/base/escape.h"
 #include "services/network/public/cpp/features.h"
-#include "shell/browser/atom_blob_reader.h"
+#include "services/network/public/cpp/wrapper_shared_url_loader_factory.h"
+#include "services/network/public/mojom/network_context.mojom.h"
+#include "shell/browser/api/atom_api_url_loader.h"
 #include "shell/browser/atom_browser_client.h"
 #include "shell/browser/atom_browser_main_parts.h"
 #include "shell/browser/atom_download_manager_delegate.h"
@@ -42,6 +46,22 @@
 #include "shell/browser/zoom_level_delegate.h"
 #include "shell/common/application_info.h"
 #include "shell/common/options_switches.h"
+
+#if BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
+#include "components/pref_registry/pref_registry_syncable.h"
+#include "components/user_prefs/user_prefs.h"
+#include "extensions/browser/browser_context_keyed_service_factories.h"
+#include "extensions/browser/extension_pref_store.h"
+#include "extensions/browser/extension_pref_value_map_factory.h"
+#include "extensions/browser/extension_prefs.h"
+#include "extensions/browser/pref_names.h"
+#include "extensions/common/extension_api.h"
+#include "shell/browser/extensions/atom_browser_context_keyed_service_factories.h"
+#include "shell/browser/extensions/atom_extension_system.h"
+#include "shell/browser/extensions/atom_extension_system_factory.h"
+#include "shell/browser/extensions/atom_extensions_browser_client.h"
+#include "shell/common/extensions/atom_extensions_client.h"
+#endif  // BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
 
 using content::BrowserThread;
 
@@ -91,18 +111,22 @@ AtomBrowserContext::AtomBrowserContext(const std::string& partition,
 
   content::BrowserContext::Initialize(this, path_);
 
+  BrowserContextDependencyManager::GetInstance()->MarkBrowserContextLive(this);
+
   // Initialize Pref Registry.
   InitPrefs();
 
-  if (!base::FeatureList::IsEnabled(network::features::kNetworkService)) {
-    proxy_config_monitor_ = std::make_unique<ProxyConfigMonitor>(prefs_.get());
-    io_handle_ =
-        new URLRequestContextGetter::Handle(weak_factory_.GetWeakPtr());
-  }
-
   cookie_change_notifier_ = std::make_unique<CookieChangeNotifier>(this);
 
-  BrowserContextDependencyManager::GetInstance()->MarkBrowserContextLive(this);
+#if BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
+  BrowserContextDependencyManager::GetInstance()->CreateBrowserContextServices(
+      this);
+
+  extension_system_ = static_cast<extensions::AtomExtensionSystem*>(
+      extensions::ExtensionSystem::Get(this));
+  extension_system_->InitForRegularProfile(true /* extensions_enabled */);
+  extension_system_->FinishInitialization();
+#endif
 }
 
 AtomBrowserContext::~AtomBrowserContext() {
@@ -110,12 +134,8 @@ AtomBrowserContext::~AtomBrowserContext() {
   NotifyWillBeDestroyed(this);
   ShutdownStoragePartitions();
 
-  if (!base::FeatureList::IsEnabled(network::features::kNetworkService)) {
-    io_handle_->ShutdownOnUIThread();
-  } else {
-    BrowserThread::DeleteSoon(BrowserThread::IO, FROM_HERE,
-                              std::move(resource_context_));
-  }
+  BrowserThread::DeleteSoon(BrowserThread::IO, FROM_HERE,
+                            std::move(resource_context_));
 
   // Notify any keyed services of browser context destruction.
   BrowserContextDependencyManager::GetInstance()->DestroyBrowserContextServices(
@@ -131,7 +151,16 @@ void AtomBrowserContext::InitPrefs() {
   pref_store->ReadPrefs();  // Synchronous.
   prefs_factory.set_user_prefs(pref_store);
 
+#if BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
+  auto* ext_pref_store = new ExtensionPrefStore(
+      ExtensionPrefValueMapFactory::GetForBrowserContext(this),
+      IsOffTheRecord());
+  prefs_factory.set_extension_prefs(ext_pref_store);
+
+  auto registry = WrapRefCounted(new user_prefs::PrefRegistrySyncable);
+#else
   auto registry = WrapRefCounted(new PrefRegistrySimple);
+#endif
 
   registry->RegisterFilePathPref(prefs::kSelectFileLastDirectory,
                                  base::FilePath());
@@ -144,56 +173,21 @@ void AtomBrowserContext::InitPrefs() {
   MediaDeviceIDSalt::RegisterPrefs(registry.get());
   ZoomLevelDelegate::RegisterPrefs(registry.get());
   PrefProxyConfigTrackerImpl::RegisterPrefs(registry.get());
+#if BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
+  extensions::ExtensionPrefs::RegisterProfilePrefs(registry.get());
+#endif
 
   prefs_ = prefs_factory.Create(
       registry.get(),
       std::make_unique<PrefStoreDelegate>(weak_factory_.GetWeakPtr()));
   prefs_->UpdateCommandLinePrefStore(new ValueMapPrefStore);
+#if BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
+  user_prefs::UserPrefs::Set(this, prefs_.get());
+#endif
 }
 
 void AtomBrowserContext::SetUserAgent(const std::string& user_agent) {
   user_agent_ = user_agent;
-}
-
-net::URLRequestContextGetter* AtomBrowserContext::CreateRequestContext(
-    content::ProtocolHandlerMap* protocol_handlers,
-    content::URLRequestInterceptorScopedVector protocol_interceptors) {
-  if (!base::FeatureList::IsEnabled(network::features::kNetworkService)) {
-    return io_handle_
-        ->CreateMainRequestContextGetter(protocol_handlers,
-                                         std::move(protocol_interceptors))
-        .get();
-  } else {
-    NOTREACHED();
-    return nullptr;
-  }
-}
-
-net::URLRequestContextGetter* AtomBrowserContext::CreateMediaRequestContext() {
-  if (!base::FeatureList::IsEnabled(network::features::kNetworkService)) {
-    return io_handle_->GetMainRequestContextGetter().get();
-  } else {
-    NOTREACHED();
-    return nullptr;
-  }
-}
-
-net::URLRequestContextGetter* AtomBrowserContext::GetRequestContext() {
-  if (!base::FeatureList::IsEnabled(network::features::kNetworkService)) {
-    return GetDefaultStoragePartition(this)->GetURLRequestContext();
-  } else {
-    NOTREACHED();
-    return nullptr;
-  }
-}
-
-network::mojom::NetworkContextPtr AtomBrowserContext::GetNetworkContext() {
-  if (!base::FeatureList::IsEnabled(network::features::kNetworkService)) {
-    return io_handle_->GetNetworkContext();
-  } else {
-    NOTREACHED();
-    return nullptr;
-  }
 }
 
 base::FilePath AtomBrowserContext::GetPath() {
@@ -213,13 +207,9 @@ int AtomBrowserContext::GetMaxCacheSize() const {
 }
 
 content::ResourceContext* AtomBrowserContext::GetResourceContext() {
-  if (!base::FeatureList::IsEnabled(network::features::kNetworkService)) {
-    return io_handle_->GetResourceContext();
-  } else {
-    if (!resource_context_)
-      resource_context_.reset(new content::ResourceContext);
-    return resource_context_.get();
-  }
+  if (!resource_context_)
+    resource_context_.reset(new content::ResourceContext);
+  return resource_context_.get();
 }
 
 std::string AtomBrowserContext::GetMediaDeviceIDSalt() {
@@ -268,13 +258,83 @@ std::string AtomBrowserContext::GetUserAgent() const {
   return user_agent_;
 }
 
-AtomBlobReader* AtomBrowserContext::GetBlobReader() {
-  if (!blob_reader_.get()) {
-    content::ChromeBlobStorageContext* blob_context =
-        content::ChromeBlobStorageContext::GetFor(this);
-    blob_reader_.reset(new AtomBlobReader(blob_context));
+predictors::PreconnectManager* AtomBrowserContext::GetPreconnectManager() {
+  if (!preconnect_manager_.get()) {
+    preconnect_manager_.reset(new predictors::PreconnectManager(nullptr, this));
   }
-  return blob_reader_.get();
+  return preconnect_manager_.get();
+}
+
+scoped_refptr<network::SharedURLLoaderFactory>
+AtomBrowserContext::GetURLLoaderFactory() {
+  if (url_loader_factory_)
+    return url_loader_factory_;
+
+  network::mojom::URLLoaderFactoryPtr network_factory;
+  mojo::PendingReceiver<network::mojom::URLLoaderFactory> factory_request =
+      mojo::MakeRequest(&network_factory);
+
+  // Consult the embedder.
+  mojo::PendingRemote<network::mojom::TrustedURLLoaderHeaderClient>
+      header_client;
+  static_cast<content::ContentBrowserClient*>(AtomBrowserClient::Get())
+      ->WillCreateURLLoaderFactory(
+          this, nullptr, -1,
+          content::ContentBrowserClient::URLLoaderFactoryType::kNavigation,
+          url::Origin(), &factory_request, &header_client, nullptr);
+
+  network::mojom::URLLoaderFactoryParamsPtr params =
+      network::mojom::URLLoaderFactoryParams::New();
+  params->header_client = std::move(header_client);
+  params->auth_client = auth_client_.BindNewPipeAndPassRemote();
+  params->process_id = network::mojom::kBrowserProcessId;
+  params->is_corb_enabled = false;
+  // The tests of net module would fail if this setting is true, it seems that
+  // the non-NetworkService implementation always has web security enabled.
+  params->disable_web_security = false;
+
+  auto* storage_partition =
+      content::BrowserContext::GetDefaultStoragePartition(this);
+  storage_partition->GetNetworkContext()->CreateURLLoaderFactory(
+      std::move(factory_request), std::move(params));
+  url_loader_factory_ =
+      base::MakeRefCounted<network::WrapperSharedURLLoaderFactory>(
+          std::move(network_factory));
+  return url_loader_factory_;
+}
+
+class AuthResponder : public network::mojom::TrustedAuthClient {
+ public:
+  AuthResponder() {}
+  ~AuthResponder() override = default;
+
+ private:
+  void OnAuthRequired(
+      const base::Optional<::base::UnguessableToken>& window_id,
+      uint32_t process_id,
+      uint32_t routing_id,
+      uint32_t request_id,
+      const ::GURL& url,
+      bool first_auth_attempt,
+      const ::net::AuthChallengeInfo& auth_info,
+      ::network::mojom::URLResponseHeadPtr head,
+      mojo::PendingRemote<network::mojom::AuthChallengeResponder>
+          auth_challenge_responder) override {
+    api::SimpleURLLoaderWrapper* url_loader =
+        api::SimpleURLLoaderWrapper::FromID(routing_id);
+    if (url_loader) {
+      url_loader->OnAuthRequired(url, first_auth_attempt, auth_info,
+                                 std::move(head),
+                                 std::move(auth_challenge_responder));
+    }
+  }
+};
+
+void AtomBrowserContext::OnLoaderCreated(
+    int32_t request_id,
+    mojo::PendingReceiver<network::mojom::TrustedAuthClient> auth_client) {
+  mojo::MakeSelfOwnedReceiver(std::make_unique<AuthResponder>(),
+                              std::move(auth_client));
 }
 
 content::PushMessagingService* AtomBrowserContext::GetPushMessagingService() {
@@ -303,6 +363,16 @@ AtomBrowserContext::GetBrowsingDataRemoverDelegate() {
 content::ClientHintsControllerDelegate*
 AtomBrowserContext::GetClientHintsControllerDelegate() {
   return nullptr;
+}
+
+void AtomBrowserContext::SetCorsOriginAccessListForOrigin(
+    const url::Origin& source_origin,
+    std::vector<network::mojom::CorsOriginPatternPtr> allow_patterns,
+    std::vector<network::mojom::CorsOriginPatternPtr> block_patterns,
+    base::OnceClosure closure) {
+  // TODO(nornagon): actually set the CORS access lists. This is called from
+  // extensions/browser/renderer_startup_helper.cc.
+  base::ThreadTaskRunnerHandle::Get()->PostTask(FROM_HERE, std::move(closure));
 }
 
 ResolveProxyHelper* AtomBrowserContext::GetResolveProxyHelper() {

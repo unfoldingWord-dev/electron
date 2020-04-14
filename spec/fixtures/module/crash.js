@@ -8,6 +8,12 @@ process.crashReporter.start({
     extra2: 'extra2',
     _version: process.argv[3]
   }
-})
+});
 
-process.nextTick(() => process.crash())
+if (process.platform !== 'linux') {
+  process.crashReporter.addExtraParameter('newExtra', 'newExtra');
+  process.crashReporter.addExtraParameter('removeExtra', 'removeExtra');
+  process.crashReporter.removeExtraParameter('removeExtra');
+}
+
+process.nextTick(() => process.crash());

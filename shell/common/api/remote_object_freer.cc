@@ -4,11 +4,13 @@
 
 #include "shell/common/api/remote_object_freer.h"
 
+#include <utility>
+
 #include "base/strings/utf_string_conversions.h"
 #include "base/values.h"
 #include "content/public/renderer/render_frame.h"
 #include "electron/shell/common/api/api.mojom.h"
-#include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
+#include "services/service_manager/public/cpp/interface_provider.h"
 #include "third_party/blink/public/web/web_local_frame.h"
 
 using blink::WebLocalFrame;
@@ -76,10 +78,10 @@ void RemoteObjectFreer::RunDestructor() {
   if (ref_mapper_[context_id_].empty())
     ref_mapper_.erase(context_id_);
 
-  mojom::ElectronBrowserAssociatedPtr electron_ptr;
-  render_frame->GetRemoteAssociatedInterfaces()->GetInterface(
+  mojom::ElectronBrowserPtr electron_ptr;
+  render_frame->GetRemoteInterfaces()->GetInterface(
       mojo::MakeRequest(&electron_ptr));
-  electron_ptr->Message(true, channel, args.Clone());
+  electron_ptr->Message(true, channel, std::move(args));
 }
 
 }  // namespace electron

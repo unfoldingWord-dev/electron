@@ -1,1289 +1,1493 @@
-import { expect } from 'chai'
-import { net, session, ClientRequest } from 'electron'
-import * as http from 'http'
-import * as url from 'url'
-import { AddressInfo } from 'net'
+import { expect } from 'chai';
+import { net, session, ClientRequest, BrowserWindow } from 'electron';
+import * as http from 'http';
+import * as url from 'url';
+import { AddressInfo, Socket } from 'net';
+import { emittedOnce } from './events-helpers';
 
-const kOneKiloByte = 1024
-const kOneMegaByte = kOneKiloByte * kOneKiloByte
+const kOneKiloByte = 1024;
+const kOneMegaByte = kOneKiloByte * kOneKiloByte;
 
 function randomBuffer (size: number, start: number = 0, end: number = 255) {
-  const range = 1 + end - start
-  const buffer = Buffer.allocUnsafe(size)
+  const range = 1 + end - start;
+  const buffer = Buffer.allocUnsafe(size);
   for (let i = 0; i < size; ++i) {
-    buffer[i] = start + Math.floor(Math.random() * range)
+    buffer[i] = start + Math.floor(Math.random() * range);
   }
-  return buffer
+  return buffer;
 }
 
 function randomString (length: number) {
-  const buffer = randomBuffer(length, '0'.charCodeAt(0), 'z'.charCodeAt(0))
-  return buffer.toString()
+  const buffer = randomBuffer(length, '0'.charCodeAt(0), 'z'.charCodeAt(0));
+  return buffer.toString();
 }
 
-function respondOnce(fn: http.RequestListener): Promise<string> {
+const cleanupTasks: (() => void)[] = [];
+
+function cleanUp () {
+  cleanupTasks.forEach(t => t());
+  cleanupTasks.length = 0;
+}
+
+async function getResponse (urlRequest: Electron.ClientRequest) {
+  return new Promise<Electron.IncomingMessage>((resolve, reject) => {
+    urlRequest.on('error', reject);
+    urlRequest.on('abort', reject);
+    urlRequest.on('response', (response) => resolve(response));
+    urlRequest.end();
+  });
+}
+
+async function collectStreamBody (response: Electron.IncomingMessage | http.IncomingMessage) {
+  return (await collectStreamBodyBuffer(response)).toString();
+}
+
+function collectStreamBodyBuffer (response: Electron.IncomingMessage | http.IncomingMessage) {
+  return new Promise<Buffer>((resolve, reject) => {
+    response.on('error', reject);
+    (response as NodeJS.EventEmitter).on('aborted', reject);
+    const data: Buffer[] = [];
+    response.on('data', (chunk) => data.push(chunk));
+    response.on('end', (chunk?: Buffer) => {
+      if (chunk) data.push(chunk);
+      resolve(Buffer.concat(data));
+    });
+  });
+}
+
+function respondNTimes (fn: http.RequestListener, n: number): Promise<string> {
   return new Promise((resolve) => {
     const server = http.createServer((request, response) => {
-      fn(request, response)
+      fn(request, response);
       // don't close if a redirect was returned
-      if (response.statusCode < 300 || response.statusCode >= 399)
-        server.close()
-    })
+      if ((response.statusCode < 300 || response.statusCode >= 399) && n <= 0) {
+        n--;
+        server.close();
+      }
+    });
     server.listen(0, '127.0.0.1', () => {
-      resolve(`http://127.0.0.1:${(server.address() as AddressInfo).port}`)
-    })
-  })
+      resolve(`http://127.0.0.1:${(server.address() as AddressInfo).port}`);
+    });
+    const sockets: Socket[] = [];
+    server.on('connection', s => sockets.push(s));
+    cleanupTasks.push(() => {
+      server.close();
+      sockets.forEach(s => s.destroy());
+    });
+  });
 }
 
-respondOnce.toRoutes = (routes: Record<string, http.RequestListener>) => {
-  return respondOnce((request, response) => {
+function respondOnce (fn: http.RequestListener) {
+  return respondNTimes(fn, 1);
+}
+
+let routeFailure = false;
+
+respondNTimes.toRoutes = (routes: Record<string, http.RequestListener>, n: number) => {
+  return respondNTimes((request, response) => {
     if (routes.hasOwnProperty(request.url || '')) {
-      routes[request.url || ''](request, response)
+      (async () => {
+        await Promise.resolve(routes[request.url || ''](request, response));
+      })().catch((err) => {
+        routeFailure = true;
+        console.error('Route handler failed, this is probably why your test failed', err);
+        response.statusCode = 500;
+        response.end();
+      });
     } else {
-      response.statusCode = 500
-      response.end()
-      expect.fail(`Unexpected URL: ${request.url}`)
+      response.statusCode = 500;
+      response.end();
+      expect.fail(`Unexpected URL: ${request.url}`);
     }
-  })
-}
+  }, n);
+};
+respondOnce.toRoutes = (routes: Record<string, http.RequestListener>) => respondNTimes.toRoutes(routes, 1);
 
-respondOnce.toURL = (url: string, fn: http.RequestListener) => {
-  return respondOnce.toRoutes({[url]: fn})
-}
+respondNTimes.toURL = (url: string, fn: http.RequestListener, n: number) => {
+  return respondNTimes.toRoutes({ [url]: fn }, n);
+};
+respondOnce.toURL = (url: string, fn: http.RequestListener) => respondNTimes.toURL(url, fn, 1);
 
-respondOnce.toSingleURL = (fn: http.RequestListener) => {
-  const requestUrl = '/requestUrl'
-  return respondOnce.toURL(requestUrl, fn).then(url => `${url}${requestUrl}`)
-}
+respondNTimes.toSingleURL = (fn: http.RequestListener, n: number) => {
+  const requestUrl = '/requestUrl';
+  return respondNTimes.toURL(requestUrl, fn, n).then(url => `${url}${requestUrl}`);
+};
+respondOnce.toSingleURL = (fn: http.RequestListener) => respondNTimes.toSingleURL(fn, 1);
 
 describe('net module', () => {
+  beforeEach(() => {
+    routeFailure = false;
+  });
+  afterEach(cleanUp);
+  afterEach(async function () {
+    await session.defaultSession.clearCache();
+    if (routeFailure && this.test) {
+      if (!this.test.isFailed()) {
+        throw new Error('Failing this test due an unhandled error in the respondOnce route handler, check the logs above for the actual error');
+      }
+    }
+  });
+
   describe('HTTP basics', () => {
-    it('should be able to issue a basic GET request', (done) => {
-      respondOnce.toSingleURL((request, response) => {
-        expect(request.method).to.equal('GET')
-        response.end()
-      }).then(serverUrl => {
-        const urlRequest = net.request(serverUrl)
-        urlRequest.on('response', (response) => {
-          expect(response.statusCode).to.equal(200)
-          response.on('data', () => {})
-          response.on('end', () => {
-            done()
-          })
-        })
-        urlRequest.end()
-      })
-    })
+    it('should be able to issue a basic GET request', async () => {
+      const serverUrl = await respondOnce.toSingleURL((request, response) => {
+        expect(request.method).to.equal('GET');
+        response.end();
+      });
+      const urlRequest = net.request(serverUrl);
+      const response = await getResponse(urlRequest);
+      expect(response.statusCode).to.equal(200);
+      await collectStreamBody(response);
+    });
 
-    it('should be able to issue a basic POST request', (done) => {
-      respondOnce.toSingleURL((request, response) => {
-        expect(request.method).to.equal('POST')
-        response.end()
-      }).then(serverUrl => {
-        const urlRequest = net.request({
-          method: 'POST',
-          url: serverUrl
-        })
-        urlRequest.on('response', (response) => {
-          expect(response.statusCode).to.equal(200)
-          response.on('data', () => { })
-          response.on('end', () => {
-            done()
-          })
-        })
-        urlRequest.end()
-      })
-    })
+    it('should be able to issue a basic POST request', async () => {
+      const serverUrl = await respondOnce.toSingleURL((request, response) => {
+        expect(request.method).to.equal('POST');
+        response.end();
+      });
+      const urlRequest = net.request({
+        method: 'POST',
+        url: serverUrl
+      });
+      const response = await getResponse(urlRequest);
+      expect(response.statusCode).to.equal(200);
+      await collectStreamBody(response);
+    });
 
-    it('should fetch correct data in a GET request', (done) => {
-      const bodyData = 'Hello World!'
-      respondOnce.toSingleURL((request, response) => {
-        expect(request.method).to.equal('GET')
-        response.end(bodyData)
-      }).then(serverUrl => {
-        const urlRequest = net.request(serverUrl)
-        urlRequest.on('response', (response) => {
-          let expectedBodyData = ''
-          expect(response.statusCode).to.equal(200)
-          response.on('data', (chunk) => {
-            expectedBodyData += chunk.toString()
-          })
-          response.on('end', () => {
-            expect(expectedBodyData).to.equal(bodyData)
-            done()
-          })
-        })
-        urlRequest.end()
-      })
-    })
+    it('should fetch correct data in a GET request', async () => {
+      const expectedBodyData = 'Hello World!';
+      const serverUrl = await respondOnce.toSingleURL((request, response) => {
+        expect(request.method).to.equal('GET');
+        response.end(expectedBodyData);
+      });
+      const urlRequest = net.request(serverUrl);
+      const response = await getResponse(urlRequest);
+      expect(response.statusCode).to.equal(200);
+      const body = await collectStreamBody(response);
+      expect(body).to.equal(expectedBodyData);
+    });
 
-    it('should post the correct data in a POST request', (done) => {
-      const bodyData = 'Hello World!'
-      respondOnce.toSingleURL((request, response) => {
-        let postedBodyData = ''
-        expect(request.method).to.equal('POST')
+    it('should post the correct data in a POST request', async () => {
+      const bodyData = 'Hello World!';
+      const serverUrl = await respondOnce.toSingleURL(async (request, response) => {
+        const postedBodyData = await collectStreamBody(request);
+        expect(postedBodyData).to.equal(bodyData);
+        response.end();
+      });
+      const urlRequest = net.request({
+        method: 'POST',
+        url: serverUrl
+      });
+      urlRequest.write(bodyData);
+      const response = await getResponse(urlRequest);
+      expect(response.statusCode).to.equal(200);
+    });
+
+    it('should support chunked encoding', async () => {
+      const serverUrl = await respondOnce.toSingleURL((request, response) => {
+        response.statusCode = 200;
+        response.statusMessage = 'OK';
+        response.chunkedEncoding = true;
+        expect(request.method).to.equal('POST');
+        expect(request.headers['transfer-encoding']).to.equal('chunked');
+        expect(request.headers['content-length']).to.equal(undefined);
         request.on('data', (chunk: Buffer) => {
-          postedBodyData += chunk.toString()
-        })
-        request.on('end', () => {
-          expect(postedBodyData).to.equal(bodyData)
-          response.end()
-        })
-      }).then(serverUrl => {
-        const urlRequest = net.request({
-          method: 'POST',
-          url: serverUrl
-        })
-        urlRequest.on('response', (response) => {
-          expect(response.statusCode).to.equal(200)
-          response.on('data', () => {})
-          response.on('end', () => {
-            done()
-          })
-        })
-        urlRequest.write(bodyData)
-        urlRequest.end()
-      })
-    })
-
-    it('should support chunked encoding', (done) => {
-      respondOnce.toSingleURL((request, response) => {
-        response.statusCode = 200
-        response.statusMessage = 'OK'
-        response.chunkedEncoding = true
-        expect(request.method).to.equal('POST')
-        expect(request.headers['transfer-encoding']).to.equal('chunked')
-        expect(request.headers['content-length']).to.equal(undefined)
-        request.on('data', (chunk: Buffer) => {
-          response.write(chunk)
-        })
+          response.write(chunk);
+        });
         request.on('end', (chunk: Buffer) => {
-          response.end(chunk)
-        })
-      }).then(serverUrl => {
-        const urlRequest = net.request({
-          method: 'POST',
-          url: serverUrl
-        })
+          response.end(chunk);
+        });
+      });
+      const urlRequest = net.request({
+        method: 'POST',
+        url: serverUrl
+      });
 
-        let chunkIndex = 0
-        const chunkCount = 100
-        const sentChunks: Array<Buffer> = []
-        const receivedChunks: Array<Buffer> = []
-        urlRequest.on('response', (response) => {
-          expect(response.statusCode).to.equal(200)
-          response.on('data', (chunk) => {
-            receivedChunks.push(chunk)
-          })
-          response.on('end', () => {
-            const sentData = Buffer.concat(sentChunks)
-            const receivedData = Buffer.concat(receivedChunks)
-            expect(sentData.toString()).to.equal(receivedData.toString())
-            expect(chunkIndex).to.be.equal(chunkCount)
-            done()
-          })
-        })
-        urlRequest.chunkedEncoding = true
-        while (chunkIndex < chunkCount) {
-          chunkIndex += 1
-          const chunk = randomBuffer(kOneKiloByte)
-          sentChunks.push(chunk)
-          expect(urlRequest.write(chunk)).to.equal(true)
+      let chunkIndex = 0;
+      const chunkCount = 100;
+      let sent = Buffer.alloc(0);
+
+      urlRequest.chunkedEncoding = true;
+      while (chunkIndex < chunkCount) {
+        chunkIndex += 1;
+        const chunk = randomBuffer(kOneKiloByte);
+        sent = Buffer.concat([sent, chunk]);
+        urlRequest.write(chunk);
+      }
+
+      const response = await getResponse(urlRequest);
+      expect(response.statusCode).to.equal(200);
+      const received = await collectStreamBodyBuffer(response);
+      expect(sent.equals(received)).to.be.true('sent equals received');
+      expect(chunkIndex).to.be.equal(chunkCount);
+    });
+
+    it('should emit the login event when 401', async () => {
+      const [user, pass] = ['user', 'pass'];
+      const serverUrl = await respondOnce.toSingleURL((request, response) => {
+        if (!request.headers.authorization) {
+          return response.writeHead(401, { 'WWW-Authenticate': 'Basic realm="Foo"' }).end();
         }
-        urlRequest.end()
-      })
-    })
-  })
+        response.writeHead(200).end('ok');
+      });
+      let loginAuthInfo: Electron.AuthInfo;
+      const request = net.request({ method: 'GET', url: serverUrl });
+      request.on('login', (authInfo, cb) => {
+        loginAuthInfo = authInfo;
+        cb(user, pass);
+      });
+      const response = await getResponse(request);
+      expect(response.statusCode).to.equal(200);
+      expect(loginAuthInfo!.realm).to.equal('Foo');
+      expect(loginAuthInfo!.scheme).to.equal('basic');
+    });
+
+    it('should response when cancelling authentication', async () => {
+      const serverUrl = await respondOnce.toSingleURL((request, response) => {
+        if (!request.headers.authorization) {
+          response.writeHead(401, { 'WWW-Authenticate': 'Basic realm="Foo"' });
+          response.end('unauthenticated');
+        } else {
+          response.writeHead(200).end('ok');
+        }
+      });
+      const request = net.request({ method: 'GET', url: serverUrl });
+      request.on('login', (authInfo, cb) => {
+        cb();
+      });
+      const response = await getResponse(request);
+      const body = await collectStreamBody(response);
+      expect(body).to.equal('unauthenticated');
+    });
+
+    it('should share credentials with WebContents', async () => {
+      const [user, pass] = ['user', 'pass'];
+      const serverUrl = await respondNTimes.toSingleURL((request, response) => {
+        if (!request.headers.authorization) {
+          return response.writeHead(401, { 'WWW-Authenticate': 'Basic realm="Foo"' }).end();
+        }
+        return response.writeHead(200).end('ok');
+      }, 2);
+      const bw = new BrowserWindow({ show: false });
+      bw.webContents.on('login', (event, details, authInfo, cb) => {
+        event.preventDefault();
+        cb(user, pass);
+      });
+      await bw.loadURL(serverUrl);
+      bw.close();
+      const request = net.request({ method: 'GET', url: serverUrl });
+      let logInCount = 0;
+      request.on('login', () => {
+        logInCount++;
+      });
+      const response = await getResponse(request);
+      await collectStreamBody(response);
+      expect(logInCount).to.equal(0, 'should not receive a login event, credentials should be cached');
+    });
+
+    it('should share proxy credentials with WebContents', async () => {
+      const [user, pass] = ['user', 'pass'];
+      const proxyUrl = await respondNTimes((request, response) => {
+        if (!request.headers['proxy-authorization']) {
+          return response.writeHead(407, { 'Proxy-Authenticate': 'Basic realm="Foo"' }).end();
+        }
+        return response.writeHead(200).end('ok');
+      }, 2);
+      const customSession = session.fromPartition(`net-proxy-test-${Math.random()}`);
+      await customSession.setProxy({ proxyRules: proxyUrl.replace('http://', ''), proxyBypassRules: '<-loopback>' } as any);
+      const bw = new BrowserWindow({ show: false, webPreferences: { session: customSession } });
+      bw.webContents.on('login', (event, details, authInfo, cb) => {
+        event.preventDefault();
+        cb(user, pass);
+      });
+      await bw.loadURL('http://127.0.0.1:9999');
+      bw.close();
+      const request = net.request({ method: 'GET', url: 'http://127.0.0.1:9999', session: customSession });
+      let logInCount = 0;
+      request.on('login', () => {
+        logInCount++;
+      });
+      const response = await getResponse(request);
+      const body = await collectStreamBody(response);
+      expect(response.statusCode).to.equal(200);
+      expect(body).to.equal('ok');
+      expect(logInCount).to.equal(0, 'should not receive a login event, credentials should be cached');
+    });
+
+    it('should upload body when 401', async () => {
+      const [user, pass] = ['user', 'pass'];
+      const serverUrl = await respondOnce.toSingleURL((request, response) => {
+        if (!request.headers.authorization) {
+          return response.writeHead(401, { 'WWW-Authenticate': 'Basic realm="Foo"' }).end();
+        }
+        response.writeHead(200);
+        request.on('data', (chunk) => response.write(chunk));
+        request.on('end', () => response.end());
+      });
+      const requestData = randomString(kOneKiloByte);
+      const request = net.request({ method: 'GET', url: serverUrl });
+      request.on('login', (authInfo, cb) => {
+        cb(user, pass);
+      });
+      request.write(requestData);
+      const response = await getResponse(request);
+      const responseData = await collectStreamBody(response);
+      expect(responseData).to.equal(requestData);
+    });
+  });
 
   describe('ClientRequest API', () => {
-    it('request/response objects should emit expected events', (done) => {
-      const bodyData = randomString(kOneKiloByte)
-      respondOnce.toSingleURL((request, response) => {
-        response.end(bodyData)
-      }).then(serverUrl => {
-        let requestResponseEventEmitted = false
-        let requestFinishEventEmitted = false
-        let requestCloseEventEmitted = false
-        let responseDataEventEmitted = false
-        let responseEndEventEmitted = false
+    it('request/response objects should emit expected events', async () => {
+      const bodyData = randomString(kOneKiloByte);
+      const serverUrl = await respondOnce.toSingleURL((request, response) => {
+        response.end(bodyData);
+      });
 
-        function maybeDone (done: () => void) {
-          if (!requestCloseEventEmitted || !responseEndEventEmitted) {
-            return
-          }
+      const urlRequest = net.request(serverUrl);
+      // request close event
+      const closePromise = emittedOnce(urlRequest, 'close');
+      // request finish event
+      const finishPromise = emittedOnce(urlRequest, 'close');
+      // request "response" event
+      const response = await getResponse(urlRequest);
+      response.on('error', (error: Error) => {
+        expect(error).to.be.an('Error');
+      });
+      const statusCode = response.statusCode;
+      expect(statusCode).to.equal(200);
+      // response data event
+      // respond end event
+      const body = await collectStreamBody(response);
+      expect(body).to.equal(bodyData);
+      urlRequest.on('error', (error) => {
+        expect(error).to.be.an('Error');
+      });
+      await Promise.all([closePromise, finishPromise]);
+    });
 
-          expect(requestResponseEventEmitted).to.equal(true)
-          expect(requestFinishEventEmitted).to.equal(true)
-          expect(requestCloseEventEmitted).to.equal(true)
-          expect(responseDataEventEmitted).to.equal(true)
-          expect(responseEndEventEmitted).to.equal(true)
-          done()
-        }
+    it('should be able to set a custom HTTP request header before first write', async () => {
+      const customHeaderName = 'Some-Custom-Header-Name';
+      const customHeaderValue = 'Some-Customer-Header-Value';
+      const serverUrl = await respondOnce.toSingleURL((request, response) => {
+        expect(request.headers[customHeaderName.toLowerCase()]).to.equal(customHeaderValue);
+        response.statusCode = 200;
+        response.statusMessage = 'OK';
+        response.end();
+      });
+      const urlRequest = net.request(serverUrl);
+      urlRequest.setHeader(customHeaderName, customHeaderValue);
+      expect(urlRequest.getHeader(customHeaderName)).to.equal(customHeaderValue);
+      expect(urlRequest.getHeader(customHeaderName.toLowerCase())).to.equal(customHeaderValue);
+      urlRequest.write('');
+      expect(urlRequest.getHeader(customHeaderName)).to.equal(customHeaderValue);
+      expect(urlRequest.getHeader(customHeaderName.toLowerCase())).to.equal(customHeaderValue);
+      const response = await getResponse(urlRequest);
+      expect(response.statusCode).to.equal(200);
+      await collectStreamBody(response);
+    });
 
-        const urlRequest = net.request(serverUrl)
-        urlRequest.on('response', (response) => {
-          requestResponseEventEmitted = true
-          const statusCode = response.statusCode
-          expect(statusCode).to.equal(200)
-          const buffers: Buffer[] = []
-          response.on('data', (chunk) => {
-            buffers.push(chunk)
-            responseDataEventEmitted = true
-          })
-          response.on('end', () => {
-            const receivedBodyData = Buffer.concat(buffers)
-            expect(receivedBodyData.toString()).to.equal(bodyData)
-            responseEndEventEmitted = true
-            maybeDone(done)
-          })
-          response.on('error', (error: Error) => {
-            expect(error).to.be.an('Error')
-          })
-          response.on('aborted', () => {
-            expect.fail('response aborted')
-          })
-        })
-        urlRequest.on('finish', () => {
-          requestFinishEventEmitted = true
-        })
-        urlRequest.on('error', (error) => {
-          expect(error).to.be.an('Error')
-        })
-        urlRequest.on('abort', () => {
-          expect.fail('request aborted')
-        })
-        urlRequest.on('close', () => {
-          requestCloseEventEmitted = true
-          maybeDone(done)
-        })
-        urlRequest.end()
-      })
-    })
+    it('should be able to set a non-string object as a header value', async () => {
+      const customHeaderName = 'Some-Integer-Value';
+      const customHeaderValue = 900;
+      const serverUrl = await respondOnce.toSingleURL((request, response) => {
+        expect(request.headers[customHeaderName.toLowerCase()]).to.equal(customHeaderValue.toString());
+        response.statusCode = 200;
+        response.statusMessage = 'OK';
+        response.end();
+      });
 
-    it('should be able to set a custom HTTP request header before first write', (done) => {
-      const customHeaderName = 'Some-Custom-Header-Name'
-      const customHeaderValue = 'Some-Customer-Header-Value'
-      respondOnce.toSingleURL((request, response) => {
-        expect(request.headers[customHeaderName.toLowerCase()]).to.equal(customHeaderValue)
-        response.statusCode = 200
-        response.statusMessage = 'OK'
-        response.end()
-      }).then(serverUrl => {
-        const urlRequest = net.request(serverUrl)
-        urlRequest.on('response', (response) => {
-          const statusCode = response.statusCode
-          expect(statusCode).to.equal(200)
-          response.on('data', () => {
-          })
-          response.on('end', () => {
-            done()
-          })
-        })
-        urlRequest.setHeader(customHeaderName, customHeaderValue)
-        expect(urlRequest.getHeader(customHeaderName)).to.equal(customHeaderValue)
-        expect(urlRequest.getHeader(customHeaderName.toLowerCase())).to.equal(customHeaderValue)
-        urlRequest.write('')
-        expect(urlRequest.getHeader(customHeaderName)).to.equal(customHeaderValue)
-        expect(urlRequest.getHeader(customHeaderName.toLowerCase())).to.equal(customHeaderValue)
-        urlRequest.end()
-      })
-    })
+      const urlRequest = net.request(serverUrl);
+      urlRequest.setHeader(customHeaderName, customHeaderValue as any);
+      expect(urlRequest.getHeader(customHeaderName)).to.equal(customHeaderValue);
+      expect(urlRequest.getHeader(customHeaderName.toLowerCase())).to.equal(customHeaderValue);
+      urlRequest.write('');
+      expect(urlRequest.getHeader(customHeaderName)).to.equal(customHeaderValue);
+      expect(urlRequest.getHeader(customHeaderName.toLowerCase())).to.equal(customHeaderValue);
+      const response = await getResponse(urlRequest);
+      expect(response.statusCode).to.equal(200);
+      await collectStreamBody(response);
+    });
 
-    it('should be able to set a non-string object as a header value', (done) => {
-      const customHeaderName = 'Some-Integer-Value'
-      const customHeaderValue = 900
-      respondOnce.toSingleURL((request, response) => {
-        expect(request.headers[customHeaderName.toLowerCase()]).to.equal(customHeaderValue.toString())
-        response.statusCode = 200
-        response.statusMessage = 'OK'
-        response.end()
-      }).then(serverUrl => {
-        const urlRequest = net.request(serverUrl)
-        urlRequest.on('response', (response) => {
-          const statusCode = response.statusCode
-          expect(statusCode).to.equal(200)
-          response.on('data', () => {})
-          response.on('end', () => {
-            done()
-          })
-        })
-        urlRequest.setHeader(customHeaderName, customHeaderValue)
-        expect(urlRequest.getHeader(customHeaderName)).to.equal(customHeaderValue)
-        expect(urlRequest.getHeader(customHeaderName.toLowerCase())).to.equal(customHeaderValue)
-        urlRequest.write('')
-        expect(urlRequest.getHeader(customHeaderName)).to.equal(customHeaderValue)
-        expect(urlRequest.getHeader(customHeaderName.toLowerCase())).to.equal(customHeaderValue)
-        urlRequest.end()
-      })
-    })
+    it('should not be able to set a custom HTTP request header after first write', async () => {
+      const customHeaderName = 'Some-Custom-Header-Name';
+      const customHeaderValue = 'Some-Customer-Header-Value';
+      const serverUrl = await respondOnce.toSingleURL((request, response) => {
+        expect(request.headers[customHeaderName.toLowerCase()]).to.equal(undefined);
+        response.statusCode = 200;
+        response.statusMessage = 'OK';
+        response.end();
+      });
+      const urlRequest = net.request(serverUrl);
+      urlRequest.write('');
+      expect(() => {
+        urlRequest.setHeader(customHeaderName, customHeaderValue);
+      }).to.throw();
+      expect(urlRequest.getHeader(customHeaderName)).to.equal(undefined);
+      const response = await getResponse(urlRequest);
+      expect(response.statusCode).to.equal(200);
+      await collectStreamBody(response);
+    });
 
-    it('should not be able to set a custom HTTP request header after first write', (done) => {
-      const customHeaderName = 'Some-Custom-Header-Name'
-      const customHeaderValue = 'Some-Customer-Header-Value'
-      respondOnce.toSingleURL((request, response) => {
-        expect(request.headers[customHeaderName.toLowerCase()]).to.equal(undefined)
-        response.statusCode = 200
-        response.statusMessage = 'OK'
-        response.end()
-      }).then(serverUrl => {
-        const urlRequest = net.request(serverUrl)
-        urlRequest.on('response', (response) => {
-          const statusCode = response.statusCode
-          expect(statusCode).to.equal(200)
-          response.on('data', () => {})
-          response.on('end', () => {
-            done()
-          })
-        })
-        urlRequest.write('')
-        expect(() => {
-          urlRequest.setHeader(customHeaderName, customHeaderValue)
-        }).to.throw()
-        expect(urlRequest.getHeader(customHeaderName)).to.equal(undefined)
-        urlRequest.end()
-      })
-    })
+    it('should be able to remove a custom HTTP request header before first write', async () => {
+      const customHeaderName = 'Some-Custom-Header-Name';
+      const customHeaderValue = 'Some-Customer-Header-Value';
+      const serverUrl = await respondOnce.toSingleURL((request, response) => {
+        expect(request.headers[customHeaderName.toLowerCase()]).to.equal(undefined);
+        response.statusCode = 200;
+        response.statusMessage = 'OK';
+        response.end();
+      });
+      const urlRequest = net.request(serverUrl);
+      urlRequest.setHeader(customHeaderName, customHeaderValue);
+      expect(urlRequest.getHeader(customHeaderName)).to.equal(customHeaderValue);
+      urlRequest.removeHeader(customHeaderName);
+      expect(urlRequest.getHeader(customHeaderName)).to.equal(undefined);
+      urlRequest.write('');
+      const response = await getResponse(urlRequest);
+      expect(response.statusCode).to.equal(200);
+      await collectStreamBody(response);
+    });
 
-    it('should be able to remove a custom HTTP request header before first write', (done) => {
-      const customHeaderName = 'Some-Custom-Header-Name'
-      const customHeaderValue = 'Some-Customer-Header-Value'
-      respondOnce.toSingleURL((request, response) => {
-        expect(request.headers[customHeaderName.toLowerCase()]).to.equal(undefined)
-        response.statusCode = 200
-        response.statusMessage = 'OK'
-        response.end()
-      }).then(serverUrl => {
-        const urlRequest = net.request(serverUrl)
-        urlRequest.on('response', (response) => {
-          const statusCode = response.statusCode
-          expect(statusCode).to.equal(200)
-          response.on('data', () => {})
-          response.on('end', () => {
-            done()
-          })
-        })
-        urlRequest.setHeader(customHeaderName, customHeaderValue)
-        expect(urlRequest.getHeader(customHeaderName)).to.equal(customHeaderValue)
-        urlRequest.removeHeader(customHeaderName)
-        expect(urlRequest.getHeader(customHeaderName)).to.equal(undefined)
-        urlRequest.write('')
-        urlRequest.end()
-      })
-    })
+    it('should not be able to remove a custom HTTP request header after first write', async () => {
+      const customHeaderName = 'Some-Custom-Header-Name';
+      const customHeaderValue = 'Some-Customer-Header-Value';
+      const serverUrl = await respondOnce.toSingleURL((request, response) => {
+        expect(request.headers[customHeaderName.toLowerCase()]).to.equal(customHeaderValue);
+        response.statusCode = 200;
+        response.statusMessage = 'OK';
+        response.end();
+      });
+      const urlRequest = net.request(serverUrl);
+      urlRequest.setHeader(customHeaderName, customHeaderValue);
+      expect(urlRequest.getHeader(customHeaderName)).to.equal(customHeaderValue);
+      urlRequest.write('');
+      expect(() => {
+        urlRequest.removeHeader(customHeaderName);
+      }).to.throw();
+      expect(urlRequest.getHeader(customHeaderName)).to.equal(customHeaderValue);
+      const response = await getResponse(urlRequest);
+      expect(response.statusCode).to.equal(200);
+      await collectStreamBody(response);
+    });
 
-    it('should not be able to remove a custom HTTP request header after first write', (done) => {
-      const customHeaderName = 'Some-Custom-Header-Name'
-      const customHeaderValue = 'Some-Customer-Header-Value'
-      respondOnce.toSingleURL((request, response) => {
-        expect(request.headers[customHeaderName.toLowerCase()]).to.equal(customHeaderValue)
-        response.statusCode = 200
-        response.statusMessage = 'OK'
-        response.end()
-      }).then(serverUrl => {
-        const urlRequest = net.request(serverUrl)
-        urlRequest.on('response', (response) => {
-          const statusCode = response.statusCode
-          expect(statusCode).to.equal(200)
-          response.on('data', () => {})
-          response.on('end', () => {
-            done()
-          })
-        })
-        urlRequest.setHeader(customHeaderName, customHeaderValue)
-        expect(urlRequest.getHeader(customHeaderName)).to.equal(customHeaderValue)
-        urlRequest.write('')
-        expect(() => {
-          urlRequest.removeHeader(customHeaderName)
-        }).to.throw()
-        expect(urlRequest.getHeader(customHeaderName)).to.equal(customHeaderValue)
-        urlRequest.end()
-      })
-    })
+    it('should be able to set cookie header line', async () => {
+      const cookieHeaderName = 'Cookie';
+      const cookieHeaderValue = 'test=12345';
+      const customSession = session.fromPartition('test-cookie-header');
+      const serverUrl = await respondOnce.toSingleURL((request, response) => {
+        expect(request.headers[cookieHeaderName.toLowerCase()]).to.equal(cookieHeaderValue);
+        response.statusCode = 200;
+        response.statusMessage = 'OK';
+        response.end();
+      });
+      await customSession.cookies.set({
+        url: `${serverUrl}`,
+        name: 'test',
+        value: '11111',
+        expirationDate: 0
+      });
+      const urlRequest = net.request({
+        method: 'GET',
+        url: serverUrl,
+        session: customSession
+      });
+      urlRequest.setHeader(cookieHeaderName, cookieHeaderValue);
+      expect(urlRequest.getHeader(cookieHeaderName)).to.equal(cookieHeaderValue);
+      const response = await getResponse(urlRequest);
+      expect(response.statusCode).to.equal(200);
+      await collectStreamBody(response);
+    });
 
-    it('should be able to set cookie header line', (done) => {
-      const cookieHeaderName = 'Cookie'
-      const cookieHeaderValue = 'test=12345'
-      const customSession = session.fromPartition('test-cookie-header')
-      respondOnce.toSingleURL((request, response) => {
-        expect(request.headers[cookieHeaderName.toLowerCase()]).to.equal(cookieHeaderValue)
-        response.statusCode = 200
-        response.statusMessage = 'OK'
-        response.end()
-      }).then(serverUrl => {
-        customSession.cookies.set({
-          url: `${serverUrl}`,
-          name: 'test',
-          value: '11111'
-        }).then(() => { // resolved
-          const urlRequest = net.request({
-            method: 'GET',
-            url: serverUrl,
-            session: customSession
-          })
-          urlRequest.on('response', (response) => {
-            const statusCode = response.statusCode
-            expect(statusCode).to.equal(200)
-            response.on('data', () => {})
-            response.on('end', () => {
-              done()
-            })
-          })
-          urlRequest.setHeader(cookieHeaderName, cookieHeaderValue)
-          expect(urlRequest.getHeader(cookieHeaderName)).to.equal(cookieHeaderValue)
-          urlRequest.end()
-        }, (error) => {
-          done(error)
-        })
-      })
-    })
+    it('should be able to receive cookies', async () => {
+      const cookie = ['cookie1', 'cookie2'];
+      const serverUrl = await respondOnce.toSingleURL((request, response) => {
+        response.statusCode = 200;
+        response.statusMessage = 'OK';
+        response.setHeader('set-cookie', cookie);
+        response.end();
+      });
+      const urlRequest = net.request(serverUrl);
+      const response = await getResponse(urlRequest);
+      expect(response.headers['set-cookie']).to.have.same.members(cookie);
+    });
 
-    it('should be able to abort an HTTP request before first write', (done) => {
-      respondOnce.toSingleURL((request, response) => {
-        response.end()
-        expect.fail('Unexpected request event')
-      }).then(serverUrl => {
-        let requestAbortEventEmitted = false
+    it('should not use the sessions cookie store by default', async () => {
+      const serverUrl = await respondOnce.toSingleURL((request, response) => {
+        response.statusCode = 200;
+        response.statusMessage = 'OK';
+        response.setHeader('x-cookie', `${request.headers.cookie!}`);
+        response.end();
+      });
+      const sess = session.fromPartition('cookie-tests-1');
+      const cookieVal = `${Date.now()}`;
+      await sess.cookies.set({
+        url: serverUrl,
+        name: 'wild_cookie',
+        value: cookieVal
+      });
+      const urlRequest = net.request({
+        url: serverUrl,
+        session: sess
+      });
+      const response = await getResponse(urlRequest);
+      expect(response.headers['x-cookie']).to.equal(`undefined`);
+    });
 
-        const urlRequest = net.request(serverUrl)
-        urlRequest.on('response', (response) => {
-          expect.fail('Unexpected response event')
-        })
-        urlRequest.on('finish', () => {
-          expect.fail('Unexpected finish event')
-        })
-        urlRequest.on('error', () => {
-          expect.fail('Unexpected error event')
-        })
-        urlRequest.on('abort', () => {
-          requestAbortEventEmitted = true
-        })
-        urlRequest.on('close', () => {
-          expect(requestAbortEventEmitted).to.equal(true)
-          done()
-        })
-        urlRequest.abort()
-        expect(urlRequest.write('')).to.equal(false)
-        urlRequest.end()
-      })
-    })
+    it('should be able to use the sessions cookie store', async () => {
+      const serverUrl = await respondOnce.toSingleURL((request, response) => {
+        response.statusCode = 200;
+        response.statusMessage = 'OK';
+        response.setHeader('x-cookie', request.headers.cookie!);
+        response.end();
+      });
+      const sess = session.fromPartition('cookie-tests-2');
+      const cookieVal = `${Date.now()}`;
+      await sess.cookies.set({
+        url: serverUrl,
+        name: 'wild_cookie',
+        value: cookieVal
+      });
+      const urlRequest = net.request({
+        url: serverUrl,
+        session: sess,
+        useSessionCookies: true
+      });
+      const response = await getResponse(urlRequest);
+      expect(response.headers['x-cookie']).to.equal(`wild_cookie=${cookieVal}`);
+    });
 
-    it('it should be able to abort an HTTP request before request end', (done) => {
-      let requestReceivedByServer = false
-      let urlRequest: ClientRequest | null = null
-      respondOnce.toSingleURL((request, response) => {
-        requestReceivedByServer = true
-        urlRequest!.abort()
-      }).then(serverUrl => {
-        let requestAbortEventEmitted = false
+    it('should be able to use the sessions cookie store with set-cookie', async () => {
+      const serverUrl = await respondOnce.toSingleURL((request, response) => {
+        response.statusCode = 200;
+        response.statusMessage = 'OK';
+        response.setHeader('set-cookie', 'foo=bar');
+        response.end();
+      });
+      const sess = session.fromPartition('cookie-tests-3');
+      let cookies = await sess.cookies.get({});
+      expect(cookies).to.have.lengthOf(0);
+      const urlRequest = net.request({
+        url: serverUrl,
+        session: sess,
+        useSessionCookies: true
+      });
+      await collectStreamBody(await getResponse(urlRequest));
+      cookies = await sess.cookies.get({});
+      expect(cookies).to.have.lengthOf(1);
+      expect(cookies[0]).to.deep.equal({
+        name: 'foo',
+        value: 'bar',
+        domain: '127.0.0.1',
+        hostOnly: true,
+        path: '/',
+        secure: false,
+        httpOnly: false,
+        session: true
+      });
+    });
 
-        urlRequest = net.request(serverUrl)
-        urlRequest.on('response', (response) => {
-          expect.fail('Unexpected response event')
-        })
-        urlRequest.on('finish', () => {
-          expect.fail('Unexpected finish event')
-        })
-        urlRequest.on('error', () => {
-          expect.fail('Unexpected error event')
-        })
-        urlRequest.on('abort', () => {
-          requestAbortEventEmitted = true
-        })
-        urlRequest.on('close', () => {
-          expect(requestReceivedByServer).to.equal(true)
-          expect(requestAbortEventEmitted).to.equal(true)
-          done()
-        })
+    ['Lax', 'Strict'].forEach((mode) => {
+      it(`should be able to use the sessions cookie store with same-site ${mode} cookies`, async () => {
+        const serverUrl = await respondNTimes.toSingleURL((request, response) => {
+          response.statusCode = 200;
+          response.statusMessage = 'OK';
+          response.setHeader('set-cookie', `same=site; SameSite=${mode}`);
+          response.setHeader('x-cookie', `${request.headers.cookie}`);
+          response.end();
+        }, 2);
+        const sess = session.fromPartition(`cookie-tests-same-site-${mode}`);
+        let cookies = await sess.cookies.get({});
+        expect(cookies).to.have.lengthOf(0);
+        const bw = new BrowserWindow({ show: false, webPreferences: { session: sess } });
+        await bw.loadURL(serverUrl);
+        bw.close();
+        cookies = await sess.cookies.get({});
+        expect(cookies).to.have.lengthOf(1);
+        expect(cookies[0]).to.deep.equal({
+          name: 'same',
+          value: 'site',
+          domain: '127.0.0.1',
+          hostOnly: true,
+          path: '/',
+          secure: false,
+          httpOnly: false,
+          session: true
+        });
+        const urlRequest2 = net.request({
+          url: serverUrl,
+          session: sess,
+          useSessionCookies: true
+        });
+        const response2 = await getResponse(urlRequest2);
+        expect(response2.headers['x-cookie']).to.equal('same=site');
+      });
+    });
 
-        urlRequest.chunkedEncoding = true
-        urlRequest.write(randomString(kOneKiloByte))
-      })
-    })
+    it('should be able to use the sessions cookie store safely across redirects', async () => {
+      const serverUrl = await respondOnce.toSingleURL(async (request, response) => {
+        response.statusCode = 302;
+        response.statusMessage = 'Moved';
+        const newUrl = await respondOnce.toSingleURL((req, res) => {
+          res.statusCode = 200;
+          res.statusMessage = 'OK';
+          res.setHeader('x-cookie', req.headers.cookie!);
+          res.end();
+        });
+        response.setHeader('x-cookie', request.headers.cookie!);
+        response.setHeader('location', newUrl.replace('127.0.0.1', 'localhost'));
+        response.end();
+      });
+      const sess = session.fromPartition('cookie-tests-4');
+      const cookie127Val = `${Date.now()}-127`;
+      const cookieLocalVal = `${Date.now()}-local`;
+      const localhostUrl = serverUrl.replace('127.0.0.1', 'localhost');
+      expect(localhostUrl).to.not.equal(serverUrl);
+      await Promise.all([
+        sess.cookies.set({
+          url: serverUrl,
+          name: 'wild_cookie',
+          value: cookie127Val
+        }), sess.cookies.set({
+          url: localhostUrl,
+          name: 'wild_cookie',
+          value: cookieLocalVal
+        })
+      ]);
+      const urlRequest = net.request({
+        url: serverUrl,
+        session: sess,
+        useSessionCookies: true
+      });
+      urlRequest.on('redirect', (status, method, url, headers) => {
+        // The initial redirect response should have received the 127 value here
+        expect(headers['x-cookie'][0]).to.equal(`wild_cookie=${cookie127Val}`);
+        urlRequest.followRedirect();
+      });
+      const response = await getResponse(urlRequest);
+      // We expect the server to have received the localhost value here
+      // The original request was to a 127.0.0.1 URL
+      // That request would have the cookie127Val cookie attached
+      // The request is then redirect to a localhost URL (different site)
+      // Because we are using the session cookie store it should do the safe / secure thing
+      // and attach the cookies for the new target domain
+      expect(response.headers['x-cookie']).to.equal(`wild_cookie=${cookieLocalVal}`);
+    });
 
-    it('it should be able to abort an HTTP request after request end and before response', (done) => {
-      let requestReceivedByServer = false
-      let urlRequest: ClientRequest | null = null
-      respondOnce.toSingleURL((request, response) => {
-        requestReceivedByServer = true
-        urlRequest!.abort()
+    it('should be able to abort an HTTP request before first write', async () => {
+      const serverUrl = await respondOnce.toSingleURL((request, response) => {
+        response.end();
+        expect.fail('Unexpected request event');
+      });
+
+      const urlRequest = net.request(serverUrl);
+      urlRequest.on('response', () => {
+        expect.fail('unexpected response event');
+      });
+      const aborted = emittedOnce(urlRequest, 'abort');
+      urlRequest.abort();
+      urlRequest.write('');
+      urlRequest.end();
+      await aborted;
+    });
+
+    it('it should be able to abort an HTTP request before request end', async () => {
+      let requestReceivedByServer = false;
+      let urlRequest: ClientRequest | null = null;
+      const serverUrl = await respondOnce.toSingleURL(() => {
+        requestReceivedByServer = true;
+        urlRequest!.abort();
+      });
+      let requestAbortEventEmitted = false;
+
+      urlRequest = net.request(serverUrl);
+      urlRequest.on('response', () => {
+        expect.fail('Unexpected response event');
+      });
+      urlRequest.on('finish', () => {
+        expect.fail('Unexpected finish event');
+      });
+      urlRequest.on('error', () => {
+        expect.fail('Unexpected error event');
+      });
+      urlRequest.on('abort', () => {
+        requestAbortEventEmitted = true;
+      });
+
+      await emittedOnce(urlRequest, 'close', () => {
+        urlRequest!.chunkedEncoding = true;
+        urlRequest!.write(randomString(kOneKiloByte));
+      });
+      expect(requestReceivedByServer).to.equal(true);
+      expect(requestAbortEventEmitted).to.equal(true);
+    });
+
+    it('it should be able to abort an HTTP request after request end and before response', async () => {
+      let requestReceivedByServer = false;
+      let urlRequest: ClientRequest | null = null;
+      const serverUrl = await respondOnce.toSingleURL((request, response) => {
+        requestReceivedByServer = true;
+        urlRequest!.abort();
         process.nextTick(() => {
-          response.statusCode = 200
-          response.statusMessage = 'OK'
-          response.end()
-        })
-      }).then(serverUrl => {
-        let requestAbortEventEmitted = false
-        let requestFinishEventEmitted = false
+          response.statusCode = 200;
+          response.statusMessage = 'OK';
+          response.end();
+        });
+      });
+      let requestFinishEventEmitted = false;
 
-        urlRequest = net.request(serverUrl)
-        urlRequest.on('response', (response) => {
-          expect.fail('Unexpected response event')
-        })
-        urlRequest.on('finish', () => {
-          requestFinishEventEmitted = true
-        })
-        urlRequest.on('error', () => {
-          expect.fail('Unexpected error event')
-        })
-        urlRequest.on('abort', () => {
-          requestAbortEventEmitted = true
-        })
-        urlRequest.on('close', () => {
-          expect(requestFinishEventEmitted).to.equal(true)
-          expect(requestReceivedByServer).to.equal(true)
-          expect(requestAbortEventEmitted).to.equal(true)
-          done()
-        })
+      urlRequest = net.request(serverUrl);
+      urlRequest.on('response', () => {
+        expect.fail('Unexpected response event');
+      });
+      urlRequest.on('finish', () => {
+        requestFinishEventEmitted = true;
+      });
+      urlRequest.on('error', () => {
+        expect.fail('Unexpected error event');
+      });
+      urlRequest.end(randomString(kOneKiloByte));
+      await emittedOnce(urlRequest, 'abort');
+      expect(requestFinishEventEmitted).to.equal(true);
+      expect(requestReceivedByServer).to.equal(true);
+    });
 
-        urlRequest.end(randomString(kOneKiloByte))
-      })
-    })
+    it('it should be able to abort an HTTP request after response start', async () => {
+      let requestReceivedByServer = false;
+      const serverUrl = await respondOnce.toSingleURL((request, response) => {
+        requestReceivedByServer = true;
+        response.statusCode = 200;
+        response.statusMessage = 'OK';
+        response.write(randomString(kOneKiloByte));
+      });
+      let requestFinishEventEmitted = false;
+      let requestResponseEventEmitted = false;
+      let responseCloseEventEmitted = false;
 
-    it('it should be able to abort an HTTP request after response start', (done) => {
-      let requestReceivedByServer = false
-      respondOnce.toSingleURL((request, response) => {
-        requestReceivedByServer = true
-        response.statusCode = 200
-        response.statusMessage = 'OK'
-        response.write(randomString(kOneKiloByte))
-      }).then(serverUrl => {
-        let requestFinishEventEmitted = false
-        let requestResponseEventEmitted = false
-        let requestAbortEventEmitted = false
-        let responseAbortedEventEmitted = false
+      const urlRequest = net.request(serverUrl);
+      urlRequest.on('response', (response) => {
+        requestResponseEventEmitted = true;
+        const statusCode = response.statusCode;
+        expect(statusCode).to.equal(200);
+        response.on('data', () => {});
+        response.on('end', () => {
+          expect.fail('Unexpected end event');
+        });
+        response.on('error', () => {
+          expect.fail('Unexpected error event');
+        });
+        response.on('close' as any, () => {
+          responseCloseEventEmitted = true;
+        });
+        urlRequest.abort();
+      });
+      urlRequest.on('finish', () => {
+        requestFinishEventEmitted = true;
+      });
+      urlRequest.on('error', () => {
+        expect.fail('Unexpected error event');
+      });
+      urlRequest.end(randomString(kOneKiloByte));
+      await emittedOnce(urlRequest, 'abort');
+      expect(requestFinishEventEmitted).to.be.true('request should emit "finish" event');
+      expect(requestReceivedByServer).to.be.true('request should be received by the server');
+      expect(requestResponseEventEmitted).to.be.true('"response" event should be emitted');
+      expect(responseCloseEventEmitted).to.be.true('response should emit "close" event');
+    });
 
-        const urlRequest = net.request(serverUrl)
-        urlRequest.on('response', (response) => {
-          requestResponseEventEmitted = true
-          const statusCode = response.statusCode
-          expect(statusCode).to.equal(200)
-          response.on('data', (chunk) => {
-          })
-          response.on('end', () => {
-            expect.fail('Unexpected end event')
-          })
-          response.on('error', () => {
-            expect.fail('Unexpected error event')
-          })
-          response.on('aborted', () => {
-            responseAbortedEventEmitted = true
-          })
-          urlRequest.abort()
-        })
-        urlRequest.on('finish', () => {
-          requestFinishEventEmitted = true
-        })
-        urlRequest.on('error', () => {
-          expect.fail('Unexpected error event')
-        })
-        urlRequest.on('abort', () => {
-          requestAbortEventEmitted = true
-        })
-        urlRequest.on('close', () => {
-          expect(requestFinishEventEmitted).to.be.true('request should emit "finish" event')
-          expect(requestReceivedByServer).to.be.true('request should be received by the server')
-          expect(requestResponseEventEmitted).to.be.true('"response" event should be emitted')
-          expect(requestAbortEventEmitted).to.be.true('request should emit "abort" event')
-          expect(responseAbortedEventEmitted).to.be.true('response should emit "aborted" event')
-          done()
-        })
-        urlRequest.end(randomString(kOneKiloByte))
-      })
-    })
+    it('abort event should be emitted at most once', async () => {
+      let requestReceivedByServer = false;
+      let urlRequest: ClientRequest | null = null;
+      const serverUrl = await respondOnce.toSingleURL(() => {
+        requestReceivedByServer = true;
+        urlRequest!.abort();
+        urlRequest!.abort();
+      });
+      let requestFinishEventEmitted = false;
+      let abortsEmitted = 0;
 
-    it('abort event should be emitted at most once', (done) => {
-      let requestReceivedByServer = false
-      let urlRequest: ClientRequest | null = null
-      respondOnce.toSingleURL((request, response) => {
-        requestReceivedByServer = true
-        urlRequest!.abort()
-        urlRequest!.abort()
-      }).then(serverUrl => {
-        let requestFinishEventEmitted = false
-        let abortEmitted = false
+      urlRequest = net.request(serverUrl);
+      urlRequest.on('response', () => {
+        expect.fail('Unexpected response event');
+      });
+      urlRequest.on('finish', () => {
+        requestFinishEventEmitted = true;
+      });
+      urlRequest.on('error', () => {
+        expect.fail('Unexpected error event');
+      });
+      urlRequest.on('abort', () => {
+        abortsEmitted++;
+      });
+      urlRequest.end(randomString(kOneKiloByte));
+      await emittedOnce(urlRequest, 'abort');
+      expect(requestFinishEventEmitted).to.be.true('request should emit "finish" event');
+      expect(requestReceivedByServer).to.be.true('request should be received by server');
+      expect(abortsEmitted).to.equal(1, 'request should emit exactly 1 "abort" event');
+    });
 
-        urlRequest = net.request(serverUrl)
-        urlRequest.on('response', () => {
-          expect.fail('Unexpected response event')
-        })
-        urlRequest.on('finish', () => {
-          requestFinishEventEmitted = true
-        })
-        urlRequest.on('error', () => {
-          expect.fail('Unexpected error event')
-        })
-        urlRequest.on('abort', () => {
-          expect(abortEmitted).to.be.false('abort event should not be emitted more than once')
-          abortEmitted = true
-          urlRequest!.abort()
-        })
-        urlRequest.on('close', () => {
-          expect(requestFinishEventEmitted).to.be.true('request should emit "finish" event')
-          expect(requestReceivedByServer).to.be.true('request should be received by server')
-          expect(abortEmitted).to.be.true('request should emit "abort" event')
-          done()
-        })
+    it('should allow to read response body from non-2xx response', async () => {
+      const bodyData = randomString(kOneKiloByte);
+      const serverUrl = await respondOnce.toSingleURL((request, response) => {
+        response.statusCode = 404;
+        response.end(bodyData);
+      });
 
-        urlRequest.end(randomString(kOneKiloByte))
-      })
-    })
+      const urlRequest = net.request(serverUrl);
+      const bodyCheckPromise = getResponse(urlRequest).then(r => {
+        expect(r.statusCode).to.equal(404);
+        return r;
+      }).then(collectStreamBody).then(receivedBodyData => {
+        expect(receivedBodyData.toString()).to.equal(bodyData);
+      });
+      const eventHandlers = Promise.all([
+        bodyCheckPromise,
+        emittedOnce(urlRequest, 'close')
+      ]);
+
+      urlRequest.end();
+
+      await eventHandlers;
+    });
 
     describe('webRequest', () => {
       afterEach(() => {
-        session.defaultSession.webRequest.onBeforeRequest(null)
-      })
+        session.defaultSession.webRequest.onBeforeRequest(null);
+      });
 
-      it('Requests should be intercepted by webRequest module', (done) => {
-        const requestUrl = '/requestUrl'
-        const redirectUrl = '/redirectUrl'
-        let requestIsRedirected = false
-        respondOnce.toURL(redirectUrl, (request, response) => {
-          requestIsRedirected = true
-          response.end()
-        }).then(serverUrl => {
-          let requestIsIntercepted = false
+      it('Should throw when invalid filters are passed', () => {
+        expect(() => {
           session.defaultSession.webRequest.onBeforeRequest(
-            (details, callback) => {
-              if (details.url === `${serverUrl}${requestUrl}`) {
-                requestIsIntercepted = true
-                // Disabled due to false positive in StandardJS
-                // eslint-disable-next-line standard/no-callback-literal
-                callback({
-                  redirectURL: `${serverUrl}${redirectUrl}`
-                })
-              } else {
-                callback({
-                  cancel: false
-                })
-              }
-            })
+            { urls: ['*://www.googleapis.com'] },
+            (details, callback) => { callback({ cancel: false }); }
+          );
+        }).to.throw('Invalid url pattern *://www.googleapis.com: Empty path.');
 
-          const urlRequest = net.request(`${serverUrl}${requestUrl}`)
+        expect(() => {
+          session.defaultSession.webRequest.onBeforeRequest(
+            { urls: [ '*://www.googleapis.com/', '*://blahblah.dev' ] },
+            (details, callback) => { callback({ cancel: false }); }
+          );
+        }).to.throw('Invalid url pattern *://blahblah.dev: Empty path.');
+      });
 
-          urlRequest.on('response', (response) => {
-            expect(response.statusCode).to.equal(200)
-            response.on('data', () => {})
-            response.on('end', () => {
-              expect(requestIsRedirected).to.be.true('The server should receive a request to the forward URL')
-              expect(requestIsIntercepted).to.be.true('The request should be intercepted by the webRequest module')
-              done()
-            })
-          })
-          urlRequest.end()
-        })
-      })
+      it('Should not throw when valid filters are passed', () => {
+        expect(() => {
+          session.defaultSession.webRequest.onBeforeRequest(
+            { urls: ['*://www.googleapis.com/'] },
+            (details, callback) => { callback({ cancel: false }); }
+          );
+        }).to.not.throw();
+      });
 
-      it('should to able to create and intercept a request using a custom session object', (done) => {
-        const requestUrl = '/requestUrl'
-        const redirectUrl = '/redirectUrl'
-        const customPartitionName = 'custom-partition'
-        let requestIsRedirected = false
-        respondOnce.toURL(redirectUrl, (request, response) => {
-          requestIsRedirected = true
-          response.end()
-        }).then(serverUrl => {
-          session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
-            expect.fail('Request should not be intercepted by the default session')
-          })
-
-          const customSession = session.fromPartition(customPartitionName, { cache: false })
-          let requestIsIntercepted = false
-          customSession.webRequest.onBeforeRequest((details, callback) => {
+      it('Requests should be intercepted by webRequest module', async () => {
+        const requestUrl = '/requestUrl';
+        const redirectUrl = '/redirectUrl';
+        let requestIsRedirected = false;
+        const serverUrl = await respondOnce.toURL(redirectUrl, (request, response) => {
+          requestIsRedirected = true;
+          response.end();
+        });
+        let requestIsIntercepted = false;
+        session.defaultSession.webRequest.onBeforeRequest(
+          (details, callback) => {
             if (details.url === `${serverUrl}${requestUrl}`) {
-              requestIsIntercepted = true
+              requestIsIntercepted = true;
               // Disabled due to false positive in StandardJS
               // eslint-disable-next-line standard/no-callback-literal
               callback({
                 redirectURL: `${serverUrl}${redirectUrl}`
-              })
+              });
             } else {
               callback({
                 cancel: false
-              })
+              });
             }
-          })
+          });
 
-          const urlRequest = net.request({
-            url: `${serverUrl}${requestUrl}`,
-            session: customSession
-          })
-          urlRequest.on('response', (response) => {
-            expect(response.statusCode).to.equal(200)
-            response.on('data', (chunk) => {
-            })
-            response.on('end', () => {
-              expect(requestIsRedirected).to.be.true('The server should receive a request to the forward URL')
-              expect(requestIsIntercepted).to.be.true('The request should be intercepted by the webRequest module')
-              done()
-            })
-          })
-          urlRequest.end()
-        })
-      })
+        const urlRequest = net.request(`${serverUrl}${requestUrl}`);
+        const response = await getResponse(urlRequest);
 
-      it('should to able to create and intercept a request using a custom session object', (done) => {
-        const requestUrl = '/requestUrl'
-        const redirectUrl = '/redirectUrl'
-        const customPartitionName = 'custom-partition'
-        let requestIsRedirected = false
-        respondOnce.toURL(redirectUrl, (request, response) => {
-          requestIsRedirected = true
-          response.end()
-        }).then(serverUrl => {
-          session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
-            expect.fail('Request should not be intercepted by the default session')
-          })
+        expect(response.statusCode).to.equal(200);
+        await collectStreamBody(response);
+        expect(requestIsRedirected).to.be.true('The server should receive a request to the forward URL');
+        expect(requestIsIntercepted).to.be.true('The request should be intercepted by the webRequest module');
+      });
 
-          const customSession = session.fromPartition(customPartitionName, { cache: false })
-          let requestIsIntercepted = false
-          customSession.webRequest.onBeforeRequest((details, callback) => {
-            if (details.url === `${serverUrl}${requestUrl}`) {
-              requestIsIntercepted = true
-              // Disabled due to false positive in StandardJS
-              // eslint-disable-next-line standard/no-callback-literal
-              callback({
-                redirectURL: `${serverUrl}${redirectUrl}`
-              })
-            } else {
-              callback({
-                cancel: false
-              })
-            }
-          })
+      it('should to able to create and intercept a request using a custom session object', async () => {
+        const requestUrl = '/requestUrl';
+        const redirectUrl = '/redirectUrl';
+        const customPartitionName = 'custom-partition';
+        let requestIsRedirected = false;
+        const serverUrl = await respondOnce.toURL(redirectUrl, (request, response) => {
+          requestIsRedirected = true;
+          response.end();
+        });
+        session.defaultSession.webRequest.onBeforeRequest(() => {
+          expect.fail('Request should not be intercepted by the default session');
+        });
 
-          const urlRequest = net.request({
-            url: `${serverUrl}${requestUrl}`,
-            partition: customPartitionName
-          })
-          urlRequest.on('response', (response) => {
-            expect(response.statusCode).to.equal(200)
-            response.on('data', (chunk) => {
-            })
-            response.on('end', () => {
-              expect(requestIsRedirected).to.be.true('The server should receive a request to the forward URL')
-              expect(requestIsIntercepted).to.be.true('The request should be intercepted by the webRequest module')
-              done()
-            })
-          })
-          urlRequest.end()
-        })
-      })
-    })
+        const customSession = session.fromPartition(customPartitionName, { cache: false });
+        let requestIsIntercepted = false;
+        customSession.webRequest.onBeforeRequest((details, callback) => {
+          if (details.url === `${serverUrl}${requestUrl}`) {
+            requestIsIntercepted = true;
+            // Disabled due to false positive in StandardJS
+            // eslint-disable-next-line standard/no-callback-literal
+            callback({
+              redirectURL: `${serverUrl}${redirectUrl}`
+            });
+          } else {
+            callback({
+              cancel: false
+            });
+          }
+        });
 
-    it('should throw if given an invalid redirect mode', () => {
-      expect(() => {
-        net.request({
-          url: 'https://test',
-          redirect: 'custom'
-        })
-      }).to.throw('redirect mode should be one of follow, error or manual')
-    })
+        const urlRequest = net.request({
+          url: `${serverUrl}${requestUrl}`,
+          session: customSession
+        });
+        const response = await getResponse(urlRequest);
+        expect(response.statusCode).to.equal(200);
+        await collectStreamBody(response);
+        expect(requestIsRedirected).to.be.true('The server should receive a request to the forward URL');
+        expect(requestIsIntercepted).to.be.true('The request should be intercepted by the webRequest module');
+      });
+
+      it('should to able to create and intercept a request using a custom partition name', async () => {
+        const requestUrl = '/requestUrl';
+        const redirectUrl = '/redirectUrl';
+        const customPartitionName = 'custom-partition';
+        let requestIsRedirected = false;
+        const serverUrl = await respondOnce.toURL(redirectUrl, (request, response) => {
+          requestIsRedirected = true;
+          response.end();
+        });
+        session.defaultSession.webRequest.onBeforeRequest(() => {
+          expect.fail('Request should not be intercepted by the default session');
+        });
+
+        const customSession = session.fromPartition(customPartitionName, { cache: false });
+        let requestIsIntercepted = false;
+        customSession.webRequest.onBeforeRequest((details, callback) => {
+          if (details.url === `${serverUrl}${requestUrl}`) {
+            requestIsIntercepted = true;
+            // Disabled due to false positive in StandardJS
+            // eslint-disable-next-line standard/no-callback-literal
+            callback({
+              redirectURL: `${serverUrl}${redirectUrl}`
+            });
+          } else {
+            callback({
+              cancel: false
+            });
+          }
+        });
+
+        const urlRequest = net.request({
+          url: `${serverUrl}${requestUrl}`,
+          partition: customPartitionName
+        });
+        const response = await getResponse(urlRequest);
+        expect(response.statusCode).to.equal(200);
+        await collectStreamBody(response);
+        expect(requestIsRedirected).to.be.true('The server should receive a request to the forward URL');
+        expect(requestIsIntercepted).to.be.true('The request should be intercepted by the webRequest module');
+      });
+    });
 
     it('should throw when calling getHeader without a name', () => {
       expect(() => {
-        (net.request({ url: 'https://test' }).getHeader as any)()
-      }).to.throw(/`name` is required for getHeader\(name\)/)
+        (net.request({ url: 'https://test' }).getHeader as any)();
+      }).to.throw(/`name` is required for getHeader\(name\)/);
 
       expect(() => {
-        net.request({ url: 'https://test' }).getHeader(null as any)
-      }).to.throw(/`name` is required for getHeader\(name\)/)
-    })
+        net.request({ url: 'https://test' }).getHeader(null as any);
+      }).to.throw(/`name` is required for getHeader\(name\)/);
+    });
 
     it('should throw when calling removeHeader without a name', () => {
       expect(() => {
-        (net.request({ url: 'https://test' }).removeHeader as any)()
-      }).to.throw(/`name` is required for removeHeader\(name\)/)
+        (net.request({ url: 'https://test' }).removeHeader as any)();
+      }).to.throw(/`name` is required for removeHeader\(name\)/);
 
       expect(() => {
-        net.request({ url: 'https://test' }).removeHeader(null as any)
-      }).to.throw(/`name` is required for removeHeader\(name\)/)
-    })
+        net.request({ url: 'https://test' }).removeHeader(null as any);
+      }).to.throw(/`name` is required for removeHeader\(name\)/);
+    });
 
-    it('should follow redirect when no redirect mode is provided', (done) => {
-      const requestUrl = '/301'
-      respondOnce.toRoutes({
-        '/301': (request, response) => {
-          response.statusCode = 301
-          response.setHeader('Location', '/200')
-          response.end()
+    it('should follow redirect when no redirect handler is provided', async () => {
+      const requestUrl = '/302';
+      const serverUrl = await respondOnce.toRoutes({
+        '/302': (request, response) => {
+          response.statusCode = 302;
+          response.setHeader('Location', '/200');
+          response.end();
         },
         '/200': (request, response) => {
-          response.statusCode = 200
-          response.end()
-        },
-      }).then(serverUrl => {
-        const urlRequest = net.request({
-          url: `${serverUrl}${requestUrl}`
-        })
-        urlRequest.on('response', (response) => {
-          expect(response.statusCode).to.equal(200)
-          done()
-        })
-        urlRequest.end()
-      })
-    })
+          response.statusCode = 200;
+          response.end();
+        }
+      });
+      const urlRequest = net.request({
+        url: `${serverUrl}${requestUrl}`
+      });
+      const response = await getResponse(urlRequest);
+      expect(response.statusCode).to.equal(200);
+    });
 
-    it('should follow redirect chain when no redirect mode is provided', (done) => {
-      respondOnce.toRoutes({
+    it('should follow redirect chain when no redirect handler is provided', async () => {
+      const serverUrl = await respondOnce.toRoutes({
         '/redirectChain': (request, response) => {
-          response.statusCode = 301
-          response.setHeader('Location', '/301')
-          response.end()
+          response.statusCode = 302;
+          response.setHeader('Location', '/302');
+          response.end();
         },
-        '/301': (request, response) => {
-          response.statusCode = 301
-          response.setHeader('Location', '/200')
-          response.end()
+        '/302': (request, response) => {
+          response.statusCode = 302;
+          response.setHeader('Location', '/200');
+          response.end();
         },
         '/200': (request, response) => {
-          response.statusCode = 200
-          response.end()
-        },
-      }).then(serverUrl => {
-        const urlRequest = net.request({
-          url: `${serverUrl}/redirectChain`
-        })
-        urlRequest.on('response', (response) => {
-          expect(response.statusCode).to.equal(200)
-          done()
-        })
-        urlRequest.end()
-      })
-    })
+          response.statusCode = 200;
+          response.end();
+        }
+      });
+      const urlRequest = net.request({
+        url: `${serverUrl}/redirectChain`
+      });
+      const response = await getResponse(urlRequest);
+      expect(response.statusCode).to.equal(200);
+    });
 
-    it('should not follow redirect when mode is error', (done) => {
-      respondOnce.toSingleURL((request, response) => {
-        response.statusCode = 301
-        response.setHeader('Location', '/200')
-        response.end()
-      }).then(serverUrl => {
-        const urlRequest = net.request({
-          url: serverUrl,
-          redirect: 'error'
-        })
-        urlRequest.on('error', (error) => {
-          expect(error.message).to.equal('Request cannot follow redirect with the current redirect mode')
-        })
-        urlRequest.on('close', () => {
-          done()
-        })
-        urlRequest.end()
-      })
-    })
+    it('should not follow redirect when request is canceled in redirect handler', async () => {
+      const serverUrl = await respondOnce.toSingleURL((request, response) => {
+        response.statusCode = 302;
+        response.setHeader('Location', '/200');
+        response.end();
+      });
+      const urlRequest = net.request({
+        url: serverUrl
+      });
+      urlRequest.end();
+      urlRequest.on('redirect', () => { urlRequest.abort(); });
+      urlRequest.on('error', () => {});
+      await emittedOnce(urlRequest, 'abort');
+    });
 
-    it('should allow follow redirect when mode is manual', (done) => {
-      respondOnce.toRoutes({
+    it('should not follow redirect when mode is error', async () => {
+      const serverUrl = await respondOnce.toSingleURL((request, response) => {
+        response.statusCode = 302;
+        response.setHeader('Location', '/200');
+        response.end();
+      });
+      const urlRequest = net.request({
+        url: serverUrl,
+        redirect: 'error'
+      });
+      urlRequest.end();
+      await emittedOnce(urlRequest, 'error');
+    });
+
+    it('should follow redirect when handler calls callback', async () => {
+      const serverUrl = await respondOnce.toRoutes({
         '/redirectChain': (request, response) => {
-          response.statusCode = 301
-          response.setHeader('Location', '/301')
-          response.end()
+          response.statusCode = 302;
+          response.setHeader('Location', '/302');
+          response.end();
         },
-        '/301': (request, response) => {
-          response.statusCode = 301
-          response.setHeader('Location', '/200')
-          response.end()
-        },
-        '/200': (request, response) => {
-          response.statusCode = 200
-          response.end()
-        },
-      }).then(serverUrl => {
-        const urlRequest = net.request({
-          url: `${serverUrl}/redirectChain`,
-          redirect: 'manual'
-        })
-        let redirectCount = 0
-        urlRequest.on('response', (response) => {
-          expect(response.statusCode).to.equal(200)
-          expect(redirectCount).to.equal(2)
-          done()
-        })
-        urlRequest.on('redirect', (status, method, url) => {
-          if (url === `${serverUrl}/301` || url === `${serverUrl}/200`) {
-            redirectCount += 1
-            urlRequest.followRedirect()
-          }
-        })
-        urlRequest.end()
-      })
-    })
-
-    it('should allow cancelling redirect when mode is manual', (done) => {
-      respondOnce.toRoutes({
-        '/redirect': (request, response) => {
-          response.statusCode = 301
-          response.setHeader('Location', '/200')
-          response.end()
+        '/302': (request, response) => {
+          response.statusCode = 302;
+          response.setHeader('Location', '/200');
+          response.end();
         },
         '/200': (request, response) => {
-          response.statusCode = 200
-          response.end()
-        },
-      }).then(serverUrl => {
-        const urlRequest = net.request({
-          url: `${serverUrl}/redirect`,
-          redirect: 'manual'
-        })
-        urlRequest.on('response', (response) => {
-          expect(response.statusCode).that.equal(200)
-          response.on('data', () => {})
-          response.on('end', () => {
-            urlRequest.abort()
-          })
-        })
-        let redirectCount = 0
-        urlRequest.on('close', () => {
-          expect(redirectCount).to.equal(1)
-          done()
-        })
-        urlRequest.on('redirect', (status, method, url) => {
-          if (url === `${serverUrl}/200`) {
-            redirectCount += 1
-            urlRequest.followRedirect()
-          }
-        })
-        urlRequest.end()
-      })
-    })
+          response.statusCode = 200;
+          response.end();
+        }
+      });
+      const urlRequest = net.request({ url: `${serverUrl}/redirectChain`, redirect: 'manual' });
+      const redirects: string[] = [];
+      urlRequest.on('redirect', (status, method, url) => {
+        redirects.push(url);
+        urlRequest.followRedirect();
+      });
+      const response = await getResponse(urlRequest);
+      expect(response.statusCode).to.equal(200);
+      expect(redirects).to.deep.equal([
+        `${serverUrl}/302`,
+        `${serverUrl}/200`
+      ]);
+    });
 
     it('should throw if given an invalid session option', () => {
       expect(() => {
         net.request({
           url: 'https://foo',
-          session: 1
-        })
-      }).to.throw("`session` should be an instance of the Session class")
-    })
+          session: 1 as any
+        });
+      }).to.throw('`session` should be an instance of the Session class');
+    });
 
     it('should throw if given an invalid partition option', () => {
       expect(() => {
         net.request({
           url: 'https://foo',
-          partition: 1
-        })
-      }).to.throw("`partition` should be a string")
-    })
+          partition: 1 as any
+        });
+      }).to.throw('`partition` should be a string');
+    });
 
-    it('should be able to create a request with options', (done) => {
-      const customHeaderName = 'Some-Custom-Header-Name'
-      const customHeaderValue = 'Some-Customer-Header-Value'
-      respondOnce.toURL('/', (request, response) => {
-        expect(request.method).to.equal('GET')
-        expect(request.headers[customHeaderName.toLowerCase()]).to.equal(customHeaderValue)
-        response.statusCode = 200
-        response.statusMessage = 'OK'
-        response.end()
-      }).then(serverUrlUnparsed => {
-        const serverUrl = url.parse(serverUrlUnparsed)
-        const options = {
-          port: serverUrl.port,
-          hostname: '127.0.0.1',
-          headers: { [customHeaderName]: customHeaderValue }
-        }
-        const urlRequest = net.request(options)
-        urlRequest.on('response', (response) => {
-          expect(response.statusCode).to.be.equal(200)
-          response.on('data', () => {})
-          response.on('end', () => {
-            done()
-          })
-        })
-        urlRequest.end()
-      })
-    })
+    it('should be able to create a request with options', async () => {
+      const customHeaderName = 'Some-Custom-Header-Name';
+      const customHeaderValue = 'Some-Customer-Header-Value';
+      const serverUrlUnparsed = await respondOnce.toURL('/', (request, response) => {
+        expect(request.method).to.equal('GET');
+        expect(request.headers[customHeaderName.toLowerCase()]).to.equal(customHeaderValue);
+        response.statusCode = 200;
+        response.statusMessage = 'OK';
+        response.end();
+      });
+      const serverUrl = url.parse(serverUrlUnparsed);
+      const options = {
+        port: serverUrl.port ? parseInt(serverUrl.port, 10) : undefined,
+        hostname: '127.0.0.1',
+        headers: { [customHeaderName]: customHeaderValue }
+      };
+      const urlRequest = net.request(options);
+      const response = await getResponse(urlRequest);
+      expect(response.statusCode).to.be.equal(200);
+      await collectStreamBody(response);
+    });
 
-    it('should be able to pipe a readable stream into a net request', (done) => {
-      const bodyData = randomString(kOneMegaByte)
-      let netRequestReceived = false
-      let netRequestEnded = false
+    it('should be able to pipe a readable stream into a net request', async () => {
+      const bodyData = randomString(kOneMegaByte);
+      let netRequestReceived = false;
+      let netRequestEnded = false;
 
-      Promise.all([
+      const [nodeServerUrl, netServerUrl] = await Promise.all([
         respondOnce.toSingleURL((request, response) => response.end(bodyData)),
         respondOnce.toSingleURL((request, response) => {
-          netRequestReceived = true
-          let receivedBodyData = ''
+          netRequestReceived = true;
+          let receivedBodyData = '';
           request.on('data', (chunk) => {
-            receivedBodyData += chunk.toString()
-          })
+            receivedBodyData += chunk.toString();
+          });
           request.on('end', (chunk: Buffer | undefined) => {
-            netRequestEnded = true
+            netRequestEnded = true;
             if (chunk) {
-              receivedBodyData += chunk.toString()
+              receivedBodyData += chunk.toString();
             }
-            expect(receivedBodyData).to.be.equal(bodyData)
-            response.end()
-          })
+            expect(receivedBodyData).to.be.equal(bodyData);
+            response.end();
+          });
         })
-      ]).then(([nodeServerUrl, netServerUrl]) => {
-        const nodeRequest = http.request(nodeServerUrl)
-        nodeRequest.on('response', (nodeResponse) => {
-          const netRequest = net.request(netServerUrl)
-          netRequest.on('response', (netResponse) => {
-            expect(netResponse.statusCode).to.equal(200)
-            netResponse.on('data', (chunk) => {})
-            netResponse.on('end', () => {
-              expect(netRequestReceived).to.be.true('net request received')
-              expect(netRequestEnded).to.be.true('net request ended')
-              done()
-            })
-          })
-          nodeResponse.pipe(netRequest)
-        })
-        nodeRequest.end()
-      })
-    })
+      ]);
+      const nodeRequest = http.request(nodeServerUrl);
+      const nodeResponse = await getResponse(nodeRequest as any) as any as http.ServerResponse;
+      const netRequest = net.request(netServerUrl);
+      const responsePromise = emittedOnce(netRequest, 'response');
+      // TODO(@MarshallOfSound) - FIXME with #22730
+      nodeResponse.pipe(netRequest as any);
+      const [netResponse] = await responsePromise;
+      expect(netResponse.statusCode).to.equal(200);
+      await collectStreamBody(netResponse);
+      expect(netRequestReceived).to.be.true('net request received');
+      expect(netRequestEnded).to.be.true('net request ended');
+    });
 
-    it('should emit error event on server socket close', (done) => {
-      respondOnce.toSingleURL((request, response) => {
-        request.socket.destroy()
-      }).then(serverUrl => {
-        let requestErrorEventEmitted = false
-        const urlRequest = net.request(serverUrl)
-        urlRequest.on('error', (error) => {
-          expect(error).to.be.an('Error')
-          requestErrorEventEmitted = true
-        })
-        urlRequest.on('close', () => {
-          expect(requestErrorEventEmitted).to.be.true('request error event was emitted')
-          done()
-        })
-        urlRequest.end()
-      })
-    })
-  })
+    it('should report upload progress', async () => {
+      const serverUrl = await respondOnce.toSingleURL((request, response) => {
+        response.end();
+      });
+      const netRequest = net.request({ url: serverUrl, method: 'POST' });
+      expect(netRequest.getUploadProgress()).to.deep.equal({ active: false });
+      netRequest.end(Buffer.from('hello'));
+      const [position, total] = await emittedOnce(netRequest, 'upload-progress');
+      expect(netRequest.getUploadProgress()).to.deep.equal({ active: true, started: true, current: position, total });
+    });
+
+    it('should emit error event on server socket destroy', async () => {
+      const serverUrl = await respondOnce.toSingleURL((request) => {
+        request.socket.destroy();
+      });
+      const urlRequest = net.request(serverUrl);
+      urlRequest.end();
+      const [error] = await emittedOnce(urlRequest, 'error');
+      expect(error.message).to.equal('net::ERR_EMPTY_RESPONSE');
+    });
+
+    it('should emit error event on server request destroy', async () => {
+      const serverUrl = await respondOnce.toSingleURL((request, response) => {
+        request.destroy();
+        response.end();
+      });
+      const urlRequest = net.request(serverUrl);
+      urlRequest.end(randomBuffer(kOneMegaByte));
+      const [error] = await emittedOnce(urlRequest, 'error');
+      expect(error.message).to.be.oneOf(['net::ERR_CONNECTION_RESET', 'net::ERR_CONNECTION_ABORTED']);
+    });
+
+    it('should not emit any event after close', async () => {
+      const serverUrl = await respondOnce.toSingleURL((request, response) => {
+        response.end();
+      });
+
+      const urlRequest = net.request(serverUrl);
+      urlRequest.end();
+
+      await emittedOnce(urlRequest, 'close');
+      await new Promise((resolve, reject) => {
+        ['finish', 'abort', 'close', 'error'].forEach(evName => {
+          urlRequest.on(evName as any, () => {
+            reject(new Error(`Unexpected ${evName} event`));
+          });
+        });
+        setTimeout(resolve, 50);
+      });
+    });
+  });
 
   describe('IncomingMessage API', () => {
-    it('response object should implement the IncomingMessage API', (done) => {
-      const customHeaderName = 'Some-Custom-Header-Name'
-      const customHeaderValue = 'Some-Customer-Header-Value'
+    it('response object should implement the IncomingMessage API', async () => {
+      const customHeaderName = 'Some-Custom-Header-Name';
+      const customHeaderValue = 'Some-Customer-Header-Value';
 
-      respondOnce.toSingleURL((request, response) => {
-        response.statusCode = 200
-        response.statusMessage = 'OK'
-        response.setHeader(customHeaderName, customHeaderValue)
-        response.end()
-      }).then(serverUrl => {
-        const urlRequest = net.request(serverUrl)
+      const serverUrl = await respondOnce.toSingleURL((request, response) => {
+        response.statusCode = 200;
+        response.statusMessage = 'OK';
+        response.setHeader(customHeaderName, customHeaderValue);
+        response.end();
+      });
 
-        urlRequest.on('response', (response) => {
-          expect(response.statusCode).to.equal(200)
-          expect(response.statusMessage).to.equal('OK')
+      const urlRequest = net.request(serverUrl);
+      const response = await getResponse(urlRequest);
 
-          const headers = response.headers
-          expect(headers).to.be.an('object')
-          const headerValue = headers[customHeaderName.toLowerCase()]
-          expect(headerValue).to.equal(customHeaderValue)
+      expect(response.statusCode).to.equal(200);
+      expect(response.statusMessage).to.equal('OK');
 
-          const httpVersion = response.httpVersion
-          expect(httpVersion).to.be.a('string').and.to.have.lengthOf.at.least(1)
+      const headers = response.headers;
+      expect(headers).to.be.an('object');
+      const headerValue = headers[customHeaderName.toLowerCase()];
+      expect(headerValue).to.equal(customHeaderValue);
 
-          const httpVersionMajor = response.httpVersionMajor
-          expect(httpVersionMajor).to.be.a('number').and.to.be.at.least(1)
+      const httpVersion = response.httpVersion;
+      expect(httpVersion).to.be.a('string').and.to.have.lengthOf.at.least(1);
 
-          const httpVersionMinor = response.httpVersionMinor
-          expect(httpVersionMinor).to.be.a('number').and.to.be.at.least(0)
+      const httpVersionMajor = response.httpVersionMajor;
+      expect(httpVersionMajor).to.be.a('number').and.to.be.at.least(1);
 
-          response.on('data', chunk => {})
-          response.on('end', () => { done() })
-        })
-        urlRequest.end()
-      })
-    })
+      const httpVersionMinor = response.httpVersionMinor;
+      expect(httpVersionMinor).to.be.a('number').and.to.be.at.least(0);
 
-    it('should discard duplicate headers', (done) => {
-      const includedHeader = 'max-forwards'
-      const discardableHeader = 'Max-Forwards'
+      await collectStreamBody(response);
+    });
 
-      const includedHeaderValue = 'max-fwds-val'
-      const discardableHeaderValue = 'max-fwds-val-two'
+    it('should discard duplicate headers', async () => {
+      const includedHeader = 'max-forwards';
+      const discardableHeader = 'Max-Forwards';
 
-      respondOnce.toSingleURL((request, response) => {
-        response.statusCode = 200
-        response.statusMessage = 'OK'
-        response.setHeader(discardableHeader, discardableHeaderValue)
-        response.setHeader(includedHeader, includedHeaderValue)
-        response.end()
-      }).then(serverUrl => {
-        const urlRequest = net.request(serverUrl)
+      const includedHeaderValue = 'max-fwds-val';
+      const discardableHeaderValue = 'max-fwds-val-two';
 
-        urlRequest.on('response', response => {
-          expect(response.statusCode).to.equal(200)
-          expect(response.statusMessage).to.equal('OK')
+      const serverUrl = await respondOnce.toSingleURL((request, response) => {
+        response.statusCode = 200;
+        response.statusMessage = 'OK';
+        response.setHeader(discardableHeader, discardableHeaderValue);
+        response.setHeader(includedHeader, includedHeaderValue);
+        response.end();
+      });
+      const urlRequest = net.request(serverUrl);
+      const response = await getResponse(urlRequest);
+      expect(response.statusCode).to.equal(200);
+      expect(response.statusMessage).to.equal('OK');
 
-          const headers = response.headers
-          expect(headers).to.be.an('object')
+      const headers = response.headers;
+      expect(headers).to.be.an('object');
 
-          expect(headers).to.have.property(includedHeader)
-          expect(headers).to.not.have.property(discardableHeader)
-          expect(headers[includedHeader]).to.equal(includedHeaderValue)
+      expect(headers).to.have.property(includedHeader);
+      expect(headers).to.not.have.property(discardableHeader);
+      expect(headers[includedHeader]).to.equal(includedHeaderValue);
 
-          response.on('data', chunk => {})
-          response.on('end', () => { done() })
-        })
-        urlRequest.end()
-      })
-    })
+      await collectStreamBody(response);
+    });
 
-    it('should join repeated non-discardable value with ,', (done) => {
-      respondOnce.toSingleURL((request, response) => {
-        response.statusCode = 200
-        response.statusMessage = 'OK'
-        response.setHeader('referrer-policy', ['first-text', 'second-text'])
-        response.end()
-      }).then(serverUrl => {
-        const urlRequest = net.request(serverUrl)
+    it('should join repeated non-discardable value with ,', async () => {
+      const serverUrl = await respondOnce.toSingleURL((request, response) => {
+        response.statusCode = 200;
+        response.statusMessage = 'OK';
+        response.setHeader('referrer-policy', ['first-text', 'second-text']);
+        response.end();
+      });
+      const urlRequest = net.request(serverUrl);
+      const response = await getResponse(urlRequest);
+      expect(response.statusCode).to.equal(200);
+      expect(response.statusMessage).to.equal('OK');
 
-        urlRequest.on('response', response => {
-          expect(response.statusCode).to.equal(200)
-          expect(response.statusMessage).to.equal('OK')
+      const headers = response.headers;
+      expect(headers).to.be.an('object');
+      expect(headers).to.have.property('referrer-policy');
+      expect(headers['referrer-policy']).to.equal('first-text, second-text');
 
-          const headers = response.headers
-          expect(headers).to.be.an('object')
-          expect(headers).to.have.property('referrer-policy')
-          expect(headers['referrer-policy']).to.equal('first-text, second-text')
+      await collectStreamBody(response);
+    });
 
-          response.on('data', chunk => {})
-          response.on('end', () => { done() })
-        })
-        urlRequest.end()
-      })
-    })
-
-    it('should be able to pipe a net response into a writable stream', (done) => {
-      const bodyData = randomString(kOneKiloByte)
-      Promise.all([
+    it('should be able to pipe a net response into a writable stream', async () => {
+      const bodyData = randomString(kOneKiloByte);
+      let nodeRequestProcessed = false;
+      const [netServerUrl, nodeServerUrl] = await Promise.all([
         respondOnce.toSingleURL((request, response) => response.end(bodyData)),
-        respondOnce.toSingleURL((request, response) => {
-          let receivedBodyData = ''
-          request.on('data', (chunk) => {
-            receivedBodyData += chunk.toString()
-          })
-          request.on('end', (chunk: Buffer | undefined) => {
-            if (chunk) {
-              receivedBodyData += chunk.toString()
-            }
-            expect(receivedBodyData).to.be.equal(bodyData)
-            response.end()
-          })
+        respondOnce.toSingleURL(async (request, response) => {
+          const receivedBodyData = await collectStreamBody(request);
+          expect(receivedBodyData).to.be.equal(bodyData);
+          nodeRequestProcessed = true;
+          response.end();
         })
-      ]).then(([netServerUrl, nodeServerUrl]) => {
-        const netRequest = net.request(netServerUrl)
-        netRequest.on('response', (netResponse) => {
-          const serverUrl = url.parse(nodeServerUrl)
-          const nodeOptions = {
-            method: 'POST',
-            path: serverUrl.path,
-            port: serverUrl.port
-          }
-          const nodeRequest = http.request(nodeOptions, res => {
-            res.on('data', (chunk) => {})
-            res.on('end', () => {
-              done()
-            })
-          });
-          // TODO: IncomingMessage should properly extend ReadableStream in the
-          // docs
-          (netResponse as any).pipe(nodeRequest)
-        })
-        netRequest.end()
-      })
-    })
-
-    it('should not emit any event after close', (done) => {
-      const bodyData = randomString(kOneKiloByte)
-      respondOnce.toSingleURL((request, response) => {
-        response.end(bodyData)
-      }).then(serverUrl => {
-        let requestCloseEventEmitted = false
-        const urlRequest = net.request(serverUrl)
-        urlRequest.on('response', (response) => {
-          expect(requestCloseEventEmitted).to.be.false('request close event emitted')
-          const statusCode = response.statusCode
-          expect(statusCode).to.equal(200)
-          response.on('data', () => { })
-          response.on('end', () => { })
-          response.on('error', () => {
-            expect(requestCloseEventEmitted).to.be.false('request close event emitted')
-          })
-          response.on('aborted', () => {
-            expect(requestCloseEventEmitted).to.be.false('request close event emitted')
-          })
-        })
-        urlRequest.on('finish', () => {
-          expect(requestCloseEventEmitted).to.be.false('request close event emitted')
-        })
-        urlRequest.on('error', () => {
-          expect(requestCloseEventEmitted).to.be.false('request close event emitted')
-        })
-        urlRequest.on('abort', () => {
-          expect(requestCloseEventEmitted).to.be.false('request close event emitted')
-        })
-        urlRequest.on('close', () => {
-          requestCloseEventEmitted = true
-          // Wait so that all async events get scheduled.
-          setTimeout(() => {
-            done()
-          }, 100)
-        })
-        urlRequest.end()
-      })
-    })
-  })
+      ]);
+      const netRequest = net.request(netServerUrl);
+      const netResponse = await getResponse(netRequest);
+      const serverUrl = url.parse(nodeServerUrl);
+      const nodeOptions = {
+        method: 'POST',
+        path: serverUrl.path,
+        port: serverUrl.port
+      };
+      const nodeRequest = http.request(nodeOptions);
+      const nodeResponsePromise = emittedOnce(nodeRequest, 'response');
+      // TODO(@MarshallOfSound) - FIXME with #22730
+      (netResponse as any).pipe(nodeRequest);
+      const [nodeResponse] = await nodeResponsePromise;
+      netRequest.end();
+      await collectStreamBody(nodeResponse);
+      expect(nodeRequestProcessed).to.equal(true);
+    });
+  });
 
   describe('Stability and performance', () => {
     it('should free unreferenced, never-started request objects without crash', (done) => {
-      net.request('https://test')
+      net.request('https://test');
       process.nextTick(() => {
-        const v8Util = process.electronBinding('v8_util')
-        v8Util.requestGarbageCollectionForTesting()
-        done()
-      })
-    })
+        const v8Util = process.electronBinding('v8_util');
+        v8Util.requestGarbageCollectionForTesting();
+        done();
+      });
+    });
 
-    it('should collect on-going requests without crash', (done) => {
-      let finishResponse: (() => void) | null = null
-      respondOnce.toSingleURL((request, response) => {
-        response.write(randomString(kOneKiloByte))
+    it('should collect on-going requests without crash', async () => {
+      let finishResponse: (() => void) | null = null;
+      const serverUrl = await respondOnce.toSingleURL((request, response) => {
+        response.write(randomString(kOneKiloByte));
         finishResponse = () => {
-          response.write(randomString(kOneKiloByte))
-          response.end()
-        }
-      }).then(serverUrl => {
-        const urlRequest = net.request(serverUrl)
-        urlRequest.on('response', (response) => {
-          response.on('data', () => { })
-          response.on('end', () => {
-            done()
-          })
-          process.nextTick(() => {
-            // Trigger a garbage collection.
-            const v8Util = process.electronBinding('v8_util')
-            v8Util.requestGarbageCollectionForTesting()
-            finishResponse!()
-          })
-        })
-        urlRequest.end()
-      })
-    })
+          response.write(randomString(kOneKiloByte));
+          response.end();
+        };
+      });
+      const urlRequest = net.request(serverUrl);
+      const response = await getResponse(urlRequest);
+      process.nextTick(() => {
+        // Trigger a garbage collection.
+        const v8Util = process.electronBinding('v8_util');
+        v8Util.requestGarbageCollectionForTesting();
+        finishResponse!();
+      });
+      await collectStreamBody(response);
+    });
 
-    it('should collect unreferenced, ended requests without crash', (done) => {
-      respondOnce.toSingleURL((request, response) => {
-        response.end()
-      }).then(serverUrl => {
-        const urlRequest = net.request(serverUrl)
-        urlRequest.on('response', (response) => {
-          response.on('data', () => {})
-          response.on('end', () => {})
-        })
-        urlRequest.on('close', () => {
-          process.nextTick(() => {
-            const v8Util = process.electronBinding('v8_util')
-            v8Util.requestGarbageCollectionForTesting()
-            done()
-          })
-        })
-        urlRequest.end()
-      })
-    })
-  })
-})
+    it('should collect unreferenced, ended requests without crash', async () => {
+      const serverUrl = await respondOnce.toSingleURL((request, response) => {
+        response.end();
+      });
+      const urlRequest = net.request(serverUrl);
+      process.nextTick(() => {
+        const v8Util = process.electronBinding('v8_util');
+        v8Util.requestGarbageCollectionForTesting();
+      });
+      const response = await getResponse(urlRequest);
+      await collectStreamBody(response);
+    });
+
+    it('should finish sending data when urlRequest is unreferenced', async () => {
+      const serverUrl = await respondOnce.toSingleURL(async (request, response) => {
+        const received = await collectStreamBodyBuffer(request);
+        expect(received.length).to.equal(kOneMegaByte);
+        response.end();
+      });
+      const urlRequest = net.request(serverUrl);
+      urlRequest.on('close', () => {
+        process.nextTick(() => {
+          const v8Util = process.electronBinding('v8_util');
+          v8Util.requestGarbageCollectionForTesting();
+        });
+      });
+      urlRequest.write(randomBuffer(kOneMegaByte));
+      const response = await getResponse(urlRequest);
+      await collectStreamBody(response);
+    });
+
+    it('should finish sending data when urlRequest is unreferenced for chunked encoding', async () => {
+      const serverUrl = await respondOnce.toSingleURL(async (request, response) => {
+        const received = await collectStreamBodyBuffer(request);
+        response.end();
+        expect(received.length).to.equal(kOneMegaByte);
+      });
+      const urlRequest = net.request(serverUrl);
+      urlRequest.chunkedEncoding = true;
+      urlRequest.write(randomBuffer(kOneMegaByte));
+      const response = await getResponse(urlRequest);
+      await collectStreamBody(response);
+      process.nextTick(() => {
+        const v8Util = process.electronBinding('v8_util');
+        v8Util.requestGarbageCollectionForTesting();
+      });
+    });
+
+    it('should finish sending data when urlRequest is unreferenced before close event for chunked encoding', async () => {
+      const serverUrl = await respondOnce.toSingleURL(async (request, response) => {
+        const received = await collectStreamBodyBuffer(request);
+        response.end();
+        expect(received.length).to.equal(kOneMegaByte);
+      });
+      const urlRequest = net.request(serverUrl);
+      urlRequest.chunkedEncoding = true;
+      urlRequest.write(randomBuffer(kOneMegaByte));
+      const v8Util = process.electronBinding('v8_util');
+      v8Util.requestGarbageCollectionForTesting();
+      await collectStreamBody(await getResponse(urlRequest));
+    });
+
+    it('should finish sending data when urlRequest is unreferenced', async () => {
+      const serverUrl = await respondOnce.toSingleURL(async (request, response) => {
+        const received = await collectStreamBodyBuffer(request);
+        response.end();
+        expect(received.length).to.equal(kOneMegaByte);
+      });
+      const urlRequest = net.request(serverUrl);
+      urlRequest.on('close', () => {
+        process.nextTick(() => {
+          const v8Util = process.electronBinding('v8_util');
+          v8Util.requestGarbageCollectionForTesting();
+        });
+      });
+      urlRequest.write(randomBuffer(kOneMegaByte));
+      await collectStreamBody(await getResponse(urlRequest));
+    });
+
+    it('should finish sending data when urlRequest is unreferenced for chunked encoding', async () => {
+      const serverUrl = await respondOnce.toSingleURL(async (request, response) => {
+        const received = await collectStreamBodyBuffer(request);
+        response.end();
+        expect(received.length).to.equal(kOneMegaByte);
+      });
+      const urlRequest = net.request(serverUrl);
+      urlRequest.on('close', () => {
+        process.nextTick(() => {
+          const v8Util = process.electronBinding('v8_util');
+          v8Util.requestGarbageCollectionForTesting();
+        });
+      });
+      urlRequest.chunkedEncoding = true;
+      urlRequest.write(randomBuffer(kOneMegaByte));
+      await collectStreamBody(await getResponse(urlRequest));
+    });
+  });
+});

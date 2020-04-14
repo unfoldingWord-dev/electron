@@ -64,7 +64,7 @@ If you want to support displays with different DPI densities at the same time,
 you can put images with different sizes in the same folder and use the filename
 without DPI suffixes. For example:
 
-```text
+```plaintext
 images/
 ├── icon.png
 ├── icon@2x.png
@@ -328,9 +328,9 @@ can be called on empty images.
 
 [buffer]: https://nodejs.org/api/buffer.html#buffer_class_buffer
 
-## Properties
+### Instance Properties
 
-### `nativeImage.isMacTemplateImage` _macOS_
+#### `nativeImage.isMacTemplateImage` _macOS_
 
 A `Boolean` property that determines whether the image is considered a [template image](https://developer.apple.com/documentation/appkit/nsimage/1520017-template).
 

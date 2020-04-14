@@ -9,7 +9,7 @@
 #include <string>
 #include <utility>
 
-#include "base/message_loop/message_loop.h"
+#include "base/message_loop/message_loop_current.h"
 #include "base/no_destructor.h"
 #include "base/optional.h"
 #include "base/strings/utf_string_conversions.h"
@@ -41,12 +41,13 @@
 #include "content/public/browser/storage_partition.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/context_menu_params.h"
+#include "electron/buildflags/buildflags.h"
 #include "electron/shell/common/api/api.mojom.h"
 #include "mojo/public/cpp/system/platform_handle.h"
 #include "native_mate/converter.h"
 #include "native_mate/dictionary.h"
 #include "native_mate/object_template_builder.h"
-#include "net/url_request/url_request_context.h"
+#include "ppapi/buildflags/buildflags.h"
 #include "shell/browser/api/atom_api_browser_window.h"
 #include "shell/browser/api/atom_api_debugger.h"
 #include "shell/browser/api/atom_api_session.h"
@@ -59,7 +60,6 @@
 #include "shell/browser/child_web_contents_tracker.h"
 #include "shell/browser/lib/bluetooth_chooser.h"
 #include "shell/browser/native_window.h"
-#include "shell/browser/net/atom_network_delegate.h"
 #include "shell/browser/session_preferences.h"
 #include "shell/browser/ui/drag_util.h"
 #include "shell/browser/ui/inspectable_web_contents.h"
@@ -100,6 +100,12 @@
 
 #if !defined(OS_MACOSX)
 #include "ui/aura/window.h"
+#else
+#include "ui/base/cocoa/defaults_utils.h"
+#endif
+
+#if defined(OS_LINUX)
+#include "ui/views/linux_ui/linux_ui.h"
 #endif
 
 #if defined(OS_LINUX) || defined(OS_WIN)
@@ -107,9 +113,8 @@
 #include "ui/gfx/font_render_params.h"
 #endif
 
-#if BUILDFLAG(ENABLE_PRINTING)
-#include "chrome/browser/printing/print_view_manager_basic.h"
-#include "components/printing/common/print_messages.h"
+#if BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
+#include "shell/browser/extensions/atom_extension_web_contents_observer.h"
 #endif
 
 namespace mate {
@@ -303,6 +308,35 @@ void OnCapturePageDone(util::Promise promise, const SkBitmap& bitmap) {
   promise.Resolve(gfx::Image::CreateFrom1xBitmap(bitmap));
 }
 
+#if BUILDFLAG(ENABLE_PRINTING)
+// This will return false if no printer with the provided device_name can be
+// found on the network. We need to check this because Chromium does not do
+// sanity checking of device_name validity and so will crash on invalid names.
+bool IsDeviceNameValid(const base::string16& device_name) {
+#if defined(OS_MACOSX)
+  base::ScopedCFTypeRef<CFStringRef> new_printer_id(
+      base::SysUTF16ToCFStringRef(device_name));
+  PMPrinter new_printer = PMPrinterCreateFromPrinterID(new_printer_id.get());
+  bool printer_exists = new_printer != nullptr;
+  PMRelease(new_printer);
+  return printer_exists;
+#elif defined(OS_WIN)
+  printing::ScopedPrinterHandle printer;
+  return printer.OpenPrinterWithName(device_name.c_str());
+#endif
+  return true;
+}
+
+base::string16 GetDefaultPrinterAsync() {
+  base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
+                                                base::BlockingType::MAY_BLOCK);
+
+  scoped_refptr<printing::PrintBackend> backend =
+      printing::PrintBackend::CreateInstance(nullptr);
+  std::string printer_name = backend->GetDefaultPrinterName();
+  return base::UTF8ToUTF16(printer_name);
+}
+#endif
 }  // namespace
 
 WebContents::WebContents(v8::Isolate* isolate,
@@ -343,8 +377,8 @@ WebContents::WebContents(v8::Isolate* isolate, const mate::Dictionary& options)
   // Get type
   options.Get("type", &type_);
 
-  bool b = false;
 #if BUILDFLAG(ENABLE_OSR)
+  bool b = false;
   if (options.Get(options::kOffscreen, &b) && b)
     type_ = Type::OFF_SCREEN;
 #endif
@@ -354,6 +388,12 @@ WebContents::WebContents(v8::Isolate* isolate, const mate::Dictionary& options)
 
   // Whether to enable DevTools.
   options.Get("devTools", &enable_devtools_);
+
+  // BrowserViews are not attached to a window initially so they should start
+  // off as hidden. This is also important for compositor recycling. See:
+  // https://github.com/electron/electron/pull/21372
+  bool initially_shown = type_ != Type::BROWSER_VIEW;
+  options.Get(options::kShow, &initially_shown);
 
   // Obtain the session.
   std::string partition;
@@ -409,6 +449,7 @@ WebContents::WebContents(v8::Isolate* isolate, const mate::Dictionary& options)
 #endif
   } else {
     content::WebContents::CreateParams params(session->browser_context());
+    params.initially_hidden = !initially_shown;
     web_contents = content::WebContents::Create(params);
   }
 
@@ -453,15 +494,35 @@ void WebContents::InitWithSessionAndOptions(
   prefs->subpixel_rendering = params->subpixel_rendering;
 #endif
 
+// Honor the system's cursor blink rate settings
+#if defined(OS_MACOSX)
+  base::TimeDelta interval;
+  if (ui::TextInsertionCaretBlinkPeriod(&interval))
+    prefs->caret_blink_interval = interval;
+#elif defined(OS_LINUX)
+  views::LinuxUI* linux_ui = views::LinuxUI::instance();
+  if (linux_ui)
+    prefs->caret_blink_interval = linux_ui->GetCursorBlinkInterval();
+#elif defined(OS_WIN)
+  const auto system_msec = ::GetCaretBlinkTime();
+  if (system_msec != 0) {
+    prefs->caret_blink_interval =
+        (system_msec == INFINITE)
+            ? base::TimeDelta()
+            : base::TimeDelta::FromMilliseconds(system_msec);
+  }
+#endif
+
   // Save the preferences in C++.
   new WebContentsPreferences(web_contents(), options);
 
-  // Initialize permission helper.
   WebContentsPermissionHelper::CreateForWebContents(web_contents());
-  // Initialize security state client.
   SecurityStateTabHelper::CreateForWebContents(web_contents());
-  // Initialize zoom controller.
   InitZoomController(web_contents(), options);
+#if BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
+  extensions::AtomExtensionWebContentsObserver::CreateForWebContents(
+      web_contents());
+#endif
 
   registry_.AddInterface(base::BindRepeating(&WebContents::BindElectronBrowser,
                                              base::Unretained(this)));
@@ -559,6 +620,25 @@ void WebContents::WebContentsCreated(content::WebContents* source_contents,
   auto* tracker = ChildWebContentsTracker::FromWebContents(new_contents);
   tracker->url = target_url;
   tracker->frame_name = frame_name;
+}
+
+bool WebContents::ShouldCreateWebContents(
+    content::WebContents* web_contents,
+    content::RenderFrameHost* opener,
+    content::SiteInstance* source_site_instance,
+    int32_t route_id,
+    int32_t main_frame_route_id,
+    int32_t main_frame_widget_route_id,
+    content::mojom::WindowContainerType window_container_type,
+    const GURL& opener_url,
+    const std::string& frame_name,
+    const GURL& target_url,
+    const std::string& partition_id,
+    content::SessionStorageNamespace* session_storage_namespace) {
+  if (Emit("-will-add-new-contents", target_url, frame_name)) {
+    return false;
+  }
+  return true;
 }
 
 void WebContents::AddNewContents(
@@ -803,11 +883,20 @@ void WebContents::BeforeUnloadFired(bool proceed,
 }
 
 void WebContents::RenderViewCreated(content::RenderViewHost* render_view_host) {
-  auto* const impl = content::RenderWidgetHostImpl::FromID(
-      render_view_host->GetProcess()->GetID(),
-      render_view_host->GetRoutingID());
-  if (impl)
-    impl->disable_hidden_ = !background_throttling_;
+  if (!background_throttling_)
+    render_view_host->SetSchedulerThrottling(false);
+}
+
+void WebContents::RenderFrameCreated(
+    content::RenderFrameHost* render_frame_host) {
+  auto* rwhv = render_frame_host->GetView();
+  if (!rwhv)
+    return;
+
+  auto* rwh_impl =
+      static_cast<content::RenderWidgetHostImpl*>(rwhv->GetRenderWidgetHost());
+  if (rwh_impl)
+    rwh_impl->disable_hidden_ = !background_throttling_;
 }
 
 void WebContents::RenderViewHostChanged(content::RenderViewHost* old_host,
@@ -841,10 +930,12 @@ void WebContents::RenderProcessGone(base::TerminationStatus status) {
 
 void WebContents::PluginCrashed(const base::FilePath& plugin_path,
                                 base::ProcessId plugin_pid) {
+#if BUILDFLAG(ENABLE_PLUGINS)
   content::WebPluginInfo info;
   auto* plugin_service = content::PluginService::GetInstance();
   plugin_service->GetPluginInfoByPath(plugin_path, &info);
   Emit("plugin-crashed", info.name, info.version);
+#endif  // BUILDFLAG(ENABLE_PLUIGNS)
 }
 
 void WebContents::MediaStartedPlaying(const MediaPlayerInfo& video_type,
@@ -956,7 +1047,7 @@ void WebContents::OnElectronBrowserConnectionError() {
 
 void WebContents::Message(bool internal,
                           const std::string& channel,
-                          base::Value arguments) {
+                          base::ListValue arguments) {
   // webContents.emit('-ipc-message', new Event(), internal, channel,
   // arguments);
   EmitWithSender("-ipc-message", bindings_.dispatch_context(), base::nullopt,
@@ -964,7 +1055,7 @@ void WebContents::Message(bool internal,
 }
 
 void WebContents::Invoke(const std::string& channel,
-                         base::Value arguments,
+                         base::ListValue arguments,
                          InvokeCallback callback) {
   // webContents.emit('-ipc-invoke', new Event(), channel, arguments);
   EmitWithSender("-ipc-invoke", bindings_.dispatch_context(),
@@ -973,7 +1064,7 @@ void WebContents::Invoke(const std::string& channel,
 
 void WebContents::MessageSync(bool internal,
                               const std::string& channel,
-                              base::Value arguments,
+                              base::ListValue arguments,
                               MessageSyncCallback callback) {
   // webContents.emit('-ipc-message-sync', new Event(sender, message), internal,
   // channel, arguments);
@@ -985,19 +1076,18 @@ void WebContents::MessageTo(bool internal,
                             bool send_to_all,
                             int32_t web_contents_id,
                             const std::string& channel,
-                            base::Value arguments) {
+                            base::ListValue arguments) {
   auto* web_contents = mate::TrackableObject<WebContents>::FromWeakMapID(
       isolate(), web_contents_id);
 
   if (web_contents) {
     web_contents->SendIPCMessageWithSender(internal, send_to_all, channel,
-                                           base::ListValue(arguments.GetList()),
-                                           ID());
+                                           std::move(arguments), ID());
   }
 }
 
 void WebContents::MessageHost(const std::string& channel,
-                              base::Value arguments) {
+                              base::ListValue arguments) {
   // webContents.emit('ipc-message-host', new Event(), channel, args);
   EmitWithSender("ipc-message-host", bindings_.dispatch_context(),
                  base::nullopt, channel, std::move(arguments));
@@ -1224,31 +1314,24 @@ void WebContents::NavigationEntryCommitted(
 void WebContents::SetBackgroundThrottling(bool allowed) {
   background_throttling_ = allowed;
 
-  auto* contents = web_contents();
-  if (!contents) {
+  auto* rfh = web_contents()->GetMainFrame();
+  if (!rfh)
     return;
-  }
 
-  auto* render_view_host = contents->GetRenderViewHost();
-  if (!render_view_host) {
+  auto* rwhv = rfh->GetView();
+  if (!rwhv)
     return;
-  }
 
-  auto* render_process_host = render_view_host->GetProcess();
-  if (!render_process_host) {
+  auto* rwh_impl =
+      static_cast<content::RenderWidgetHostImpl*>(rwhv->GetRenderWidgetHost());
+  if (!rwh_impl)
     return;
-  }
 
-  auto* render_widget_host_impl = content::RenderWidgetHostImpl::FromID(
-      render_process_host->GetID(), render_view_host->GetRoutingID());
-  if (!render_widget_host_impl) {
-    return;
-  }
+  rwh_impl->disable_hidden_ = !background_throttling_;
+  web_contents()->GetRenderViewHost()->SetSchedulerThrottling(allowed);
 
-  render_widget_host_impl->disable_hidden_ = !background_throttling_;
-
-  if (render_widget_host_impl->is_hidden()) {
-    render_widget_host_impl->WasShown(base::nullopt);
+  if (rwh_impl->is_hidden()) {
+    rwh_impl->WasShown(base::nullopt);
   }
 }
 
@@ -1318,6 +1401,12 @@ void WebContents::LoadURL(const GURL& url, const mate::Dictionary& options) {
   if (options.Get("baseURLForDataURL", &base_url_for_data_url)) {
     params.base_url_for_data_url = base_url_for_data_url;
     params.load_type = content::NavigationController::LOAD_TYPE_DATA;
+  }
+
+  bool reload_ignoring_cache = false;
+  if (options.Get("reloadIgnoringCache", &reload_ignoring_cache) &&
+      reload_ignoring_cache) {
+    params.reload_type = content::ReloadType::BYPASSING_CACHE;
   }
 
   params.transition_type = ui::PAGE_TRANSITION_TYPED;
@@ -1582,16 +1671,51 @@ bool WebContents::IsCurrentlyAudible() {
 }
 
 #if BUILDFLAG(ENABLE_PRINTING)
+void WebContents::OnGetDefaultPrinter(
+    base::DictionaryValue print_settings,
+    printing::CompletionCallback print_callback,
+    base::string16 device_name,
+    bool silent,
+    base::string16 default_printer) {
+  base::string16 printer_name =
+      device_name.empty() ? default_printer : device_name;
+
+  // If there are no valid printers available on the network, we bail.
+  if (printer_name.empty() || !IsDeviceNameValid(printer_name)) {
+    if (print_callback)
+      std::move(print_callback).Run(false, "no valid printers available");
+    return;
+  }
+
+  print_settings.SetStringKey(printing::kSettingDeviceName, printer_name);
+
+  auto* print_view_manager =
+      printing::PrintViewManagerBasic::FromWebContents(web_contents());
+  auto* focused_frame = web_contents()->GetFocusedFrame();
+  auto* rfh = focused_frame && focused_frame->HasSelection()
+                  ? focused_frame
+                  : web_contents()->GetMainFrame();
+
+  print_view_manager->PrintNow(
+      rfh,
+      std::make_unique<PrintMsg_PrintPages>(rfh->GetRoutingID(), silent,
+                                            std::move(print_settings)),
+      std::move(print_callback));
+}
+
 void WebContents::Print(mate::Arguments* args) {
   mate::Dictionary options = mate::Dictionary::CreateEmpty(args->isolate());
   base::DictionaryValue settings;
+
   if (args->Length() >= 1 && !args->GetNext(&options)) {
-    args->ThrowError("Invalid print settings specified");
+    args->ThrowError("webContents.print(): Invalid print settings specified.");
     return;
   }
+
   printing::CompletionCallback callback;
   if (args->Length() == 2 && !args->GetNext(&callback)) {
-    args->ThrowError("Invalid optional callback provided");
+    args->ThrowError(
+        "webContents.print(): Invalid optional callback provided.");
     return;
   }
 
@@ -1599,26 +1723,34 @@ void WebContents::Print(mate::Arguments* args) {
   bool silent = false;
   options.Get("silent", &silent);
 
+  bool print_background = false;
+  options.Get("printBackground", &print_background);
+  settings.SetBoolean(printing::kSettingShouldPrintBackgrounds,
+                      print_background);
+
   // Set custom margin settings
-  mate::Dictionary margins;
+  mate::Dictionary margins = mate::Dictionary::CreateEmpty(args->isolate());
   if (options.Get("margins", &margins)) {
     printing::MarginType margin_type = printing::DEFAULT_MARGINS;
     margins.Get("marginType", &margin_type);
     settings.SetInteger(printing::kSettingMarginsType, margin_type);
 
     if (margin_type == printing::CUSTOM_MARGINS) {
+      auto custom_margins = std::make_unique<base::DictionaryValue>();
       int top = 0;
       margins.Get("top", &top);
-      settings.SetInteger(printing::kSettingMarginTop, top);
+      custom_margins->SetInteger(printing::kSettingMarginTop, top);
       int bottom = 0;
       margins.Get("bottom", &bottom);
-      settings.SetInteger(printing::kSettingMarginBottom, bottom);
+      custom_margins->SetInteger(printing::kSettingMarginBottom, bottom);
       int left = 0;
       margins.Get("left", &left);
-      settings.SetInteger(printing::kSettingMarginLeft, left);
+      custom_margins->SetInteger(printing::kSettingMarginLeft, left);
       int right = 0;
       margins.Get("right", &right);
-      settings.SetInteger(printing::kSettingMarginRight, right);
+      custom_margins->SetInteger(printing::kSettingMarginRight, right);
+      settings.SetDictionary(printing::kSettingMarginsCustom,
+                             std::move(custom_margins));
     }
   } else {
     settings.SetInteger(printing::kSettingMarginsType,
@@ -1637,9 +1769,15 @@ void WebContents::Print(mate::Arguments* args) {
   options.Get("landscape", &landscape);
   settings.SetBoolean(printing::kSettingLandscape, landscape);
 
+  // We set the default to the system's default printer and only update
+  // if at the Chromium level if the user overrides.
+  // Printer device name as opened by the OS.
   base::string16 device_name;
   options.Get("deviceName", &device_name);
-  settings.SetString(printing::kSettingDeviceName, device_name);
+  if (!device_name.empty() && !IsDeviceNameValid(device_name)) {
+    args->ThrowError("webContents.print(): Invalid deviceName provided.");
+    return;
+  }
 
   int scale_factor = 100;
   options.Get("scaleFactor", &scale_factor);
@@ -1656,11 +1794,6 @@ void WebContents::Print(mate::Arguments* args) {
   int copies = 1;
   options.Get("copies", &copies);
   settings.SetInteger(printing::kSettingCopies, copies);
-
-  bool print_background = false;
-  options.Get("printBackground", &print_background);
-  settings.SetBoolean(printing::kSettingShouldPrintBackgrounds,
-                      print_background);
 
   // For now we don't want to allow the user to enable these settings
   // but we need to set them or a CHECK is hit.
@@ -1711,17 +1844,13 @@ void WebContents::Print(mate::Arguments* args) {
     settings.SetInteger(printing::kSettingDpiVertical, dpi);
   }
 
-  auto* print_view_manager =
-      printing::PrintViewManagerBasic::FromWebContents(web_contents());
-  auto* focused_frame = web_contents()->GetFocusedFrame();
-  auto* rfh = focused_frame && focused_frame->HasSelection()
-                  ? focused_frame
-                  : web_contents()->GetMainFrame();
-  print_view_manager->PrintNow(
-      rfh,
-      std::make_unique<PrintMsg_PrintPages>(rfh->GetRoutingID(), silent,
-                                            print_background, settings),
-      std::move(callback));
+  base::PostTaskAndReplyWithResult(
+      FROM_HERE,
+      {base::ThreadPool(), base::MayBlock(), base::TaskPriority::USER_BLOCKING},
+      base::BindOnce(&GetDefaultPrinterAsync),
+      base::BindOnce(&WebContents::OnGetDefaultPrinter,
+                     weak_factory_.GetWeakPtr(), std::move(settings),
+                     std::move(callback), device_name, silent));
 }
 
 std::vector<printing::PrinterBasicInfo> WebContents::GetPrinterList() {
@@ -1873,14 +2002,15 @@ void WebContents::TabTraverse(bool reverse) {
 bool WebContents::SendIPCMessage(bool internal,
                                  bool send_to_all,
                                  const std::string& channel,
-                                 const base::ListValue& args) {
-  return SendIPCMessageWithSender(internal, send_to_all, channel, args);
+                                 base::ListValue args) {
+  return SendIPCMessageWithSender(internal, send_to_all, channel,
+                                  std::move(args));
 }
 
 bool WebContents::SendIPCMessageWithSender(bool internal,
                                            bool send_to_all,
                                            const std::string& channel,
-                                           const base::ListValue& args,
+                                           base::ListValue args,
                                            int32_t sender_id) {
   std::vector<content::RenderFrameHost*> target_hosts;
   if (!send_to_all) {
@@ -1896,7 +2026,8 @@ bool WebContents::SendIPCMessageWithSender(bool internal,
     mojom::ElectronRendererAssociatedPtr electron_ptr;
     frame_host->GetRemoteAssociatedInterfaces()->GetInterface(
         mojo::MakeRequest(&electron_ptr));
-    electron_ptr->Message(internal, false, channel, args.Clone(), sender_id);
+    electron_ptr->Message(internal, false, channel,
+                          base::ListValue(args.Clone().GetList()), sender_id);
   }
   return true;
 }
@@ -1905,7 +2036,7 @@ bool WebContents::SendIPCMessageToFrame(bool internal,
                                         bool send_to_all,
                                         int32_t frame_id,
                                         const std::string& channel,
-                                        const base::ListValue& args) {
+                                        base::ListValue args) {
   auto frames = web_contents()->GetAllFrames();
   auto iter = std::find_if(frames.begin(), frames.end(), [frame_id](auto* f) {
     return f->GetRoutingID() == frame_id;
@@ -1918,7 +2049,7 @@ bool WebContents::SendIPCMessageToFrame(bool internal,
   mojom::ElectronRendererAssociatedPtr electron_ptr;
   (*iter)->GetRemoteAssociatedInterfaces()->GetInterface(
       mojo::MakeRequest(&electron_ptr));
-  electron_ptr->Message(internal, send_to_all, channel, args.Clone(),
+  electron_ptr->Message(internal, send_to_all, channel, std::move(args),
                         0 /* sender_id */);
   return true;
 }
@@ -2071,6 +2202,23 @@ v8::Local<v8::Promise> WebContents::CapturePage(mate::Arguments* args) {
   view->CopyFromSurface(gfx::Rect(rect.origin(), view_size), bitmap_size,
                         base::BindOnce(&OnCapturePageDone, std::move(promise)));
   return handle;
+}
+
+void WebContents::IncrementCapturerCount(mate::Arguments* args) {
+  gfx::Size size;
+
+  // get size arguments if they exist
+  args->GetNext(&size);
+
+  web_contents()->IncrementCapturerCount(size);
+}
+
+void WebContents::DecrementCapturerCount(mate::Arguments* args) {
+  web_contents()->DecrementCapturerCount();
+}
+
+bool WebContents::IsBeingCaptured() {
+  return web_contents()->IsBeingCaptured();
 }
 
 void WebContents::OnCursorChange(const content::WebCursor& cursor) {
@@ -2467,6 +2615,9 @@ void WebContents::BuildPrototype(v8::Isolate* isolate,
       .SetMethod("setEmbedder", &WebContents::SetEmbedder)
       .SetMethod("setDevToolsWebContents", &WebContents::SetDevToolsWebContents)
       .SetMethod("getNativeView", &WebContents::GetNativeView)
+      .SetMethod("incrementCapturerCount", &WebContents::IncrementCapturerCount)
+      .SetMethod("decrementCapturerCount", &WebContents::DecrementCapturerCount)
+      .SetMethod("isBeingCaptured", &WebContents::IsBeingCaptured)
       .SetMethod("setWebRTCIPHandlingPolicy",
                  &WebContents::SetWebRTCIPHandlingPolicy)
       .SetMethod("getWebRTCIPHandlingPolicy",

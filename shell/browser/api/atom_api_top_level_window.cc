@@ -246,6 +246,10 @@ void TopLevelWindow::OnWindowSwipe(const std::string& direction) {
   Emit("swipe", direction);
 }
 
+void TopLevelWindow::OnWindowRotateGesture(float rotation) {
+  Emit("rotate-gesture", rotation);
+}
+
 void TopLevelWindow::OnWindowSheetBegin() {
   Emit("sheet-begin");
 }
@@ -519,14 +523,16 @@ void TopLevelWindow::SetAlwaysOnTop(bool top, mate::Arguments* args) {
   args->GetNext(&relative_level);
 
   std::string error;
-  window_->SetAlwaysOnTop(top, level, relative_level, &error);
+  ui::ZOrderLevel z_order =
+      top ? ui::ZOrderLevel::kFloatingWindow : ui::ZOrderLevel::kNormal;
+  window_->SetAlwaysOnTop(z_order, level, relative_level, &error);
 
   if (!error.empty())
     args->ThrowError(error);
 }
 
 bool TopLevelWindow::IsAlwaysOnTop() {
-  return window_->IsAlwaysOnTop();
+  return window_->GetZOrderLevel() != ui::ZOrderLevel::kNormal;
 }
 
 void TopLevelWindow::Center() {
@@ -860,6 +866,10 @@ void TopLevelWindow::CloseFilePreview() {
   window_->CloseFilePreview();
 }
 
+void TopLevelWindow::SetGTKDarkThemeEnabled(bool use_dark_theme) {
+  window_->SetGTKDarkThemeEnabled(use_dark_theme);
+}
+
 v8::Local<v8::Value> TopLevelWindow::GetContentView() const {
   if (content_view_.IsEmpty())
     return v8::Null(isolate());
@@ -1024,9 +1034,9 @@ void TopLevelWindow::RemoveFromParentChildWindows() {
 
 // static
 mate::WrappableBase* TopLevelWindow::New(mate::Arguments* args) {
-  mate::Dictionary options;
-  if (!(args->Length() == 1 && args->GetNext(&options)))
-    options = mate::Dictionary::CreateEmpty(args->isolate());
+  mate::Dictionary options = mate::Dictionary::CreateEmpty(args->isolate());
+  args->GetNext(&options);
+
   return new TopLevelWindow(args->isolate(), args->GetThis(), options);
 }
 
@@ -1162,6 +1172,7 @@ void TopLevelWindow::BuildPrototype(v8::Isolate* isolate,
       .SetMethod("_isMenuBarAutoHide", &TopLevelWindow::IsMenuBarAutoHide)
       .SetProperty("autoHideMenuBar", &TopLevelWindow::IsMenuBarAutoHide,
                    &TopLevelWindow::SetAutoHideMenuBar)
+      .SetMethod("setMenuBarVisibility", &TopLevelWindow::SetMenuBarVisibility)
       .SetMethod("isMenuBarVisible", &TopLevelWindow::IsMenuBarVisible)
       .SetMethod("setAspectRatio", &TopLevelWindow::SetAspectRatio)
       .SetMethod("previewFile", &TopLevelWindow::PreviewFile)

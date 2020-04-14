@@ -13,6 +13,7 @@
 #include <utility>
 #include <vector>
 
+#include "base/numerics/ranges.h"
 #include "base/stl_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "content/public/browser/browser_thread.h"
@@ -197,7 +198,7 @@ NativeWindowViews::NativeWindowViews(const mate::Dictionary& options,
   params.wm_class_class = name;
 #endif
 
-  widget()->Init(params);
+  widget()->Init(std::move(params));
 
   bool fullscreen = false;
   options.Get(options::kFullscreen, &fullscreen);
@@ -212,12 +213,7 @@ NativeWindowViews::NativeWindowViews(const mate::Dictionary& options,
   // Set _GTK_THEME_VARIANT to dark if we have "dark-theme" option set.
   bool use_dark_theme = false;
   if (options.Get(options::kDarkTheme, &use_dark_theme) && use_dark_theme) {
-    XDisplay* xdisplay = gfx::GetXDisplay();
-    XChangeProperty(xdisplay, GetAcceleratedWidget(),
-                    XInternAtom(xdisplay, "_GTK_THEME_VARIANT", x11::False),
-                    XInternAtom(xdisplay, "UTF8_STRING", x11::False), 8,
-                    PropModeReplace,
-                    reinterpret_cast<const unsigned char*>("dark"), 4);
+    SetGTKDarkThemeEnabled(use_dark_theme);
   }
 
   // Before the window is mapped the SetWMSpecState can not work, so we have
@@ -277,7 +273,7 @@ NativeWindowViews::NativeWindowViews(const mate::Dictionary& options,
   if (has_frame()) {
     // TODO(zcbenz): This was used to force using native frame on Windows 2003,
     // we should check whether setting it in InitParams can work.
-    widget()->set_frame_type(views::Widget::FrameType::FRAME_TYPE_FORCE_NATIVE);
+    widget()->set_frame_type(views::Widget::FrameType::kForceNative);
     widget()->FrameTypeChanged();
 #if defined(OS_WIN)
     // thickFrame also works for normal window.
@@ -303,7 +299,6 @@ NativeWindowViews::NativeWindowViews(const mate::Dictionary& options,
     last_window_state_ = ui::SHOW_STATE_FULLSCREEN;
   else
     last_window_state_ = ui::SHOW_STATE_NORMAL;
-  last_normal_bounds_ = GetBounds();
 #endif
 
 #if defined(OS_LINUX)
@@ -326,6 +321,25 @@ NativeWindowViews::~NativeWindowViews() {
   aura::Window* window = GetNativeWindow();
   if (window)
     window->RemovePreTargetHandler(this);
+#endif
+}
+
+void NativeWindowViews::SetGTKDarkThemeEnabled(bool use_dark_theme) {
+#if defined(USE_X11)
+  XDisplay* xdisplay = gfx::GetXDisplay();
+  if (use_dark_theme) {
+    XChangeProperty(xdisplay, GetAcceleratedWidget(),
+                    XInternAtom(xdisplay, "_GTK_THEME_VARIANT", x11::False),
+                    XInternAtom(xdisplay, "UTF8_STRING", x11::False), 8,
+                    PropModeReplace,
+                    reinterpret_cast<const unsigned char*>("dark"), 4);
+  } else {
+    XChangeProperty(xdisplay, GetAcceleratedWidget(),
+                    XInternAtom(xdisplay, "_GTK_THEME_VARIANT", x11::False),
+                    XInternAtom(xdisplay, "UTF8_STRING", x11::False), 8,
+                    PropModeReplace,
+                    reinterpret_cast<const unsigned char*>("light"), 5);
+  }
 #endif
 }
 
@@ -752,19 +766,17 @@ bool NativeWindowViews::IsClosable() {
 #endif
 }
 
-void NativeWindowViews::SetAlwaysOnTop(bool top,
+void NativeWindowViews::SetAlwaysOnTop(ui::ZOrderLevel z_order,
                                        const std::string& level,
                                        int relativeLevel,
                                        std::string* error) {
-  if (top != widget()->IsAlwaysOnTop())
-    NativeWindow::NotifyWindowAlwaysOnTopChanged();
-
-  widget()->SetAlwaysOnTop(top);
+  bool level_changed = z_order != widget()->GetZOrderLevel();
+  widget()->SetZOrderLevel(z_order);
 
 #if defined(OS_WIN)
   // Reset the placement flag.
   behind_task_bar_ = false;
-  if (top) {
+  if (z_order != ui::ZOrderLevel::kNormal) {
     // On macOS the window is placed behind the Dock for the following levels.
     // Re-use the same names on Windows to make it easier for the user.
     static const std::vector<std::string> levels = {
@@ -773,10 +785,15 @@ void NativeWindowViews::SetAlwaysOnTop(bool top,
   }
 #endif
   MoveBehindTaskBarIfNeeded();
+
+  // This must be notified at the very end or IsAlwaysOnTop
+  // will not yet have been updated to reflect the new status
+  if (level_changed)
+    NativeWindow::NotifyWindowAlwaysOnTopChanged();
 }
 
-bool NativeWindowViews::IsAlwaysOnTop() {
-  return widget()->IsAlwaysOnTop();
+ui::ZOrderLevel NativeWindowViews::GetZOrderLevel() {
+  return widget()->GetZOrderLevel();
 }
 
 void NativeWindowViews::Center() {
@@ -877,6 +894,7 @@ bool NativeWindowViews::HasShadow() {
 
 void NativeWindowViews::SetOpacity(const double opacity) {
 #if defined(OS_WIN)
+  const double boundedOpacity = base::ClampToRange(opacity, 0.0, 1.0);
   HWND hwnd = GetAcceleratedWidget();
   if (!layered_) {
     LONG ex_style = ::GetWindowLong(hwnd, GWL_EXSTYLE);
@@ -884,9 +902,11 @@ void NativeWindowViews::SetOpacity(const double opacity) {
     ::SetWindowLong(hwnd, GWL_EXSTYLE, ex_style);
     layered_ = true;
   }
-  ::SetLayeredWindowAttributes(hwnd, 0, opacity * 255, LWA_ALPHA);
+  ::SetLayeredWindowAttributes(hwnd, 0, boundedOpacity * 255, LWA_ALPHA);
+  opacity_ = boundedOpacity;
+#else
+  opacity_ = 1.0;  // setOpacity unsupported on Linux
 #endif
-  opacity_ = opacity;
 }
 
 double NativeWindowViews::GetOpacity() {
@@ -930,6 +950,7 @@ void NativeWindowViews::SetContentProtection(bool enable) {
 }
 
 void NativeWindowViews::SetFocusable(bool focusable) {
+  widget()->widget_delegate()->SetCanActivate(focusable);
 #if defined(OS_WIN)
   LONG ex_style = ::GetWindowLong(GetAcceleratedWidget(), GWL_EXSTYLE);
   if (focusable)
@@ -944,20 +965,22 @@ void NativeWindowViews::SetFocusable(bool focusable) {
 
 void NativeWindowViews::SetMenu(AtomMenuModel* menu_model) {
 #if defined(USE_X11)
-  if (menu_model == nullptr) {
+  // Remove global menu bar.
+  if (global_menu_bar_ && menu_model == nullptr) {
     global_menu_bar_.reset();
     root_view_->UnregisterAcceleratorsWithFocusManager();
     return;
   }
 
-  if (!global_menu_bar_ && ShouldUseGlobalMenuBar())
-    global_menu_bar_.reset(new GlobalMenuBarX11(this));
-
   // Use global application menu bar when possible.
-  if (global_menu_bar_ && global_menu_bar_->IsServerStarted()) {
-    root_view_->RegisterAcceleratorsWithFocusManager(menu_model);
-    global_menu_bar_->SetMenu(menu_model);
-    return;
+  if (ShouldUseGlobalMenuBar()) {
+    if (!global_menu_bar_)
+      global_menu_bar_.reset(new GlobalMenuBarX11(this));
+    if (global_menu_bar_->IsServerStarted()) {
+      root_view_->RegisterAcceleratorsWithFocusManager(menu_model);
+      global_menu_bar_->SetMenu(menu_model);
+      return;
+    }
   }
 #endif
 

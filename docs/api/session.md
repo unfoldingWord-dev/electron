@@ -91,6 +91,20 @@ session.defaultSession.on('will-download', (event, item, webContents) => {
 })
 ```
 
+#### Event: 'preconnect' _Experimental_
+
+Returns:
+
+* `event` Event
+* `preconnectUrl` String - The URL being requested for preconnection by the
+  renderer.
+* `allowCredentials` Boolean - True if the renderer is requesting that the
+  connection include credentials (see the
+  [spec](https://w3c.github.io/resource-hints/#preconnect) for more details.)
+
+Emitted when a render process requests preconnection to a URL, generally due to
+a [resource hint](https://w3c.github.io/resource-hints/).
+
 ### Instance Methods
 
 The following methods are available on instances of `Session`:
@@ -237,6 +251,14 @@ window.webContents.session.enableNetworkEmulation({
 // To emulate a network outage.
 window.webContents.session.enableNetworkEmulation({ offline: true })
 ```
+
+#### `ses.preconnect(options)` _Experimental_
+
+* `options` Object
+  * `url` String - URL for preconnect. Only the origin is relevant for opening the socket.
+  * `numSockets` Number (optional) - number of sockets to preconnect. Must be between 1 and 6. Defaults to 1.
+
+Preconnects the given number of sockets to an origin.
 
 #### `ses.disableNetworkEmulation()`
 
@@ -427,15 +449,15 @@ registered.
 
 The following properties are available on instances of `Session`:
 
-#### `ses.cookies`
+#### `ses.cookies` _Readonly_
 
 A [`Cookies`](cookies.md) object for this session.
 
-#### `ses.webRequest`
+#### `ses.webRequest` _Readonly_
 
 A [`WebRequest`](web-request.md) object for this session.
 
-#### `ses.protocol`
+#### `ses.protocol` _Readonly_
 
 A [`Protocol`](protocol.md) object for this session.
 
@@ -454,7 +476,7 @@ app.on('ready', function () {
 })
 ```
 
-#### `ses.netLog`
+#### `ses.netLog` _Readonly_
 
 A [`NetLog`](net-log.md) object for this session.
 

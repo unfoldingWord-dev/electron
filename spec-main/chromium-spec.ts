@@ -1,12 +1,14 @@
 import * as chai from 'chai'
 import * as chaiAsPromised from 'chai-as-promised'
 import { BrowserWindow, WebContents, session, ipcMain } from 'electron'
-import { emittedOnce } from './events-helpers';
-import { closeAllWindows } from './window-helpers';
-import * as https from 'https';
-import * as path from 'path';
-import * as fs from 'fs';
-import { EventEmitter } from 'events';
+import { emittedOnce } from './events-helpers'
+import { closeAllWindows } from './window-helpers'
+import * as https from 'https'
+import * as http from 'http'
+import * as path from 'path'
+import * as fs from 'fs'
+import { EventEmitter } from 'events'
+import { promisify } from 'util'
 
 const { expect } = chai
 
@@ -197,5 +199,125 @@ describe('focus handling', () => {
       focusedElementId = await focusChange
       expect(focusedElementId).to.equal('BUTTON-element-3', `focus should've looped back to element-3, it's instead in ${focusedElementId}`)
     })
+  })
+})
+
+describe('web security', () => {
+  afterEach(closeAllWindows)
+  let server: http.Server
+  let serverUrl: string
+  before(async () => {
+    server = http.createServer((req, res) => {
+      res.setHeader('Content-Type', 'text/html')
+      res.end('<body>')
+    })
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+    serverUrl = `http://localhost:${(server.address() as any).port}`
+  })
+  after(() => {
+    server.close()
+  })
+
+  it('engages CORB when web security is not disabled', async () => {
+    const w = new BrowserWindow({ show: true, webPreferences: { webSecurity: true, nodeIntegration: true } })
+    const p = emittedOnce(ipcMain, 'success')
+    await w.loadURL(`data:text/html,<script>
+        const s = document.createElement('script')
+        s.src = "${serverUrl}"
+        // The script will load successfully but its body will be emptied out
+        // by CORB, so we don't expect a syntax error.
+        s.onload = () => { require('electron').ipcRenderer.send('success') }
+        document.documentElement.appendChild(s)
+      </script>`)
+    await p
+  })
+
+  it('bypasses CORB when web security is disabled', async () => {
+    const w = new BrowserWindow({ show: true, webPreferences: { webSecurity: false, nodeIntegration: true } })
+    const p = emittedOnce(ipcMain, 'success')
+    await w.loadURL(`data:text/html,
+      <script>
+        window.onerror = (e) => { require('electron').ipcRenderer.send('success', e) }
+      </script>
+      <script src="${serverUrl}"></script>`)
+    await p
+  })
+})
+
+describe('iframe using HTML fullscreen API while window is OS-fullscreened', () => {
+  const fullscreenChildHtml = promisify(fs.readFile)(
+    path.join(fixturesPath, 'pages', 'fullscreen-oopif.html')
+  )
+  let w: BrowserWindow, server: http.Server
+
+  before(() => {
+    server = http.createServer(async (_req, res) => {
+      res.writeHead(200, { 'Content-Type': 'text/html' })
+      res.write(await fullscreenChildHtml)
+      res.end()
+    })
+
+    server.listen(8989, '127.0.0.1')
+  })
+
+  beforeEach(() => {
+    w = new BrowserWindow({
+      show: true,
+      fullscreen: true,
+      webPreferences: {
+        nodeIntegration: true,
+        nodeIntegrationInSubFrames: true
+      }
+    })
+  })
+
+  afterEach(async () => {
+    await closeAllWindows()
+    ;(w as any) = null
+    server.close()
+  })
+
+  it('can fullscreen from out-of-process iframes (OOPIFs)', done => {
+    ipcMain.once('fullscreenChange', async () => {
+      const fullscreenWidth = await w.webContents.executeJavaScript(
+        "document.querySelector('iframe').offsetWidth"
+      )
+      expect(fullscreenWidth > 0).to.be.true
+
+      await w.webContents.executeJavaScript(
+        "document.querySelector('iframe').contentWindow.postMessage('exitFullscreen', '*')"
+      )
+
+      await new Promise(resolve => setTimeout(resolve, 500))
+
+      const width = await w.webContents.executeJavaScript(
+        "document.querySelector('iframe').offsetWidth"
+      )
+      expect(width).to.equal(0)
+
+      done()
+    })
+
+    const html =
+      '<iframe style="width: 0" frameborder=0 src="http://localhost:8989" allowfullscreen></iframe>'
+    w.loadURL(`data:text/html,${html}`)
+  })
+
+  it('can fullscreen from in-process iframes', done => {
+    ipcMain.once('fullscreenChange', async () => {
+      const fullscreenWidth = await w.webContents.executeJavaScript(
+        "document.querySelector('iframe').offsetWidth"
+      )
+      expect(fullscreenWidth > 0).to.true
+
+      await w.webContents.executeJavaScript('document.exitFullscreen()')
+      const width = await w.webContents.executeJavaScript(
+        "document.querySelector('iframe').offsetWidth"
+      )
+      expect(width).to.equal(0)
+      done()
+    })
+
+    w.loadFile(path.join(fixturesPath, 'pages', 'fullscreen-ipif.html'))
   })
 })

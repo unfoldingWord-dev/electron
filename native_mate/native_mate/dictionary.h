@@ -40,8 +40,14 @@ class Dictionary {
 
   static Dictionary CreateEmpty(v8::Isolate* isolate);
 
+  bool Has(base::StringPiece key) const {
+    v8::Local<v8::Context> context = isolate_->GetCurrentContext();
+    v8::Local<v8::String> v8_key = StringToV8(isolate_, key);
+    return internal::IsTrue(GetHandle()->Has(context, v8_key));
+  }
+
   template <typename T>
-  bool Get(const base::StringPiece& key, T* out) const {
+  bool Get(base::StringPiece key, T* out) const {
     // Check for existence before getting, otherwise this method will always
     // returns true when T == v8::Local<v8::Value>.
     v8::Local<v8::Context> context = isolate_->GetCurrentContext();
@@ -56,7 +62,7 @@ class Dictionary {
   }
 
   template <typename T>
-  bool GetHidden(const base::StringPiece& key, T* out) const {
+  bool GetHidden(base::StringPiece key, T* out) const {
     v8::Local<v8::Context> context = isolate_->GetCurrentContext();
     v8::Local<v8::Private> privateKey =
         v8::Private::ForApi(isolate_, StringToV8(isolate_, key));
@@ -69,7 +75,7 @@ class Dictionary {
   }
 
   template <typename T>
-  bool Set(const base::StringPiece& key, const T& val) {
+  bool Set(base::StringPiece key, const T& val) {
     v8::Local<v8::Value> v8_value;
     if (!TryConvertToV8(isolate_, val, &v8_value))
       return false;
@@ -79,7 +85,7 @@ class Dictionary {
   }
 
   template <typename T>
-  bool SetHidden(const base::StringPiece& key, T val) {
+  bool SetHidden(base::StringPiece key, T val) {
     v8::Local<v8::Value> v8_value;
     if (!TryConvertToV8(isolate_, val, &v8_value))
       return false;
@@ -92,7 +98,7 @@ class Dictionary {
   }
 
   template <typename T>
-  bool SetReadOnly(const base::StringPiece& key, T val) {
+  bool SetReadOnly(base::StringPiece key, T val) {
     v8::Local<v8::Value> v8_value;
     if (!TryConvertToV8(isolate_, val, &v8_value))
       return false;
@@ -103,7 +109,18 @@ class Dictionary {
   }
 
   template <typename T>
-  bool SetMethod(const base::StringPiece& key, const T& callback) {
+  bool SetReadOnlyNonConfigurable(base::StringPiece key, T val) {
+    v8::Local<v8::Value> v8_value;
+    if (!TryConvertToV8(isolate_, val, &v8_value))
+      return false;
+    v8::Maybe<bool> result = GetHandle()->DefineOwnProperty(
+        isolate_->GetCurrentContext(), StringToV8(isolate_, key), v8_value,
+        static_cast<v8::PropertyAttribute>(v8::ReadOnly | v8::DontDelete));
+    return !result.IsNothing() && result.FromJust();
+  }
+
+  template <typename T>
+  bool SetMethod(base::StringPiece key, const T& callback) {
     return GetHandle()
         ->Set(isolate_->GetCurrentContext(), StringToV8(isolate_, key),
               CallbackTraits<T>::CreateTemplate(isolate_, callback)
@@ -112,7 +129,7 @@ class Dictionary {
         .ToChecked();
   }
 
-  bool Delete(const base::StringPiece& key) {
+  bool Delete(base::StringPiece key) {
     v8::Maybe<bool> result = GetHandle()->Delete(isolate_->GetCurrentContext(),
                                                  StringToV8(isolate_, key));
     return !result.IsNothing() && result.FromJust();

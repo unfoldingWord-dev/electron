@@ -5,6 +5,7 @@
 #include "shell/browser/ui/views/autofill_popup_view.h"
 
 #include <memory>
+#include <utility>
 
 #include "base/bind.h"
 #include "base/i18n/rtl.h"
@@ -74,7 +75,8 @@ void AutofillPopupView::Show() {
     views::Widget::InitParams params(views::Widget::InitParams::TYPE_POPUP);
     params.delegate = this;
     params.parent = parent_widget_->GetNativeView();
-    widget->Init(params);
+    params.z_order = ui::ZOrderLevel::kFloatingUIElement;
+    widget->Init(std::move(params));
 
     // No animation for popup appearance (too distracting).
     widget->SetVisibilityAnimationTransition(views::Widget::ANIMATE_HIDE);
