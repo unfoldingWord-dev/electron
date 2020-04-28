@@ -20,7 +20,7 @@ vars = {
   'boto_version': 'f7574aa6cc2c819430c1f05e9a1a1a666ef8169b',
   'pyyaml_version': '3.12',
   'requests_version': 'e4d59bedfd3c7f4f254f4f5d036587bcd8152458',
-  'graphite_version': 'a7096fa3d91754da03de74a1fe5069de3971103c',
+  'graphite_version': '92f59dcc52f73ce747f1cdc831579ed2546884aa',
 
   'boto_git': 'https://github.com/boto',
   'chromium_git': 'https://chromium.googlesource.com',

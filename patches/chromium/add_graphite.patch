@@ -99,6 +99,7 @@ index 000000000000..75b8267c8091
 +    visibility = [ "//third_party:freetype_harfbuzz" ]
 +
 +    sources = [
++        "graphite2/src/call_machine.cpp",
 +        "graphite2/src/direct_machine.cpp",
 +        "graphite2/src/gr_char_info.cpp",
 +        "graphite2/src/gr_face.cpp",
