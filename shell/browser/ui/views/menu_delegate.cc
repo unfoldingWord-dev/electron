@@ -4,6 +4,8 @@
 
 #include "shell/browser/ui/views/menu_delegate.h"
 
+#include <memory>
+
 #include "base/task/post_task.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
@@ -19,9 +21,9 @@ namespace electron {
 MenuDelegate::MenuDelegate(MenuBar* menu_bar)
     : menu_bar_(menu_bar), id_(-1), hold_first_switch_(false) {}
 
-MenuDelegate::~MenuDelegate() {}
+MenuDelegate::~MenuDelegate() = default;
 
-void MenuDelegate::RunMenu(AtomMenuModel* model,
+void MenuDelegate::RunMenu(ElectronMenuModel* model,
                            views::Button* button,
                            ui::MenuSourceType source_type) {
   gfx::Point screen_loc;
@@ -35,14 +37,13 @@ void MenuDelegate::RunMenu(AtomMenuModel* model,
   }
 
   id_ = button->tag();
-  adapter_.reset(new MenuModelAdapter(model));
+  adapter_ = std::make_unique<MenuModelAdapter>(model);
 
-  views::MenuItemView* item = new views::MenuItemView(this);
+  auto* item = new views::MenuItemView(this);
   static_cast<MenuModelAdapter*>(adapter_.get())->BuildMenu(item);
 
-  menu_runner_.reset(new views::MenuRunner(
-      item,
-      views::MenuRunner::CONTEXT_MENU | views::MenuRunner::HAS_MNEMONICS));
+  menu_runner_ = std::make_unique<views::MenuRunner>(
+      item, views::MenuRunner::CONTEXT_MENU | views::MenuRunner::HAS_MNEMONICS);
   menu_runner_->RunMenuAt(
       button->GetWidget()->GetTopLevelWidget(),
       static_cast<views::MenuButton*>(button)->button_controller(), bounds,
@@ -122,18 +123,17 @@ views::MenuItemView* MenuDelegate::GetSiblingMenu(
   // TODO(zcbenz): We should follow Chromium's logics on implementing the
   // sibling menu switches, this code is almost a hack.
   views::MenuButton* button;
-  AtomMenuModel* model;
+  ElectronMenuModel* model;
   if (menu_bar_->GetMenuButtonFromScreenPoint(screen_point, &model, &button) &&
       button->tag() != id_) {
     bool switch_in_progress = !!button_to_open_;
     // Always update target to open.
     button_to_open_ = button;
-    // Switching menu asyncnously to avoid crash.
+    // Switching menu asynchronously to avoid crash.
     if (!switch_in_progress) {
-      base::PostTaskWithTraits(
-          FROM_HERE, {content::BrowserThread::UI},
-          base::BindOnce(&views::MenuRunner::Cancel,
-                         base::Unretained(menu_runner_.get())));
+      base::PostTask(FROM_HERE, {content::BrowserThread::UI},
+                     base::BindOnce(&views::MenuRunner::Cancel,
+                                    base::Unretained(menu_runner_.get())));
     }
   }
 

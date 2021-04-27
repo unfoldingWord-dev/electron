@@ -1,40 +1,20 @@
 {
-  "baseUrl": "https://github.com/electron/electron-frameworks/releases/download",
-  "version": "v1.4.0",
-  "binaries": [
+  "baseUrl": "https://electron-build-tools.s3-us-west-2.amazonaws.com/build-dependencies",
+  "files": [
     {
-      "url": "Mantle.zip",
-      "platform": "darwin"
+      "name": "sccache-darwin-x64.zip",
+      "platform": "darwin",
+      "sha": "3bfe114b49a15e4f15e2e3a9ee6699f1acdb89446badbaa4144869c72a7690ca"
     },
     {
-      "url": "ReactiveCocoa.zip",
-      "platform": "darwin"
+      "name": "sccache-linux-x64.zip",
+      "platform": "linux",
+      "sha": "ceb3e10e8a860467efc327c7bbb473481268cc8575bdd39d51acf6eba635e343"
     },
     {
-      "url": "Squirrel.zip",
-      "platform": "darwin"
-    },
-    {
-      "url": "directxsdk-ia32.zip",
+      "name": "sccache-win32-x64.zip",
       "platform": "win32",
-      "targetArch": "ia32"
-    },
-    {
-      "url": "directxsdk-x64.zip",
-      "platform": "win32",
-      "targetArch": "x64"
-    },
-    {
-      "url": "sccache-darwin-x64.zip",
-      "platform": "darwin"
-    },
-    {
-      "url": "sccache-linux-x64.zip",
-      "platform": "linux"
-    },
-    {
-      "url": "sccache-win32-x64.zip",
-      "platform": "win32"
+      "sha": "b6a20fd1c2026f3792e7286bc768a7ebc261847b76449b49f55455e1f841fecd"
     }
   ]
 }

@@ -1,6 +1,4 @@
-import { EventEmitter } from 'events';
-
-const { createDesktopCapturer } = process.electronBinding('desktop_capturer');
+const { createDesktopCapturer } = process._linkedBinding('electron_browser_desktop_capturer');
 
 const deepEqual = (a: ElectronInternal.GetSourcesOptions, b: ElectronInternal.GetSourcesOptions) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -9,7 +7,28 @@ let currentlyRunning: {
   getSources: Promise<ElectronInternal.GetSourcesResult[]>;
 }[] = [];
 
-export const getSources = (event: Electron.IpcMainEvent, options: ElectronInternal.GetSourcesOptions) => {
+// |options.types| can't be empty and must be an array
+function isValid (options: Electron.SourcesOptions) {
+  const types = options ? options.types : undefined;
+  return Array.isArray(types);
+}
+
+export const getSourcesImpl = (event: Electron.IpcMainEvent | null, args: Electron.SourcesOptions) => {
+  if (!isValid(args)) throw new Error('Invalid options');
+
+  const captureWindow = args.types.includes('window');
+  const captureScreen = args.types.includes('screen');
+
+  const { thumbnailSize = { width: 150, height: 150 } } = args;
+  const { fetchWindowIcons = false } = args;
+
+  const options = {
+    captureWindow,
+    captureScreen,
+    thumbnailSize,
+    fetchWindowIcons
+  };
+
   for (const running of currentlyRunning) {
     if (deepEqual(running.options, options)) {
       // If a request is currently running for the same options
@@ -23,38 +42,35 @@ export const getSources = (event: Electron.IpcMainEvent, options: ElectronIntern
 
     const stopRunning = () => {
       if (capturer) {
-        capturer.emit = null;
+        delete capturer._onerror;
+        delete capturer._onfinished;
         capturer = null;
       }
       // Remove from currentlyRunning once we resolve or reject
       currentlyRunning = currentlyRunning.filter(running => running.options !== options);
+      if (event) {
+        event.sender.removeListener('destroyed', stopRunning);
+      }
     };
 
-    const emitter = new EventEmitter();
-
-    emitter.once('error', (event, error: string) => {
+    capturer._onerror = (error: string) => {
       stopRunning();
       reject(error);
-    });
+    };
 
-    emitter.once('finished', (event, sources: Electron.DesktopCapturerSource[], fetchWindowIcons: boolean) => {
+    capturer._onfinished = (sources: Electron.DesktopCapturerSource[]) => {
       stopRunning();
-      resolve(sources.map(source => ({
-        id: source.id,
-        name: source.name,
-        thumbnail: source.thumbnail.toDataURL(),
-        display_id: source.display_id,
-        appIcon: (fetchWindowIcons && source.appIcon) ? source.appIcon.toDataURL() : null
-      })));
-    });
+      resolve(sources);
+    };
 
-    capturer.emit = emitter.emit.bind(emitter);
-    capturer.startHandling(options.captureWindow, options.captureScreen, options.thumbnailSize, options.fetchWindowIcons);
+    capturer.startHandling(captureWindow, captureScreen, thumbnailSize, fetchWindowIcons);
 
     // If the WebContents is destroyed before receiving result, just remove the
     // reference to emit and the capturer itself so that it never dispatches
     // back to the renderer
-    event.sender.once('destroyed', () => stopRunning());
+    if (event) {
+      event.sender.once('destroyed', stopRunning);
+    }
   });
 
   currentlyRunning.push({

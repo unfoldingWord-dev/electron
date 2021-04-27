@@ -11,7 +11,7 @@
 
 namespace asar {
 
-ScopedTemporaryFile::ScopedTemporaryFile() {}
+ScopedTemporaryFile::ScopedTemporaryFile() = default;
 
 ScopedTemporaryFile::~ScopedTemporaryFile() {
   if (!path_.empty()) {
@@ -22,7 +22,7 @@ ScopedTemporaryFile::~ScopedTemporaryFile() {
 #if defined(OS_WIN)
     base::DeleteFileAfterReboot(path_);
 #else
-    base::DeleteFile(path_, false);
+    base::DeleteFile(path_);
 #endif
   }
 }

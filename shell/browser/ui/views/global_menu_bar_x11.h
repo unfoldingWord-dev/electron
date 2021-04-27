@@ -9,9 +9,10 @@
 
 #include "base/compiler_specific.h"
 #include "base/macros.h"
-#include "shell/browser/ui/atom_menu_model.h"
+#include "shell/browser/ui/electron_menu_model.h"
 #include "ui/base/glib/glib_signal.h"
 #include "ui/gfx/native_widget_types.h"
+#include "ui/gfx/x/xproto.h"
 
 typedef struct _DbusmenuMenuitem DbusmenuMenuitem;
 typedef struct _DbusmenuServer DbusmenuServer;
@@ -40,10 +41,10 @@ class GlobalMenuBarX11 {
   explicit GlobalMenuBarX11(NativeWindowViews* window);
   virtual ~GlobalMenuBarX11();
 
-  // Creates the object path for DbusmenuServer which is attached to |xid|.
-  static std::string GetPathForWindow(gfx::AcceleratedWidget xid);
+  // Creates the object path for DbusmenuServer which is attached to |window|.
+  static std::string GetPathForWindow(x11::Window window);
 
-  void SetMenu(AtomMenuModel* menu_model);
+  void SetMenu(ElectronMenuModel* menu_model);
   bool IsServerStarted() const;
 
   // Called by NativeWindow when it show/hides.
@@ -52,10 +53,10 @@ class GlobalMenuBarX11 {
 
  private:
   // Creates a DbusmenuServer.
-  void InitServer(gfx::AcceleratedWidget xid);
+  void InitServer(x11::Window window);
 
   // Create a menu from menu model.
-  void BuildMenuFromModel(AtomMenuModel* model, DbusmenuMenuitem* parent);
+  void BuildMenuFromModel(ElectronMenuModel* model, DbusmenuMenuitem* parent);
 
   // Sets the accelerator for |item|.
   void RegisterAccelerator(DbusmenuMenuitem* item,
@@ -69,7 +70,7 @@ class GlobalMenuBarX11 {
   CHROMEG_CALLBACK_0(GlobalMenuBarX11, void, OnSubMenuShow, DbusmenuMenuitem*);
 
   NativeWindowViews* window_;
-  gfx::AcceleratedWidget xid_;
+  x11::Window xwindow_;
 
   DbusmenuServer* server_ = nullptr;
 

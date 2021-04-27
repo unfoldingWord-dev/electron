@@ -4,13 +4,15 @@ const path = require('path');
 
 const ELECTRON_DIR = path.resolve(__dirname, '..', '..');
 const SRC_DIR = path.resolve(ELECTRON_DIR, '..');
-const OUT_DIR = process.env.ELECTRON_OUT_DIR || 'Debug';
+
+const RELEASE_BRANCH_PATTERN = /(\d)+-(?:(?:[0-9]+-x$)|(?:x+-y$))/;
 
 require('colors');
-const pass = '\u2713'.green;
-const fail = '\u2717'.red;
+const pass = '✓'.green;
+const fail = '✗'.red;
 
 function getElectronExec () {
+  const OUT_DIR = getOutDir();
   switch (process.platform) {
     case 'darwin':
       return `out/${OUT_DIR}/Electron.app/Contents/MacOS/Electron`;
@@ -21,6 +23,37 @@ function getElectronExec () {
     default:
       throw new Error('Unknown platform');
   }
+}
+
+function getOutDir (options = {}) {
+  const shouldLog = options.shouldLog || false;
+  const presetDirs = ['Testing', 'Release', 'Default', 'Debug'];
+
+  if (options.outDir || process.env.ELECTRON_OUT_DIR) {
+    const outDir = options.outDir || process.env.ELECTRON_OUT_DIR;
+    const outPath = path.resolve(SRC_DIR, 'out', outDir);
+
+    // Check that user-set variable is a valid/existing directory
+    if (fs.existsSync(outPath)) {
+      if (shouldLog) console.log(`OUT_DIR is: ${outDir}`);
+      return outDir;
+    }
+
+    // Throw error if user passed/set nonexistent directory.
+    throw new Error(`${outDir} directory not configured on your machine.`);
+  } else {
+    for (const buildType of presetDirs) {
+      const outPath = path.resolve(SRC_DIR, 'out', buildType);
+      if (fs.existsSync(outPath)) {
+        if (shouldLog) console.log(`OUT_DIR is: ${buildType}`);
+        return buildType;
+      }
+    }
+  }
+
+  // If we got here, it means process.env.ELECTRON_OUT_DIR was not
+  // set and none of the preset options could be found in /out, so throw
+  throw new Error(`No valid out directory found; use one of ${presetDirs.join(',')} or set process.env.ELECTRON_OUT_DIR`);
 }
 
 function getAbsoluteElectronExec () {
@@ -40,7 +73,7 @@ async function handleGitCall (args, gitDir) {
 
 async function getCurrentBranch (gitDir) {
   let branch = await handleGitCall(['rev-parse', '--abbrev-ref', 'HEAD'], gitDir);
-  if (branch !== 'master' && !branch.match(/[0-9]+-[0-9]+-x/)) {
+  if (branch !== 'master' && !RELEASE_BRANCH_PATTERN.test(branch)) {
     const lastCommit = await handleGitCall(['rev-parse', 'HEAD'], gitDir);
     const branches = (await handleGitCall([
       'branch',
@@ -49,7 +82,7 @@ async function getCurrentBranch (gitDir) {
       '--remote'
     ], gitDir)).split('\n');
 
-    branch = branches.filter(b => b.trim() === 'master' || b.match(/[0-9]+-[0-9]+-x/))[0];
+    branch = branches.filter(b => b.trim() === 'master' || b.trim() === 'origin/master' || RELEASE_BRANCH_PATTERN.test(b.trim()))[0];
     if (!branch) {
       console.log(`${fail} no release branch exists for this ref`);
       process.exit(1);
@@ -62,8 +95,8 @@ async function getCurrentBranch (gitDir) {
 module.exports = {
   getCurrentBranch,
   getElectronExec,
+  getOutDir,
   getAbsoluteElectronExec,
   ELECTRON_DIR,
-  OUT_DIR,
   SRC_DIR
 };

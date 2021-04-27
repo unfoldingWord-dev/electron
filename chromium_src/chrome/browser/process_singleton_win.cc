@@ -23,7 +23,6 @@
 #include "chrome/browser/win/chrome_process_finder.h"
 #include "content/public/common/result_codes.h"
 #include "net/base/escape.h"
-#include "ui/base/l10n/l10n_util.h"
 #include "ui/gfx/win/hwnd_util.h"
 
 namespace {
@@ -198,7 +197,7 @@ ProcessSingleton::NotifyResult ProcessSingleton::NotifyOtherProcess() {
     return PROCESS_NONE;
   }
 
-  switch (chrome::AttemptToNotifyRunningChrome(remote_window_, false)) {
+  switch (chrome::AttemptToNotifyRunningChrome(remote_window_)) {
     case chrome::NOTIFY_SUCCESS:
       return PROCESS_NOTIFIED;
     case chrome::NOTIFY_FAILED:

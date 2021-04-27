@@ -14,7 +14,7 @@ namespace content {
 class WebContents;
 }
 
-namespace mate {
+namespace gin {
 class Arguments;
 }
 
@@ -39,7 +39,7 @@ class LoginHandler : public content::LoginDelegate,
                  const GURL& url,
                  scoped_refptr<net::HttpResponseHeaders> response_headers,
                  bool first_auth_attempt);
-  void CallbackFromJS(mate::Arguments* args);
+  void CallbackFromJS(gin::Arguments* args);
 
   LoginAuthRequiredCallback auth_required_callback_;
 

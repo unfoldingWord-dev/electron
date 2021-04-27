@@ -14,7 +14,11 @@ app.on('quit', () => {
   process.stdout.end();
 });
 
-app.on('ready', () => {
-  const win = new BrowserWindow();
+app.whenReady().then(() => {
+  const win = new BrowserWindow({
+    webPreferences: {
+      contextIsolation: true
+    }
+  });
   win.close();
 });

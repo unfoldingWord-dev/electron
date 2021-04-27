@@ -10,17 +10,111 @@
 #include "base/environment.h"
 #include "base/files/file_util.h"
 #include "base/nix/xdg_util.h"
+#include "base/no_destructor.h"
 #include "base/process/kill.h"
 #include "base/process/launch.h"
-#include "chrome/browser/ui/libgtkui/gtk_util.h"
+#include "base/threading/thread_restrictions.h"
+#include "components/dbus/thread_linux/dbus_thread_linux.h"
+#include "content/public/browser/browser_thread.h"
+#include "dbus/bus.h"
+#include "dbus/message.h"
+#include "dbus/object_proxy.h"
+#include "shell/common/platform_util_internal.h"
+#include "ui/gtk/gtk_util.h"
 #include "url/gurl.h"
 
 #define ELECTRON_TRASH "ELECTRON_TRASH"
 
+namespace platform_util {
+void OpenFolder(const base::FilePath& full_path);
+}
+
 namespace {
 
-bool XDGUtil(const std::vector<std::string>& argv, const bool wait_for_exit) {
+const char kFreedesktopFileManagerName[] = "org.freedesktop.FileManager1";
+const char kFreedesktopFileManagerPath[] = "/org/freedesktop/FileManager1";
+
+const char kMethodShowItems[] = "ShowItems";
+
+class ShowItemHelper {
+ public:
+  static ShowItemHelper& GetInstance() {
+    static base::NoDestructor<ShowItemHelper> instance;
+    return *instance;
+  }
+
+  ShowItemHelper() {}
+
+  ShowItemHelper(const ShowItemHelper&) = delete;
+  ShowItemHelper& operator=(const ShowItemHelper&) = delete;
+
+  void ShowItemInFolder(const base::FilePath& full_path) {
+    if (!bus_) {
+      // Sets up the D-Bus connection.
+      dbus::Bus::Options bus_options;
+      bus_options.bus_type = dbus::Bus::SESSION;
+      bus_options.connection_type = dbus::Bus::PRIVATE;
+      bus_options.dbus_task_runner = dbus_thread_linux::GetTaskRunner();
+      bus_ = base::MakeRefCounted<dbus::Bus>(bus_options);
+    }
+
+    if (!filemanager_proxy_) {
+      filemanager_proxy_ =
+          bus_->GetObjectProxy(kFreedesktopFileManagerName,
+                               dbus::ObjectPath(kFreedesktopFileManagerPath));
+    }
+
+    dbus::MethodCall show_items_call(kFreedesktopFileManagerName,
+                                     kMethodShowItems);
+    dbus::MessageWriter writer(&show_items_call);
+
+    writer.AppendArrayOfStrings(
+        {"file://" + full_path.value()});  // List of file(s) to highlight.
+    writer.AppendString({});               // startup-id
+
+    filemanager_proxy_->CallMethod(
+        &show_items_call, dbus::ObjectProxy::TIMEOUT_USE_DEFAULT,
+        base::BindOnce(&ShowItemHelper::ShowItemInFolderResponse,
+                       base::Unretained(this), full_path));
+  }
+
+ private:
+  void ShowItemInFolderResponse(const base::FilePath& full_path,
+                                dbus::Response* response) {
+    if (response)
+      return;
+
+    LOG(ERROR) << "Error calling " << kMethodShowItems;
+    // If the FileManager1 call fails, at least open the parent folder.
+    platform_util::OpenFolder(full_path.DirName());
+  }
+
+  scoped_refptr<dbus::Bus> bus_;
+  dbus::ObjectProxy* filemanager_proxy_ = nullptr;
+};
+
+// Descriptions pulled from https://linux.die.net/man/1/xdg-open
+std::string GetErrorDescription(int error_code) {
+  switch (error_code) {
+    case 1:
+      return "Error in command line syntax";
+    case 2:
+      return "The item does not exist";
+    case 3:
+      return "A required tool could not be found";
+    case 4:
+      return "The action failed";
+    default:
+      return "";
+  }
+}
+
+bool XDGUtil(const std::vector<std::string>& argv,
+             const base::FilePath& working_directory,
+             const bool wait_for_exit,
+             platform_util::OpenCallback callback) {
   base::LaunchOptions options;
+  options.current_directory = working_directory;
   options.allow_new_privs = true;
   // xdg-open can fall back on mailcap which eventually might plumb through
   // to a command that needs a terminal.  Set the environment variable telling
@@ -33,56 +127,69 @@ bool XDGUtil(const std::vector<std::string>& argv, const bool wait_for_exit) {
     return false;
 
   if (wait_for_exit) {
+    base::ScopedAllowBaseSyncPrimitivesForTesting
+        allow_sync;  // required by WaitForExit
     int exit_code = -1;
-    if (!process.WaitForExit(&exit_code))
-      return false;
-    return (exit_code == 0);
+    bool success = process.WaitForExit(&exit_code);
+    if (!callback.is_null())
+      std::move(callback).Run(GetErrorDescription(exit_code));
+    return success ? (exit_code == 0) : false;
   }
 
   base::EnsureProcessGetsReaped(std::move(process));
   return true;
 }
 
-bool XDGOpen(const std::string& path, const bool wait_for_exit) {
-  return XDGUtil({"xdg-open", path}, wait_for_exit);
+bool XDGOpen(const base::FilePath& working_directory,
+             const std::string& path,
+             const bool wait_for_exit,
+             platform_util::OpenCallback callback) {
+  return XDGUtil({"xdg-open", path}, working_directory, wait_for_exit,
+                 std::move(callback));
 }
 
 bool XDGEmail(const std::string& email, const bool wait_for_exit) {
-  return XDGUtil({"xdg-email", email}, wait_for_exit);
+  return XDGUtil({"xdg-email", email}, base::FilePath(), wait_for_exit,
+                 platform_util::OpenCallback());
 }
 
 }  // namespace
 
 namespace platform_util {
 
-// TODO(estade): It would be nice to be able to select the file in the file
-// manager, but that probably requires extending xdg-open. For now just
-// show the folder.
 void ShowItemInFolder(const base::FilePath& full_path) {
-  base::FilePath dir = full_path.DirName();
-  if (!base::DirectoryExists(dir))
-    return;
-
-  XDGOpen(dir.value(), false);
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  ShowItemHelper::GetInstance().ShowItemInFolder(full_path);
 }
 
-bool OpenItem(const base::FilePath& full_path) {
-  return XDGOpen(full_path.value(), false);
+void OpenPath(const base::FilePath& full_path, OpenCallback callback) {
+  // This is async, so we don't care about the return value.
+  XDGOpen(full_path.DirName(), full_path.value(), true, std::move(callback));
+}
+
+void OpenFolder(const base::FilePath& full_path) {
+  if (!base::DirectoryExists(full_path))
+    return;
+
+  XDGOpen(full_path.DirName(), ".", false, platform_util::OpenCallback());
 }
 
 void OpenExternal(const GURL& url,
                   const OpenExternalOptions& options,
-                  OpenExternalCallback callback) {
+                  OpenCallback callback) {
   // Don't wait for exit, since we don't want to wait for the browser/email
   // client window to close before returning
-  if (url.SchemeIs("mailto"))
-    std::move(callback).Run(XDGEmail(url.spec(), false) ? ""
-                                                        : "Failed to open");
-  else
-    std::move(callback).Run(XDGOpen(url.spec(), false) ? "" : "Failed to open");
+  if (url.SchemeIs("mailto")) {
+    bool success = XDGEmail(url.spec(), false);
+    std::move(callback).Run(success ? "" : "Failed to open path");
+  } else {
+    bool success = XDGOpen(base::FilePath(), url.spec(), false,
+                           platform_util::OpenCallback());
+    std::move(callback).Run(success ? "" : "Failed to open path");
+  }
 }
 
-bool MoveItemToTrash(const base::FilePath& full_path) {
+bool MoveItemToTrash(const base::FilePath& full_path, bool delete_on_fail) {
   std::unique_ptr<base::Environment> env(base::Environment::Create());
 
   // find the trash method
@@ -111,8 +218,21 @@ bool MoveItemToTrash(const base::FilePath& full_path) {
     argv = {"gio", "trash", filename};
   }
 
-  return XDGUtil(argv, true);
+  return XDGUtil(argv, base::FilePath(), true, platform_util::OpenCallback());
 }
+
+namespace internal {
+
+bool PlatformTrashItem(const base::FilePath& full_path, std::string* error) {
+  if (!MoveItemToTrash(full_path, false)) {
+    // TODO(nornagon): at least include the exit code?
+    *error = "Failed to move item to trash";
+    return false;
+  }
+  return true;
+}
+
+}  // namespace internal
 
 void Beep() {
   // echo '\a' > /dev/console
@@ -127,17 +247,7 @@ void Beep() {
 }
 
 bool GetDesktopName(std::string* setme) {
-  bool found = false;
-
-  std::unique_ptr<base::Environment> env(base::Environment::Create());
-  std::string desktop_id = libgtkui::GetDesktopName(env.get());
-  constexpr char const* libcc_default_id = "chromium-browser.desktop";
-  if (!desktop_id.empty() && (desktop_id != libcc_default_id)) {
-    *setme = desktop_id;
-    found = true;
-  }
-
-  return found;
+  return base::Environment::Create()->GetVar("CHROME_DESKTOP", setme);
 }
 
 }  // namespace platform_util

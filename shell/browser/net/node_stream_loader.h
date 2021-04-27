@@ -10,10 +10,12 @@
 #include <string>
 #include <vector>
 
+#include "mojo/public/cpp/bindings/pending_remote.h"
+#include "mojo/public/cpp/bindings/remote.h"
 #include "mojo/public/cpp/bindings/strong_binding.h"
 #include "mojo/public/cpp/system/data_pipe_producer.h"
-#include "services/network/public/cpp/resource_response.h"
 #include "services/network/public/mojom/url_loader.mojom.h"
+#include "services/network/public/mojom/url_response_head.mojom.h"
 #include "v8/include/v8.h"
 
 namespace electron {
@@ -28,9 +30,9 @@ namespace electron {
 // the passed |Buffer| is alive while writing data to pipe.
 class NodeStreamLoader : public network::mojom::URLLoader {
  public:
-  NodeStreamLoader(network::ResourceResponseHead head,
+  NodeStreamLoader(network::mojom::URLResponseHeadPtr head,
                    network::mojom::URLLoaderRequest loader,
-                   network::mojom::URLLoaderClientPtr client,
+                   mojo::PendingRemote<network::mojom::URLLoaderClient> client,
                    v8::Isolate* isolate,
                    v8::Local<v8::Object> emitter);
 
@@ -39,7 +41,7 @@ class NodeStreamLoader : public network::mojom::URLLoader {
 
   using EventCallback = base::RepeatingCallback<void()>;
 
-  void Start(network::ResourceResponseHead head);
+  void Start(network::mojom::URLResponseHeadPtr head);
   void NotifyReadable();
   void NotifyComplete(int result);
   void ReadMore();
@@ -49,16 +51,18 @@ class NodeStreamLoader : public network::mojom::URLLoader {
   void On(const char* event, EventCallback callback);
 
   // URLLoader:
-  void FollowRedirect(const std::vector<std::string>& removed_headers,
-                      const net::HttpRequestHeaders& modified_headers,
-                      const base::Optional<GURL>& new_url) override {}
+  void FollowRedirect(
+      const std::vector<std::string>& removed_headers,
+      const net::HttpRequestHeaders& modified_headers,
+      const net::HttpRequestHeaders& modified_cors_exempt_headers,
+      const base::Optional<GURL>& new_url) override {}
   void SetPriority(net::RequestPriority priority,
                    int32_t intra_priority_value) override {}
   void PauseReadingBodyFromNet() override {}
   void ResumeReadingBodyFromNet() override {}
 
   mojo::Binding<network::mojom::URLLoader> binding_;
-  network::mojom::URLLoaderClientPtr client_;
+  mojo::Remote<network::mojom::URLLoaderClient> client_;
 
   v8::Isolate* isolate_;
   v8::Global<v8::Object> emitter_;
@@ -82,6 +86,11 @@ class NodeStreamLoader : public network::mojom::URLLoader {
   // data if the stream was not readable before, so we store the state in a
   // flag.
   bool readable_ = false;
+
+  // It's possible for reads to be queued using nextTick() during read()
+  // which will cause 'readable' to emit during ReadMore, so we track if
+  // that occurred in a flag.
+  bool has_read_waiting_ = false;
 
   // Store the V8 callbacks to unsubscribe them later.
   std::map<std::string, v8::Global<v8::Value>> handlers_;

@@ -44,7 +44,11 @@ async function nextBeta (v) {
 
   const tagBlob = await GitProcess.exec(['tag', '--list', '-l', `v${next}-beta.*`], ELECTRON_DIR);
   const tags = tagBlob.stdout.split('\n').filter(e => e !== '');
-  tags.sort((t1, t2) => semver.gt(t1, t2));
+  tags.sort((t1, t2) => {
+    const a = parseInt(t1.split('.').pop(), 10);
+    const b = parseInt(t2.split('.').pop(), 10);
+    return a - b;
+  });
 
   // increment the latest existing beta tag or start at beta.1 if it's a new beta line
   return tags.length === 0 ? `${next}-beta.1` : semver.inc(tags.pop(), 'prerelease');
@@ -72,7 +76,7 @@ async function nextNightly (v) {
 
 async function getLastMajorForMaster () {
   let branchNames;
-  const result = await GitProcess.exec(['branch', '-a', '--remote', '--list', 'origin/[0-9]-[0-9]-x'], ELECTRON_DIR);
+  const result = await GitProcess.exec(['branch', '-a', '--remote', '--list', 'origin/[0-9]*-x-y'], ELECTRON_DIR);
   if (result.exitCode === 0) {
     branchNames = result.stdout.trim().split('\n');
     const filtered = branchNames.map(b => b.replace('origin/', ''));
@@ -83,7 +87,7 @@ async function getLastMajorForMaster () {
 }
 
 function getNextReleaseBranch (branches) {
-  const converted = branches.map(b => b.replace(/-/g, '.').replace('x', '0'));
+  const converted = branches.map(b => b.replace(/-/g, '.').replace('x', '0').replace('y', '0'));
   return converted.reduce((v1, v2) => semver.gt(v1, v2) ? v1 : v2);
 }
 

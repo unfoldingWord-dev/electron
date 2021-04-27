@@ -14,7 +14,10 @@
 
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
+#include "base/strings/string16.h"
 #include "base/supports_user_data.h"
+#include "base/values.h"
+#include "content/public/browser/desktop_media_id.h"
 #include "content/public/browser/web_contents_user_data.h"
 #include "extensions/browser/app_window/size_constraints.h"
 #include "shell/browser/native_window_observer.h"
@@ -34,17 +37,17 @@ class RectF;
 class Size;
 }  // namespace gfx
 
-namespace mate {
+namespace gin_helper {
 class Dictionary;
 class PersistentDictionary;
-}  // namespace mate
+}  // namespace gin_helper
 
 namespace electron {
 
-class AtomMenuModel;
+class ElectronMenuModel;
 class NativeBrowserView;
 
-#if defined(OS_MACOSX)
+#if defined(OS_MAC)
 typedef NSView* NativeWindowHandle;
 #else
 typedef gfx::AcceleratedWidget NativeWindowHandle;
@@ -57,10 +60,10 @@ class NativeWindow : public base::SupportsUserData,
 
   // Create window with existing WebContents, the caller is responsible for
   // managing the window's live.
-  static NativeWindow* Create(const mate::Dictionary& options,
+  static NativeWindow* Create(const gin_helper::Dictionary& options,
                               NativeWindow* parent = nullptr);
 
-  void InitFromOptions(const mate::Dictionary& options);
+  void InitFromOptions(const gin_helper::Dictionary& options);
 
   virtual void SetContentView(views::View* view) = 0;
 
@@ -111,6 +114,7 @@ class NativeWindow : public base::SupportsUserData,
   virtual double GetSheetOffsetX();
   virtual double GetSheetOffsetY();
   virtual void SetResizable(bool resizable) = 0;
+  virtual bool MoveAbove(const std::string& sourceId) = 0;
   virtual void MoveTop() = 0;
   virtual bool IsResizable() = 0;
   virtual void SetMovable(bool movable) = 0;
@@ -125,13 +129,17 @@ class NativeWindow : public base::SupportsUserData,
   virtual bool IsClosable() = 0;
   virtual void SetAlwaysOnTop(ui::ZOrderLevel z_order,
                               const std::string& level = "floating",
-                              int relativeLevel = 0,
-                              std::string* error = nullptr) = 0;
+                              int relativeLevel = 0) = 0;
   virtual ui::ZOrderLevel GetZOrderLevel() = 0;
   virtual void Center() = 0;
   virtual void Invalidate() = 0;
   virtual void SetTitle(const std::string& title) = 0;
   virtual std::string GetTitle() = 0;
+
+  // Ability to augment the window title for the screen readers.
+  void SetAccessibleTitle(const std::string& title);
+  std::string GetAccessibleTitle();
+
   virtual void FlashFrame(bool flash) = 0;
   virtual void SetSkipTaskbar(bool skip) = 0;
   virtual void SetExcludedFromShownWindowsMenu(bool excluded) = 0;
@@ -140,7 +148,9 @@ class NativeWindow : public base::SupportsUserData,
   virtual bool IsSimpleFullScreen() = 0;
   virtual void SetKiosk(bool kiosk) = 0;
   virtual bool IsKiosk() = 0;
+  virtual bool IsTabletMode() const;
   virtual void SetBackgroundColor(SkColor color) = 0;
+  virtual SkColor GetBackgroundColor() = 0;
   virtual void SetHasShadow(bool has_shadow) = 0;
   virtual bool HasShadow() = 0;
   virtual void SetOpacity(const double opacity) = 0;
@@ -152,10 +162,12 @@ class NativeWindow : public base::SupportsUserData,
   virtual void SetIgnoreMouseEvents(bool ignore, bool forward) = 0;
   virtual void SetContentProtection(bool enable) = 0;
   virtual void SetFocusable(bool focusable);
-  virtual void SetMenu(AtomMenuModel* menu);
+  virtual void SetMenu(ElectronMenuModel* menu);
   virtual void SetParentWindow(NativeWindow* parent);
   virtual void AddBrowserView(NativeBrowserView* browser_view) = 0;
   virtual void RemoveBrowserView(NativeBrowserView* browser_view) = 0;
+  virtual void SetTopBrowserView(NativeBrowserView* browser_view) = 0;
+  virtual content::DesktopMediaID GetDesktopMediaID() const = 0;
   virtual gfx::NativeView GetNativeView() const = 0;
   virtual gfx::NativeWindow GetNativeWindow() const = 0;
   virtual gfx::AcceleratedWidget GetAcceleratedWidget() const = 0;
@@ -185,11 +197,17 @@ class NativeWindow : public base::SupportsUserData,
   // Vibrancy API
   virtual void SetVibrancy(const std::string& type);
 
+  // Traffic Light API
+#if defined(OS_MAC)
+  virtual void SetTrafficLightPosition(const gfx::Point& position) = 0;
+  virtual gfx::Point GetTrafficLightPosition() const = 0;
+  virtual void RedrawTrafficLights() = 0;
+#endif
+
   // Touchbar API
-  virtual void SetTouchBar(
-      const std::vector<mate::PersistentDictionary>& items);
+  virtual void SetTouchBar(std::vector<gin_helper::PersistentDictionary> items);
   virtual void RefreshTouchBarItem(const std::string& item_id);
-  virtual void SetEscapeTouchBarItem(const mate::PersistentDictionary& item);
+  virtual void SetEscapeTouchBarItem(gin_helper::PersistentDictionary item);
 
   // Native Tab API
   virtual void SelectPreviousTab();
@@ -244,6 +262,7 @@ class NativeWindow : public base::SupportsUserData,
   void NotifyWindowBlur();
   void NotifyWindowFocus();
   void NotifyWindowShow();
+  void NotifyWindowIsKeyChanged(bool is_key);
   void NotifyWindowHide();
   void NotifyWindowMaximize();
   void NotifyWindowUnmaximize();
@@ -253,6 +272,7 @@ class NativeWindow : public base::SupportsUserData,
   void NotifyWindowWillResize(const gfx::Rect& new_bounds,
                               bool* prevent_default);
   void NotifyWindowResize();
+  void NotifyWindowResized();
   void NotifyWindowWillMove(const gfx::Rect& new_bounds, bool* prevent_default);
   void NotifyWindowMoved();
   void NotifyWindowScrollTouchBegin();
@@ -270,6 +290,7 @@ class NativeWindow : public base::SupportsUserData,
   void NotifyTouchBarItemInteraction(const std::string& item_id,
                                      const base::DictionaryValue& details);
   void NotifyNewWindowForTab();
+  void NotifyWindowSystemContextMenu(int x, int y, bool* prevent_default);
 
 #if defined(OS_WIN)
   void NotifyWindowMessage(UINT message, WPARAM w_param, LPARAM l_param);
@@ -294,12 +315,15 @@ class NativeWindow : public base::SupportsUserData,
 
   std::list<NativeBrowserView*> browser_views() const { return browser_views_; }
 
+  int32_t window_id() const { return next_id_; }
+
  protected:
-  NativeWindow(const mate::Dictionary& options, NativeWindow* parent);
+  NativeWindow(const gin_helper::Dictionary& options, NativeWindow* parent);
 
   // views::WidgetDelegate:
   views::Widget* GetWidget() override;
   const views::Widget* GetWidget() const override;
+  base::string16 GetAccessibleWindowTitle() const override;
 
   void set_content_view(views::View* view) { content_view_ = view; }
 
@@ -313,6 +337,8 @@ class NativeWindow : public base::SupportsUserData,
 
  private:
   std::unique_ptr<views::Widget> widget_;
+
+  static int32_t next_id_;
 
   // The content view, weak ref.
   views::View* content_view_ = nullptr;
@@ -353,6 +379,9 @@ class NativeWindow : public base::SupportsUserData,
 
   // Observers of this window.
   base::ObserverList<NativeWindowObserver> observers_;
+
+  // Accessible title.
+  base::string16 accessible_title_;
 
   base::WeakPtrFactory<NativeWindow> weak_factory_;
 

@@ -67,7 +67,7 @@ bool TaskbarHost::SetThumbarButtons(HWND window,
   callback_map_.clear();
 
   // The number of buttons in thumbar can not be changed once it is created,
-  // so we have to claim kMaxButtonsCount buttons initialy in case users add
+  // so we have to claim kMaxButtonsCount buttons initially in case users add
   // more buttons later.
   base::win::ScopedHICON icons[kMaxButtonsCount] = {};
   THUMBBUTTON thumb_buttons[kMaxButtonsCount] = {};
@@ -114,11 +114,12 @@ bool TaskbarHost::SetThumbarButtons(HWND window,
 
   // Finally add them to taskbar.
   HRESULT r;
-  if (thumbar_buttons_added_)
+  if (thumbar_buttons_added_) {
     r = taskbar_->ThumbBarUpdateButtons(window, kMaxButtonsCount,
                                         thumb_buttons);
-  else
+  } else {
     r = taskbar_->ThumbBarAddButtons(window, kMaxButtonsCount, thumb_buttons);
+  }
 
   thumbar_buttons_added_ = true;
   last_buttons_ = buttons;
@@ -166,13 +167,12 @@ bool TaskbarHost::SetProgressBar(HWND window,
 }
 
 bool TaskbarHost::SetOverlayIcon(HWND window,
-                                 const gfx::Image& overlay,
+                                 const SkBitmap& overlay,
                                  const std::string& text) {
   if (!InitializeTaskbar())
     return false;
 
-  base::win::ScopedHICON icon(
-      IconUtil::CreateHICONFromSkBitmap(overlay.AsBitmap()));
+  base::win::ScopedHICON icon(IconUtil::CreateHICONFromSkBitmap(overlay));
   return SUCCEEDED(taskbar_->SetOverlayIcon(window, icon.get(),
                                             base::UTF8ToUTF16(text).c_str()));
 }
@@ -199,8 +199,9 @@ bool TaskbarHost::SetThumbnailToolTip(HWND window, const std::string& tooltip) {
 }
 
 bool TaskbarHost::HandleThumbarButtonEvent(int button_id) {
-  if (base::Contains(callback_map_, button_id)) {
-    auto callback = callback_map_[button_id];
+  const auto iter = callback_map_.find(button_id);
+  if (iter != std::end(callback_map_)) {
+    auto callback = iter->second;
     if (!callback.is_null())
       callback.Run();
     return true;

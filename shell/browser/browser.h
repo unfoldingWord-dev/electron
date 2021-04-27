@@ -13,15 +13,21 @@
 #include "base/macros.h"
 #include "base/observer_list.h"
 #include "base/strings/string16.h"
+#include "base/task/cancelable_task_tracker.h"
 #include "base/values.h"
-#include "native_mate/arguments.h"
+#include "gin/dictionary.h"
 #include "shell/browser/browser_observer.h"
 #include "shell/browser/window_list_observer.h"
-#include "shell/common/promise_util.h"
+#include "shell/common/gin_helper/promise.h"
 
 #if defined(OS_WIN)
 #include <windows.h>
 #include "base/files/file_path.h"
+#include "shell/browser/ui/win/taskbar_host.h"
+#endif
+
+#if defined(OS_MAC)
+#include "ui/base/cocoa/secure_password_input.h"
 #endif
 
 namespace base {
@@ -32,9 +38,13 @@ namespace gfx {
 class Image;
 }
 
+namespace gin_helper {
+class Arguments;
+}
+
 namespace electron {
 
-class AtomMenuModel;
+class ElectronMenuModel;
 
 // This class is used for control application-wide operations.
 class Browser : public WindowListObserver {
@@ -48,13 +58,13 @@ class Browser : public WindowListObserver {
   void Quit();
 
   // Exit the application immediately and set exit code.
-  void Exit(mate::Arguments* args);
+  void Exit(gin::Arguments* args);
 
   // Cleanup everything and shutdown the application gracefully.
   void Shutdown();
 
   // Focus the application.
-  void Focus();
+  void Focus(gin::Arguments* args);
 
   // Returns the version of the executable (or bundle).
   std::string GetVersion() const;
@@ -79,19 +89,41 @@ class Browser : public WindowListObserver {
 
   // Remove the default protocol handler registry key
   bool RemoveAsDefaultProtocolClient(const std::string& protocol,
-                                     mate::Arguments* args);
+                                     gin::Arguments* args);
 
   // Set as default handler for a protocol.
   bool SetAsDefaultProtocolClient(const std::string& protocol,
-                                  mate::Arguments* args);
+                                  gin::Arguments* args);
 
   // Query the current state of default handler for a protocol.
   bool IsDefaultProtocolClient(const std::string& protocol,
-                               mate::Arguments* args);
+                               gin::Arguments* args);
+
+  base::string16 GetApplicationNameForProtocol(const GURL& url);
+
+#if !defined(OS_LINUX)
+  // get the name, icon and path for an application
+  v8::Local<v8::Promise> GetApplicationInfoForProtocol(v8::Isolate* isolate,
+                                                       const GURL& url);
+#endif
 
   // Set/Get the badge count.
-  bool SetBadgeCount(int count);
+  bool SetBadgeCount(base::Optional<int> count);
   int GetBadgeCount();
+
+#if defined(OS_WIN)
+  struct LaunchItem {
+    base::string16 name;
+    base::string16 path;
+    base::string16 scope;
+    std::vector<base::string16> args;
+    bool enabled = true;
+
+    LaunchItem();
+    ~LaunchItem();
+    LaunchItem(const LaunchItem&);
+  };
+#endif
 
   // Set/Get the login item settings of the app
   struct LoginItemSettings {
@@ -103,6 +135,16 @@ class Browser : public WindowListObserver {
     base::string16 path;
     std::vector<base::string16> args;
 
+#if defined(OS_WIN)
+    // used in browser::setLoginItemSettings
+    bool enabled = true;
+    base::string16 name = base::string16();
+
+    // used in browser::getLoginItemSettings
+    bool executable_will_launch_at_login = false;
+    std::vector<LaunchItem> launch_items;
+#endif
+
     LoginItemSettings();
     ~LoginItemSettings();
     LoginItemSettings(const LoginItemSettings&);
@@ -110,7 +152,7 @@ class Browser : public WindowListObserver {
   void SetLoginItemSettings(LoginItemSettings settings);
   LoginItemSettings GetLoginItemSettings(const LoginItemSettings& options);
 
-#if defined(OS_MACOSX)
+#if defined(OS_MAC)
   // Set the handler which decides whether to shutdown.
   void SetShutdownHandler(base::Callback<bool()> handler);
 
@@ -122,8 +164,8 @@ class Browser : public WindowListObserver {
 
   // Creates an activity and sets it as the one currently in use.
   void SetUserActivity(const std::string& type,
-                       const base::DictionaryValue& user_info,
-                       mate::Arguments* args);
+                       base::DictionaryValue user_info,
+                       gin::Arguments* args);
 
   // Returns the type name of the current user activity.
   std::string GetCurrentActivityType();
@@ -137,7 +179,7 @@ class Browser : public WindowListObserver {
 
   // Updates the current user activity
   void UpdateCurrentActivity(const std::string& type,
-                             const base::DictionaryValue& user_info);
+                             base::DictionaryValue user_info);
 
   // Indicates that an user activity is about to be resumed.
   bool WillContinueUserActivity(const std::string& type);
@@ -148,20 +190,20 @@ class Browser : public WindowListObserver {
 
   // Resumes an activity via hand-off.
   bool ContinueUserActivity(const std::string& type,
-                            const base::DictionaryValue& user_info);
+                            base::DictionaryValue user_info);
 
   // Indicates that an activity was continued on another device.
   void UserActivityWasContinued(const std::string& type,
-                                const base::DictionaryValue& user_info);
+                                base::DictionaryValue user_info);
 
-  // Gives an oportunity to update the Handoff payload.
+  // Gives an opportunity to update the Handoff payload.
   bool UpdateUserActivityState(const std::string& type,
-                               const base::DictionaryValue& user_info);
+                               base::DictionaryValue user_info);
 
   // Bounce the dock icon.
   enum class BounceType{
-      CRITICAL = 0,        // NSCriticalRequest
-      INFORMATIONAL = 10,  // NSInformationalRequest
+      kCritical = 0,        // NSCriticalRequest
+      kInformational = 10,  // NSInformationalRequest
   };
   int DockBounce(BounceType type);
   void DockCancelBounce(int request_id);
@@ -179,19 +221,17 @@ class Browser : public WindowListObserver {
   bool DockIsVisible();
 
   // Set docks' menu.
-  void DockSetMenu(AtomMenuModel* model);
+  void DockSetMenu(ElectronMenuModel* model);
 
   // Set docks' icon.
-  void DockSetIcon(const gfx::Image& image);
+  void DockSetIcon(v8::Isolate* isolate, v8::Local<v8::Value> icon);
 
-#endif  // defined(OS_MACOSX)
+#endif  // defined(OS_MAC)
 
-#if defined(OS_MACOSX) || defined(OS_LINUX)
   void ShowAboutPanel();
-  void SetAboutPanelOptions(const base::DictionaryValue& options);
-#endif
+  void SetAboutPanelOptions(base::DictionaryValue options);
 
-#if defined(OS_MACOSX) || defined(OS_WIN)
+#if defined(OS_MAC) || defined(OS_WIN)
   void ShowEmojiPanel();
 #endif
 
@@ -230,10 +270,13 @@ class Browser : public WindowListObserver {
   // Tell the application to open a url.
   void OpenURL(const std::string& url);
 
-#if defined(OS_MACOSX)
+#if defined(OS_MAC)
   // Tell the application to create a new window for a tab.
   void NewWindowForTab();
-#endif  // defined(OS_MACOSX)
+
+  // Tell the application that application did become active
+  void DidBecomeActive();
+#endif  // defined(OS_MAC)
 
   // Tell the application that application is activated with visible/invisible
   // windows.
@@ -243,11 +286,12 @@ class Browser : public WindowListObserver {
 
   // Tell the application the loading has been done.
   void WillFinishLaunching();
-  void DidFinishLaunching(const base::DictionaryValue& launch_info);
+  void DidFinishLaunching(base::DictionaryValue launch_info);
 
   void OnAccessibilitySupportChanged();
 
   void PreMainMessageLoopRun();
+  void PreCreateThreads();
 
   // Stores the supplied |quit_closure|, to be run when the last Browser
   // instance is destroyed.
@@ -257,10 +301,16 @@ class Browser : public WindowListObserver {
 
   void RemoveObserver(BrowserObserver* obs) { observers_.RemoveObserver(obs); }
 
+#if defined(OS_MAC)
+  // Returns whether secure input is enabled
+  bool IsSecureKeyboardEntryEnabled();
+  void SetSecureKeyboardEntryEnabled(bool enabled);
+#endif
+
   bool is_shutting_down() const { return is_shutdown_; }
   bool is_quiting() const { return is_quiting_; }
   bool is_ready() const { return is_ready_; }
-  const util::Promise& WhenReady(v8::Isolate* isolate);
+  v8::Local<v8::Value> WhenReady(v8::Isolate* isolate);
 
  protected:
   // Returns the version of application bundle or executable file.
@@ -285,6 +335,9 @@ class Browser : public WindowListObserver {
   // Observers of the browser.
   base::ObserverList<BrowserObserver> observers_;
 
+  // Tracks tasks requesting file icons.
+  base::CancelableTaskTracker cancelable_task_tracker_;
+
   // Whether `app.exit()` has been called
   bool is_exiting_ = false;
 
@@ -299,12 +352,26 @@ class Browser : public WindowListObserver {
 
   int badge_count_ = 0;
 
-  std::unique_ptr<util::Promise> ready_promise_;
+  std::unique_ptr<gin_helper::Promise<void>> ready_promise_;
 
-#if defined(OS_LINUX)
+#if defined(OS_MAC)
+  std::unique_ptr<ui::ScopedPasswordInputEnabler> password_input_enabler_;
+  base::Time last_dock_show_;
+#endif
+
+#if defined(OS_LINUX) || defined(OS_WIN)
   base::Value about_panel_options_;
-#elif defined(OS_MACOSX)
+#elif defined(OS_MAC)
   base::DictionaryValue about_panel_options_;
+#endif
+
+#if defined(OS_WIN)
+  void UpdateBadgeContents(HWND hwnd,
+                           const base::Optional<std::string>& badge_content,
+                           const std::string& badge_alt_string);
+
+  // In charge of running taskbar related APIs.
+  TaskbarHost taskbar_host_;
 #endif
 
   DISALLOW_COPY_AND_ASSIGN(Browser);

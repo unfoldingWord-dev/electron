@@ -11,6 +11,7 @@ It adds the following events, properties, and methods:
 ## Sandbox
 
 In sandboxed renderers the `process` object contains only a subset of the APIs:
+
 - `crash()`
 - `hang()`
 - `getCreationTime()`
@@ -41,19 +42,6 @@ In sandboxed renderers the `process` object contains only a subset of the APIs:
 Emitted when Electron has loaded its internal initialization script and is
 beginning to load the web page or the main script.
 
-It can be used by the preload script to add removed Node global symbols back to
-the global scope when node integration is turned off:
-
-```javascript
-// preload.js
-const _setImmediate = setImmediate
-const _clearImmediate = clearImmediate
-process.once('loaded', () => {
-  global.setImmediate = _setImmediate
-  global.clearImmediate = _clearImmediate
-})
-```
-
 ## Properties
 
 ### `process.defaultApp` _Readonly_
@@ -82,12 +70,6 @@ A `Boolean` that controls whether or not deprecation warnings are printed to `st
 Setting this to `true` will silence deprecation warnings. This property is used
 instead of the `--no-deprecation` command line flag.
 
-### `process.enablePromiseAPIs`
-
-A `Boolean` that controls whether or not deprecation warnings are printed to `stderr` when
-formerly callback-based APIs converted to Promises are invoked using callbacks. Setting this to `true`
-will enable deprecation warnings.
-
 ### `process.resourcesPath` _Readonly_
 
 A `String` representing the path to the resources directory.
@@ -110,6 +92,7 @@ A `Boolean` that controls whether or not deprecations printed to `stderr` includ
  This property is instead of the `--trace-deprecation` command line flag.
 
 ### `process.traceProcessWarnings`
+
 A `Boolean` that controls whether or not process warnings printed to `stderr` include
  their stack trace. Setting this to `true` will print stack traces for process warnings
  (including deprecations). This property is instead of the `--trace-warnings` command
@@ -117,7 +100,11 @@ A `Boolean` that controls whether or not process warnings printed to `stderr` in
 
 ### `process.type` _Readonly_
 
-A `String` representing the current process's type, can be `"browser"` (i.e. main process), `"renderer"`, or `"worker"` (i.e. web worker).
+A `String` representing the current process's type, can be:
+
+* `browser` - The main process
+* `renderer` - A renderer process
+* `worker` - In a web worker
 
 ### `process.versions.chrome` _Readonly_
 

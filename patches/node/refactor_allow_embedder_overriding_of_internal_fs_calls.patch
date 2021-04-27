@@ -3,46 +3,38 @@ From: Samuel Attard <sattard@slack-corp.com>
 Date: Mon, 22 Apr 2019 13:23:37 -0700
 Subject: refactor: allow embedder overriding of internal FS calls
 
+We use this to allow node's 'fs' module to read from ASAR files as if they were
+a real filesystem.
 
 diff --git a/lib/internal/bootstrap/node.js b/lib/internal/bootstrap/node.js
-index 86b2164bb0d74a531acd0f01da5269642ea574cf..48a38a6b5054c6bf14df82a8cb3c41d4bfb7bf68 100644
+index 2705f8b50a658db0fc1ce6fba245792f6a567300..5aab40071b68affe602be16d451be598b246faa1 100644
 --- a/lib/internal/bootstrap/node.js
 +++ b/lib/internal/bootstrap/node.js
-@@ -65,6 +65,10 @@ if (ownsProcessState) {
-   );
- }
+@@ -57,6 +57,10 @@ setupBuffer();
+ process.domain = null;
+ process._exiting = false;
  
 +// NOTE: Electron deletes this references before user code runs so that
 +// internalBinding is not leaked to user code
 +process.internalBinding = internalBinding;
 +
  // process.config is serialized config.gypi
- process.config = JSON.parse(internalBinding('native_module').config);
- 
+ process.config = JSONParse(internalBinding('native_module').config);
+ require('internal/worker/js_transferable').setup();
 diff --git a/lib/internal/modules/cjs/loader.js b/lib/internal/modules/cjs/loader.js
-index ffc7fb6fd5857b807198d4d26b7b899e63cde4a1..2a7ffbff213f23536b94664c3ecffa18eb812849 100644
+index 5bebce776dc60052aa01422af29d7766033e7331..541c18d8032c5247433367f9e04c946cf203d475 100644
 --- a/lib/internal/modules/cjs/loader.js
 +++ b/lib/internal/modules/cjs/loader.js
-@@ -37,10 +37,7 @@ const assert = require('internal/assert');
- const fs = require('fs');
+@@ -70,7 +70,7 @@ const fs = require('fs');
  const internalFS = require('internal/fs/utils');
  const path = require('path');
--const {
--  internalModuleReadJSON,
--  internalModuleStat
--} = internalBinding('fs');
+ const { sep } = path;
+-const { internalModuleStat } = internalBinding('fs');
 +const internalFsBinding = internalBinding('fs');
+ const packageJsonReader = require('internal/modules/package_json_reader');
  const { safeGetenv } = internalBinding('credentials');
  const {
-   makeRequireFunction,
-@@ -93,14 +90,12 @@ const relativeResolveCache = Object.create(null);
- let requireDepth = 0;
- let statCache = null;
- function stat(filename) {
--  // FIXME(codebytere): determine why this needs to be done and remove
--  const internalModuleStat = process.binding('fs').internalModuleStat;
-   filename = path.toNamespacedPath(filename);
-   if (statCache !== null) {
+@@ -142,7 +142,7 @@ function stat(filename) {
      const result = statCache.get(filename);
      if (result !== undefined) return result;
    }
@@ -51,12 +43,25 @@ index ffc7fb6fd5857b807198d4d26b7b899e63cde4a1..2a7ffbff213f23536b94664c3ecffa18
    if (statCache !== null) statCache.set(filename, result);
    return result;
  }
-@@ -205,7 +200,7 @@ const packageExportsCache = new SafeMap();
+diff --git a/lib/internal/modules/package_json_reader.js b/lib/internal/modules/package_json_reader.js
+index 4a2b0e6ddb3ed8881f896c6f556c9debaf778b81..209df9033a26c29c6e60bd173f71055884a0db89 100644
+--- a/lib/internal/modules/package_json_reader.js
++++ b/lib/internal/modules/package_json_reader.js
+@@ -1,7 +1,7 @@
+ 'use strict';
  
- function readPackageRaw(requestPath) {
-   const jsonPath = path.resolve(requestPath, 'package.json');
--  const json = internalModuleReadJSON(path.toNamespacedPath(jsonPath));
-+  const json = internalFsBinding.internalModuleReadJSON(path.toNamespacedPath(jsonPath));
+ const { SafeMap } = primordials;
+-const { internalModuleReadJSON } = internalBinding('fs');
++const internalFsBinding = internalBinding('fs');
+ const { pathToFileURL } = require('url');
+ const { toNamespacedPath } = require('path');
  
-   if (json === undefined) {
-     return false;
+@@ -18,7 +18,7 @@ function read(jsonPath) {
+     return cache.get(jsonPath);
+   }
+ 
+-  const [string, containsKeys] = internalModuleReadJSON(
++  const [string, containsKeys] = internalFsBinding.internalModuleReadJSON(
+     toNamespacedPath(jsonPath)
+   );
+   const result = { string, containsKeys };

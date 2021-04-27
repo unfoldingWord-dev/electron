@@ -1,9 +1,9 @@
 import { ipcRendererInternal } from '@electron/internal/renderer/ipc-renderer-internal';
 import * as ipcRendererUtils from '@electron/internal/renderer/ipc-renderer-internal-utils';
 import { internalContextBridge } from '@electron/internal/renderer/api/context-bridge';
+import { IPC_MESSAGES } from '@electron/internal/common/ipc-messages';
 
-const { contextIsolationEnabled, isInIsolatedWorld } = internalContextBridge;
-const shouldUseContextBridge = contextIsolationEnabled && isInIsolatedWorld();
+const { contextIsolationEnabled } = internalContextBridge;
 
 // This file implements the following APIs over the ctx bridge:
 // - window.open()
@@ -33,19 +33,19 @@ const toString = (value: any) => {
   return value != null ? `${value}` : value;
 };
 
-const windowProxies: Record<number, BrowserWindowProxy> = {};
+const windowProxies = new Map<number, BrowserWindowProxy>();
 
 const getOrCreateProxy = (guestId: number): SafelyBoundBrowserWindowProxy => {
-  let proxy = windowProxies[guestId];
+  let proxy = windowProxies.get(guestId);
   if (proxy == null) {
     proxy = new BrowserWindowProxy(guestId);
-    windowProxies[guestId] = proxy;
+    windowProxies.set(guestId, proxy);
   }
   return proxy.getSafe();
 };
 
 const removeProxy = (guestId: number) => {
-  delete windowProxies[guestId];
+  windowProxies.delete(guestId);
 };
 
 type LocationProperties = 'hash' | 'href' | 'host' | 'hostname' | 'origin' | 'pathname' | 'port' | 'protocol' | 'search'
@@ -80,7 +80,7 @@ class LocationProxy {
         const guestURL = this.getGuestURL();
         if (guestURL) {
           // TypeScript doesn't want us to assign to read-only variables.
-          // It's right, that's bad, but we're doing it anway.
+          // It's right, that's bad, but we're doing it anyway.
           (guestURL as any)[propertyKey] = newVal;
 
           return this._invokeWebContentsMethod('loadURL', guestURL.toString());
@@ -126,7 +126,11 @@ class LocationProxy {
   }
 
   private getGuestURL (): URL | null {
-    const urlString = this._invokeWebContentsMethodSync('getURL') as string;
+    const maybeURL = this._invokeWebContentsMethodSync('getURL') as string;
+
+    // When there's no previous frame the url will be blank, so account for that here
+    // to prevent url parsing errors on an empty string.
+    const urlString = maybeURL !== '' ? maybeURL : 'about:blank';
     try {
       return new URL(urlString);
     } catch (e) {
@@ -137,11 +141,11 @@ class LocationProxy {
   }
 
   private _invokeWebContentsMethod (method: string, ...args: any[]) {
-    return ipcRendererUtils.invoke('ELECTRON_GUEST_WINDOW_MANAGER_WEB_CONTENTS_METHOD', this.guestId, method, ...args);
+    return ipcRendererInternal.invoke(IPC_MESSAGES.GUEST_WINDOW_MANAGER_WEB_CONTENTS_METHOD, this.guestId, method, ...args);
   }
 
   private _invokeWebContentsMethodSync (method: string, ...args: any[]) {
-    return ipcRendererUtils.invokeSync('ELECTRON_GUEST_WINDOW_MANAGER_WEB_CONTENTS_METHOD', this.guestId, method, ...args);
+    return ipcRendererUtils.invokeSync(IPC_MESSAGES.GUEST_WINDOW_MANAGER_WEB_CONTENTS_METHOD, this.guestId, method, ...args);
   }
 }
 
@@ -168,6 +172,7 @@ class BrowserWindowProxy {
   public get location (): LocationProxy | any {
     return this._location.getSafe();
   }
+
   public set location (url: string | any) {
     url = resolveURL(url, this.location.href);
     this._invokeWebContentsMethod('loadURL', url);
@@ -177,7 +182,7 @@ class BrowserWindowProxy {
     this.guestId = guestId;
     this._location = new LocationProxy(guestId);
 
-    ipcRendererInternal.once(`ELECTRON_GUEST_WINDOW_MANAGER_WINDOW_CLOSED_${guestId}`, () => {
+    ipcRendererInternal.onceMessageFromMain(`${IPC_MESSAGES.GUEST_WINDOW_MANAGER_WINDOW_CLOSED}_${guestId}`, () => {
       removeProxy(guestId);
       this.closed = true;
     });
@@ -221,7 +226,7 @@ class BrowserWindowProxy {
   }
 
   public postMessage = (message: any, targetOrigin: string) => {
-    ipcRendererUtils.invoke('ELECTRON_GUEST_WINDOW_MANAGER_WINDOW_POSTMESSAGE', this.guestId, message, toString(targetOrigin), window.location.origin);
+    ipcRendererInternal.invoke(IPC_MESSAGES.GUEST_WINDOW_MANAGER_WINDOW_POSTMESSAGE, this.guestId, message, toString(targetOrigin), window.location.origin);
   }
 
   public eval = (code: string) => {
@@ -229,55 +234,55 @@ class BrowserWindowProxy {
   }
 
   private _invokeWindowMethod (method: string, ...args: any[]) {
-    return ipcRendererUtils.invoke('ELECTRON_GUEST_WINDOW_MANAGER_WINDOW_METHOD', this.guestId, method, ...args);
+    return ipcRendererInternal.invoke(IPC_MESSAGES.GUEST_WINDOW_MANAGER_WINDOW_METHOD, this.guestId, method, ...args);
   }
 
   private _invokeWebContentsMethod (method: string, ...args: any[]) {
-    return ipcRendererUtils.invoke('ELECTRON_GUEST_WINDOW_MANAGER_WEB_CONTENTS_METHOD', this.guestId, method, ...args);
+    return ipcRendererInternal.invoke(IPC_MESSAGES.GUEST_WINDOW_MANAGER_WEB_CONTENTS_METHOD, this.guestId, method, ...args);
   }
 }
 
 export const windowSetup = (
-  guestInstanceId: number, openerId: number, isHiddenPage: boolean, usesNativeWindowOpen: boolean
+  guestInstanceId: number, openerId: number, isHiddenPage: boolean, usesNativeWindowOpen: boolean, rendererProcessReuseEnabled: boolean
 ) => {
   if (!process.sandboxed && guestInstanceId == null) {
     // Override default window.close.
     window.close = function () {
-      ipcRendererInternal.sendSync('ELECTRON_BROWSER_WINDOW_CLOSE');
+      ipcRendererInternal.send(IPC_MESSAGES.BROWSER_WINDOW_CLOSE);
     };
-    if (shouldUseContextBridge) internalContextBridge.overrideGlobalValueFromIsolatedWorld(['close'], window.close);
+    if (contextIsolationEnabled) internalContextBridge.overrideGlobalValueFromIsolatedWorld(['close'], window.close);
   }
 
   if (!usesNativeWindowOpen) {
     // TODO(MarshallOfSound): Make compatible with ctx isolation without hole-punch
     // Make the browser window or guest view emit "new-window" event.
-    (window as any).open = function (url?: string, frameName?: string, features?: string) {
+    window.open = function (url?: string, frameName?: string, features?: string) {
       if (url != null && url !== '') {
         url = resolveURL(url, location.href);
       }
-      const guestId = ipcRendererInternal.sendSync('ELECTRON_GUEST_WINDOW_MANAGER_WINDOW_OPEN', url, toString(frameName), toString(features));
+      const guestId = ipcRendererInternal.sendSync(IPC_MESSAGES.GUEST_WINDOW_MANAGER_WINDOW_OPEN, url, toString(frameName), toString(features));
       if (guestId != null) {
-        return getOrCreateProxy(guestId);
+        return getOrCreateProxy(guestId) as any as WindowProxy;
       } else {
         return null;
       }
     };
-    if (shouldUseContextBridge) internalContextBridge.overrideGlobalValueWithDynamicPropsFromIsolatedWorld(['open'], window.open);
+    if (contextIsolationEnabled) internalContextBridge.overrideGlobalValueWithDynamicPropsFromIsolatedWorld(['open'], window.open);
   }
 
   if (openerId != null) {
     window.opener = getOrCreateProxy(openerId);
-    if (shouldUseContextBridge) internalContextBridge.overrideGlobalValueWithDynamicPropsFromIsolatedWorld(['opener'], window.opener);
+    if (contextIsolationEnabled) internalContextBridge.overrideGlobalValueWithDynamicPropsFromIsolatedWorld(['opener'], window.opener);
   }
 
   // But we do not support prompt().
   window.prompt = function () {
     throw new Error('prompt() is and will not be supported.');
   };
-  if (shouldUseContextBridge) internalContextBridge.overrideGlobalValueFromIsolatedWorld(['prompt'], window.prompt);
+  if (contextIsolationEnabled) internalContextBridge.overrideGlobalValueFromIsolatedWorld(['prompt'], window.prompt);
 
   if (!usesNativeWindowOpen || openerId != null) {
-    ipcRendererInternal.on('ELECTRON_GUEST_WINDOW_POSTMESSAGE', function (
+    ipcRendererInternal.onMessageFromMain(IPC_MESSAGES.GUEST_WINDOW_POSTMESSAGE, function (
       _event, sourceId: number, message: any, sourceOrigin: string
     ) {
       // Manually dispatch event instead of using postMessage because we also need to
@@ -297,29 +302,28 @@ export const windowSetup = (
     });
   }
 
-  if (!process.sandboxed) {
+  if (!process.sandboxed && !rendererProcessReuseEnabled) {
     window.history.back = function () {
-      ipcRendererInternal.send('ELECTRON_NAVIGATION_CONTROLLER_GO_BACK');
+      ipcRendererInternal.send(IPC_MESSAGES.NAVIGATION_CONTROLLER_GO_BACK);
     };
-    if (shouldUseContextBridge) internalContextBridge.overrideGlobalValueFromIsolatedWorld(['history', 'back'], window.history.back);
+    if (contextIsolationEnabled) internalContextBridge.overrideGlobalValueFromIsolatedWorld(['history', 'back'], window.history.back);
 
     window.history.forward = function () {
-      ipcRendererInternal.send('ELECTRON_NAVIGATION_CONTROLLER_GO_FORWARD');
+      ipcRendererInternal.send(IPC_MESSAGES.NAVIGATION_CONTROLLER_GO_FORWARD);
     };
-    if (shouldUseContextBridge) internalContextBridge.overrideGlobalValueFromIsolatedWorld(['history', 'forward'], window.history.forward);
+    if (contextIsolationEnabled) internalContextBridge.overrideGlobalValueFromIsolatedWorld(['history', 'forward'], window.history.forward);
 
     window.history.go = function (offset: number) {
-      ipcRendererInternal.send('ELECTRON_NAVIGATION_CONTROLLER_GO_TO_OFFSET', +offset);
+      ipcRendererInternal.send(IPC_MESSAGES.NAVIGATION_CONTROLLER_GO_TO_OFFSET, +offset);
     };
-    if (shouldUseContextBridge) internalContextBridge.overrideGlobalValueFromIsolatedWorld(['history', 'go'], window.history.go);
+    if (contextIsolationEnabled) internalContextBridge.overrideGlobalValueFromIsolatedWorld(['history', 'go'], window.history.go);
 
-    const getHistoryLength = () => ipcRendererInternal.sendSync('ELECTRON_NAVIGATION_CONTROLLER_LENGTH');
+    const getHistoryLength = () => ipcRendererInternal.sendSync(IPC_MESSAGES.NAVIGATION_CONTROLLER_LENGTH);
     Object.defineProperty(window.history, 'length', {
       get: getHistoryLength,
       set () {}
     });
-    // TODO(MarshallOfSound): Fix so that the internal context bridge can override a non-configurable property
-    // if (shouldUseContextBridge) internalContextBridge.overrideGlobalPropertyFromIsolatedWorld(['history', 'length'], getHistoryLength);
+    if (contextIsolationEnabled) internalContextBridge.overrideGlobalPropertyFromIsolatedWorld(['history', 'length'], getHistoryLength);
   }
 
   if (guestInstanceId != null) {
@@ -333,7 +337,7 @@ export const windowSetup = (
     let cachedVisibilityState = isHiddenPage ? 'hidden' : 'visible';
 
     // Subscribe to visibilityState changes.
-    ipcRendererInternal.on('ELECTRON_GUEST_INSTANCE_VISIBILITY_CHANGE', function (_event, visibilityState: VisibilityState) {
+    ipcRendererInternal.onMessageFromMain(IPC_MESSAGES.GUEST_INSTANCE_VISIBILITY_CHANGE, function (_event, visibilityState: VisibilityState) {
       if (cachedVisibilityState !== visibilityState) {
         cachedVisibilityState = visibilityState;
         document.dispatchEvent(new Event('visibilitychange'));
@@ -345,12 +349,12 @@ export const windowSetup = (
     Object.defineProperty(document, 'hidden', {
       get: getDocumentHidden
     });
-    if (shouldUseContextBridge) internalContextBridge.overrideGlobalPropertyFromIsolatedWorld(['document', 'hidden'], getDocumentHidden);
+    if (contextIsolationEnabled) internalContextBridge.overrideGlobalPropertyFromIsolatedWorld(['document', 'hidden'], getDocumentHidden);
 
     const getDocumentVisibilityState = () => cachedVisibilityState;
     Object.defineProperty(document, 'visibilityState', {
       get: getDocumentVisibilityState
     });
-    if (shouldUseContextBridge) internalContextBridge.overrideGlobalPropertyFromIsolatedWorld(['document', 'visibilityState'], getDocumentVisibilityState);
+    if (contextIsolationEnabled) internalContextBridge.overrideGlobalPropertyFromIsolatedWorld(['document', 'visibilityState'], getDocumentVisibilityState);
   }
 };

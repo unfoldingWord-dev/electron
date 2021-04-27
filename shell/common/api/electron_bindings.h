@@ -12,15 +12,14 @@
 #include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/process/process_metrics.h"
-#include "base/strings/string16.h"
-#include "native_mate/arguments.h"
-#include "shell/common/promise_util.h"
+#include "shell/common/gin_helper/promise.h"
+#include "shell/common/node_bindings.h"
 #include "uv.h"  // NOLINT(build/include_directory)
-#include "v8/include/v8.h"
 
-namespace mate {
+namespace gin_helper {
+class Arguments;
 class Dictionary;
-}
+}  // namespace gin_helper
 
 namespace memory_instrumentation {
 class GlobalMemoryDump;
@@ -37,7 +36,7 @@ class ElectronBindings {
   explicit ElectronBindings(uv_loop_t* loop);
   virtual ~ElectronBindings();
 
-  // Add process.electronBinding function, which behaves like process.binding
+  // Add process._linkedBinding function, which behaves like process.binding
   // but load native code from Electron instead.
   void BindTo(v8::Isolate* isolate, v8::Local<v8::Object> process);
 
@@ -45,10 +44,9 @@ class ElectronBindings {
   void EnvironmentDestroyed(node::Environment* env);
 
   static void BindProcess(v8::Isolate* isolate,
-                          mate::Dictionary* process,
+                          gin_helper::Dictionary* process,
                           base::ProcessMetrics* metrics);
 
-  static void Log(const base::string16& message);
   static void Crash();
 
  private:
@@ -56,7 +54,7 @@ class ElectronBindings {
   static v8::Local<v8::Value> GetHeapStatistics(v8::Isolate* isolate);
   static v8::Local<v8::Value> GetCreationTime(v8::Isolate* isolate);
   static v8::Local<v8::Value> GetSystemMemoryInfo(v8::Isolate* isolate,
-                                                  mate::Arguments* args);
+                                                  gin_helper::Arguments* args);
   static v8::Local<v8::Promise> GetProcessMemoryInfo(v8::Isolate* isolate);
   static v8::Local<v8::Value> GetBlinkMemoryInfo(v8::Isolate* isolate);
   static v8::Local<v8::Value> GetCPUUsage(base::ProcessMetrics* metrics,
@@ -71,11 +69,11 @@ class ElectronBindings {
 
   static void DidReceiveMemoryDump(
       v8::Global<v8::Context> context,
-      util::Promise promise,
+      gin_helper::Promise<gin_helper::Dictionary> promise,
       bool success,
       std::unique_ptr<memory_instrumentation::GlobalMemoryDump> dump);
 
-  uv_async_t call_next_tick_async_;
+  UvHandle<uv_async_t> call_next_tick_async_;
   std::list<node::Environment*> pending_next_ticks_;
   std::unique_ptr<base::ProcessMetrics> metrics_;
 

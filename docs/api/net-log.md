@@ -7,7 +7,7 @@ Process: [Main](../glossary.md#main-process)
 ```javascript
 const { netLog } = require('electron')
 
-app.on('ready', async () => {
+app.whenReady().then(async () => {
   await netLog.startLogging('/path/to/net-log')
   // After some network events
   const path = await netLog.stopLogging()
@@ -15,7 +15,7 @@ app.on('ready', async () => {
 })
 ```
 
-See [`--log-net-log`](chrome-command-line-switches.md#--log-net-logpath) to log network events throughout the app's lifecycle.
+See [`--log-net-log`](command-line-switches.md#--log-net-logpath) to log network events throughout the app's lifecycle.
 
 **Note:** All methods unless specified can only be used after the `ready` event
 of the `app` module gets emitted.
@@ -40,7 +40,7 @@ Starts recording network events to `path`.
 
 ### `netLog.stopLogging()`
 
-Returns `Promise<String>` - resolves with a file path to which network logs were recorded.
+Returns `Promise<void>` - resolves when the net log has been flushed to disk.
 
 Stops recording network events. If not called, net logging will automatically end when app quits.
 
@@ -48,8 +48,4 @@ Stops recording network events. If not called, net logging will automatically en
 
 ### `netLog.currentlyLogging` _Readonly_
 
-A `Boolean` property that indicates whether network logs are recorded.
-
-### `netLog.currentlyLoggingPath` _Readonly_ _Deprecated_
-
-A `String` property that returns the path to the current log file.
+A `Boolean` property that indicates whether network logs are currently being recorded.

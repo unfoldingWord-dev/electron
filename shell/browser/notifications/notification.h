@@ -32,10 +32,13 @@ struct NotificationOptions {
   GURL icon_url;
   SkBitmap icon;
   bool has_reply;
+  base::string16 timeout_type;
   base::string16 reply_placeholder;
   base::string16 sound;
+  base::string16 urgency;  // Linux
   std::vector<NotificationAction> actions;
   base::string16 close_button_text;
+  base::string16 toast_xml;
 
   NotificationOptions();
   ~NotificationOptions();
@@ -54,7 +57,7 @@ class Notification {
   // Should be called by derived classes.
   void NotificationClicked();
   void NotificationDismissed();
-  void NotificationFailed();
+  void NotificationFailed(const std::string& error = "");
 
   // delete this.
   void Destroy();

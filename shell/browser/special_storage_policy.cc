@@ -9,9 +9,9 @@
 
 namespace electron {
 
-SpecialStoragePolicy::SpecialStoragePolicy() {}
+SpecialStoragePolicy::SpecialStoragePolicy() = default;
 
-SpecialStoragePolicy::~SpecialStoragePolicy() {}
+SpecialStoragePolicy::~SpecialStoragePolicy() = default;
 
 bool SpecialStoragePolicy::IsStorageProtected(const GURL& origin) {
   return true;
@@ -37,9 +37,9 @@ bool SpecialStoragePolicy::HasSessionOnlyOrigins() {
   return false;
 }
 
-network::SessionCleanupCookieStore::DeleteCookiePredicate
+network::DeleteCookiePredicate
 SpecialStoragePolicy::CreateDeleteCookieOnExitPredicate() {
-  return network::SessionCleanupCookieStore::DeleteCookiePredicate();
+  return network::DeleteCookiePredicate();
 }
 
 }  // namespace electron

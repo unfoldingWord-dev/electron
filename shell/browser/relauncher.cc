@@ -15,7 +15,7 @@
 #include "content/public/common/content_paths.h"
 #include "content/public/common/content_switches.h"
 #include "content/public/common/main_function_params.h"
-#include "shell/common/atom_command_line.h"
+#include "shell/common/electron_command_line.h"
 
 #if defined(OS_POSIX)
 #include "base/posix/eintr_wrapper.h"
@@ -57,6 +57,11 @@ bool RelaunchAppWithHelper(const base::FilePath& helper,
   StringVector relaunch_argv;
   relaunch_argv.push_back(helper.value());
   relaunch_argv.push_back(internal::kRelauncherTypeArg);
+  // Relauncher process has its own --type=relauncher which
+  // is not recognized by the service_manager, explicitly set
+  // the sandbox type to avoid CHECK failure in
+  // service_manager::SandboxTypeFromCommandLine
+  relaunch_argv.push_back(FILE_PATH_LITERAL("--no-sandbox"));
 
   relaunch_argv.insert(relaunch_argv.end(), relauncher_args.begin(),
                        relauncher_args.end());
@@ -138,7 +143,7 @@ bool RelaunchAppWithHelper(const base::FilePath& helper,
 }
 
 int RelauncherMain(const content::MainFunctionParams& main_parameters) {
-  const StringVector& argv = electron::AtomCommandLine::argv();
+  const StringVector& argv = electron::ElectronCommandLine::argv();
 
   if (argv.size() < 4 || argv[1] != internal::kRelauncherTypeArg) {
     LOG(ERROR) << "relauncher process invoked with unexpected arguments";

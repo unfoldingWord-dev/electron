@@ -83,8 +83,8 @@
   }
 
   // Send the callback to the browser thread.
-  base::PostTaskWithTraits(FROM_HERE, {content::BrowserThread::UI},
-                           base::BindOnce(std::move(callback_), converted));
+  base::PostTask(FROM_HERE, {content::BrowserThread::UI},
+                 base::BindOnce(std::move(callback_), converted));
 
   [self release];
 }
@@ -146,6 +146,14 @@
       productStruct.formattedPrice =
           [[self formatPrice:product.price
                    withLocal:product.priceLocale] UTF8String];
+
+      // Currency Information
+      if (@available(macOS 10.12, *)) {
+        if (product.priceLocale.currencyCode != nil) {
+          productStruct.currencyCode =
+              [product.priceLocale.currencyCode UTF8String];
+        }
+      }
     }
   }
 

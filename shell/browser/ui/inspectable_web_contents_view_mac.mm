@@ -8,21 +8,21 @@
 #import <AppKit/AppKit.h>
 
 #include "base/strings/sys_string_conversions.h"
-#import "shell/browser/ui/cocoa/atom_inspectable_web_contents_view.h"
+#import "shell/browser/ui/cocoa/electron_inspectable_web_contents_view.h"
 #include "shell/browser/ui/inspectable_web_contents.h"
 #include "shell/browser/ui/inspectable_web_contents_view_delegate.h"
 
 namespace electron {
 
 InspectableWebContentsView* CreateInspectableContentsView(
-    InspectableWebContentsImpl* inspectable_web_contents) {
+    InspectableWebContents* inspectable_web_contents) {
   return new InspectableWebContentsViewMac(inspectable_web_contents);
 }
 
 InspectableWebContentsViewMac::InspectableWebContentsViewMac(
-    InspectableWebContentsImpl* inspectable_web_contents)
+    InspectableWebContents* inspectable_web_contents)
     : inspectable_web_contents_(inspectable_web_contents),
-      view_([[AtomInspectableWebContentsView alloc]
+      view_([[ElectronInspectableWebContentsView alloc]
           initWithInspectableWebContentsViewMac:this]) {}
 
 InspectableWebContentsViewMac::~InspectableWebContentsViewMac() {

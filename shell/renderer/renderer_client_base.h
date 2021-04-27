@@ -11,6 +11,7 @@
 
 #include "content/public/renderer/content_renderer_client.h"
 #include "electron/buildflags/buildflags.h"
+#include "printing/buildflags/buildflags.h"
 #include "third_party/blink/public/web/web_local_frame.h"
 // In SHARED_INTERMEDIATE_DIR.
 #include "widevine_cdm_version.h"  // NOLINT(build/include_directory)
@@ -19,26 +20,53 @@
 #include "chrome/renderer/media/chrome_key_systems_provider.h"  // nogncheck
 #endif
 
-namespace network_hints {
-class PrescientNetworkingDispatcher;
-}
+#if BUILDFLAG(ENABLE_PDF_VIEWER)
+#include "chrome/renderer/pepper/chrome_pdf_print_client.h"  // nogncheck
+#endif  // BUILDFLAG(ENABLE_PDF_VIEWER)
+
+#if BUILDFLAG(ENABLE_BUILTIN_SPELLCHECKER)
+#include "services/service_manager/public/cpp/binder_registry.h"
+#include "services/service_manager/public/cpp/local_interface_provider.h"
+
+class SpellCheck;
+#endif
 
 #if BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
 namespace extensions {
 class ExtensionsClient;
 }
+namespace content {
+struct WebPluginInfo;
+}
 #endif
+
+namespace guest_view {
+class GuestViewContainer;
+}
 
 namespace electron {
 
+class ElectronApiServiceImpl;
+
 #if BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
-class AtomExtensionsRendererClient;
+class ElectronExtensionsRendererClient;
 #endif
 
-class RendererClientBase : public content::ContentRendererClient {
+class RendererClientBase : public content::ContentRendererClient
+#if BUILDFLAG(ENABLE_BUILTIN_SPELLCHECKER)
+    ,
+                           public service_manager::LocalInterfaceProvider
+#endif
+{
  public:
   RendererClientBase();
   ~RendererClientBase() override;
+
+#if BUILDFLAG(ENABLE_BUILTIN_SPELLCHECKER)
+  // service_manager::LocalInterfaceProvider implementation.
+  void GetInterface(const std::string& name,
+                    mojo::ScopedMessagePipeHandle request_handle) override;
+#endif
 
   virtual void DidCreateScriptContext(v8::Handle<v8::Context> context,
                                       content::RenderFrame* render_frame);
@@ -51,8 +79,8 @@ class RendererClientBase : public content::ContentRendererClient {
                                             content::RenderFrame* render_frame,
                                             int world_id) = 0;
 
-  blink::WebPrescientNetworking* GetPrescientNetworking() override;
-  bool isolated_world() const { return isolated_world_; }
+  std::unique_ptr<blink::WebPrescientNetworking> CreatePrescientNetworking(
+      content::RenderFrame* render_frame) override;
 
   // Get the context that the Electron API is running in.
   v8::Local<v8::Context> GetContext(blink::WebLocalFrame* frame,
@@ -65,12 +93,17 @@ class RendererClientBase : public content::ContentRendererClient {
   bool IsWebViewFrame(v8::Handle<v8::Context> context,
                       content::RenderFrame* render_frame) const;
 
+#if BUILDFLAG(ENABLE_BUILTIN_SPELLCHECKER)
+  SpellCheck* GetSpellCheck() { return spellcheck_.get(); }
+#endif
+
  protected:
   void AddRenderBindings(v8::Isolate* isolate,
                          v8::Local<v8::Object> binding_object);
 
   // content::ContentRendererClient:
   void RenderThreadStarted() override;
+  void ExposeInterfacesToBrowser(mojo::BinderMap* binders) override;
   void RenderFrameCreated(content::RenderFrame*) override;
   bool OverrideCreatePlugin(content::RenderFrame* render_frame,
                             const blink::WebPluginParams& params,
@@ -80,6 +113,16 @@ class RendererClientBase : public content::ContentRendererClient {
       override;
   bool IsKeySystemsUpdateNeeded() override;
   void DidSetUserAgent(const std::string& user_agent) override;
+  guest_view::GuestViewContainer* CreateBrowserPluginDelegate(
+      content::RenderFrame* render_frame,
+      const content::WebPluginInfo& info,
+      const std::string& mime_type,
+      const GURL& original_url);
+  bool IsPluginHandledExternally(content::RenderFrame* render_frame,
+                                 const blink::WebElement& plugin_element,
+                                 const GURL& original_url,
+                                 const std::string& mime_type) override;
+  bool IsOriginIsolatedPepperPlugin(const base::FilePath& plugin_path) override;
 
   void RunScriptsAtDocumentStart(content::RenderFrame* render_frame) override;
   void RunScriptsAtDocumentEnd(content::RenderFrame* render_frame) override;
@@ -93,21 +136,24 @@ class RendererClientBase : public content::ContentRendererClient {
 #endif
 
  private:
-  std::unique_ptr<network_hints::PrescientNetworkingDispatcher>
-      prescient_networking_dispatcher_;
-
 #if BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
   std::unique_ptr<extensions::ExtensionsClient> extensions_client_;
-  std::unique_ptr<AtomExtensionsRendererClient> extensions_renderer_client_;
+  std::unique_ptr<ElectronExtensionsRendererClient> extensions_renderer_client_;
 #endif
 
 #if defined(WIDEVINE_CDM_AVAILABLE)
   ChromeKeySystemsProvider key_systems_provider_;
 #endif
-  bool isolated_world_;
   std::string renderer_client_id_;
-  // An increasing ID used for indentifying an V8 context in this process.
+  // An increasing ID used for identifying an V8 context in this process.
   int64_t next_context_id_ = 0;
+
+#if BUILDFLAG(ENABLE_BUILTIN_SPELLCHECKER)
+  std::unique_ptr<SpellCheck> spellcheck_;
+#endif
+#if BUILDFLAG(ENABLE_PDF_VIEWER)
+  std::unique_ptr<ChromePDFPrintClient> pdf_print_client_;
+#endif
 };
 
 }  // namespace electron

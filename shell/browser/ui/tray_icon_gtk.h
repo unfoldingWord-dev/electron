@@ -25,7 +25,7 @@ class TrayIconGtk : public TrayIcon, public views::StatusIconLinux::Delegate {
   // TrayIcon:
   void SetImage(const gfx::Image& image) override;
   void SetToolTip(const std::string& tool_tip) override;
-  void SetContextMenu(AtomMenuModel* menu_model) override;
+  void SetContextMenu(ElectronMenuModel* menu_model) override;
 
   // views::StatusIconLinux::Delegate
   void OnClick() override;
@@ -39,9 +39,9 @@ class TrayIconGtk : public TrayIcon, public views::StatusIconLinux::Delegate {
 
  private:
   std::unique_ptr<views::StatusIconLinux> icon_;
-
-  gfx::ImageSkia dummy_image_;
-  base::string16 dummy_string_;
+  gfx::ImageSkia image_;
+  base::string16 tool_tip_;
+  ui::MenuModel* menu_model_;
 
   DISALLOW_COPY_AND_ASSIGN(TrayIconGtk);
 };

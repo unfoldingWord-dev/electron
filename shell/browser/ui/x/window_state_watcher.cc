@@ -4,61 +4,76 @@
 
 #include "shell/browser/ui/x/window_state_watcher.h"
 
-#include "ui/events/platform/platform_event_source.h"
-#include "ui/gfx/x/x11.h"
+#include <vector>
+
+#include "ui/base/x/x11_util.h"
 #include "ui/gfx/x/x11_atom_cache.h"
+#include "ui/gfx/x/xproto_util.h"
 
 namespace electron {
 
 WindowStateWatcher::WindowStateWatcher(NativeWindowViews* window)
-    : window_(window), widget_(window->GetAcceleratedWidget()) {
-  ui::PlatformEventSource::GetInstance()->AddPlatformEventObserver(this);
+    : window_(window),
+      widget_(window->GetAcceleratedWidget()),
+      window_state_atom_(x11::GetAtom("_NET_WM_STATE")) {
+  ui::X11EventSource::GetInstance()->connection()->AddEventObserver(this);
 }
 
 WindowStateWatcher::~WindowStateWatcher() {
-  ui::PlatformEventSource::GetInstance()->RemovePlatformEventObserver(this);
+  ui::X11EventSource::GetInstance()->connection()->RemoveEventObserver(this);
 }
 
-void WindowStateWatcher::WillProcessEvent(const ui::PlatformEvent& event) {
-  if (IsWindowStateEvent(event)) {
-    was_minimized_ = window_->IsMinimized();
-    was_maximized_ = window_->IsMaximized();
-  }
-}
+void WindowStateWatcher::OnEvent(const x11::Event& x11_event) {
+  if (IsWindowStateEvent(x11_event)) {
+    bool was_minimized_ = window_->IsMinimized();
+    bool was_maximized_ = window_->IsMaximized();
 
-void WindowStateWatcher::DidProcessEvent(const ui::PlatformEvent& event) {
-  if (IsWindowStateEvent(event)) {
-    bool is_minimized = window_->IsMinimized();
-    bool is_maximized = window_->IsMaximized();
-    bool is_fullscreen = window_->IsFullscreen();
-    if (is_minimized != was_minimized_) {
-      if (is_minimized)
-        window_->NotifyWindowMinimize();
-      else
-        window_->NotifyWindowRestore();
-    } else if (is_maximized != was_maximized_) {
-      if (is_maximized)
-        window_->NotifyWindowMaximize();
-      else
-        window_->NotifyWindowUnmaximize();
-    } else {
-      // If this is neither a "maximize" or "minimize" event, then we think it
-      // is a "fullscreen" event.
-      // The "IsFullscreen()" becomes true immediately before "WillProcessEvent"
-      // is called, so we can not handle this like "maximize" and "minimize" by
-      // watching whether they have changed.
-      if (is_fullscreen)
-        window_->NotifyWindowEnterFullScreen();
-      else
-        window_->NotifyWindowLeaveFullScreen();
+    std::vector<x11::Atom> wm_states;
+
+    if (GetArrayProperty(
+            static_cast<x11::Window>(window_->GetAcceleratedWidget()),
+            x11::GetAtom("_NET_WM_STATE"), &wm_states)) {
+      auto props =
+          base::flat_set<x11::Atom>(std::begin(wm_states), std::end(wm_states));
+      bool is_minimized =
+          props.find(x11::GetAtom("_NET_WM_STATE_HIDDEN")) != props.end();
+      bool is_maximized =
+          props.find(x11::GetAtom("_NET_WM_STATE_MAXIMIZED_VERT")) !=
+              props.end() &&
+          props.find(x11::GetAtom("_NET_WM_STATE_MAXIMIZED_HORZ")) !=
+              props.end();
+      bool is_fullscreen =
+          props.find(x11::GetAtom("_NET_WM_STATE_FULLSCREEN")) != props.end();
+
+      if (is_minimized != was_minimized_) {
+        if (is_minimized)
+          window_->NotifyWindowMinimize();
+        else
+          window_->NotifyWindowRestore();
+      } else if (is_maximized != was_maximized_) {
+        if (is_maximized)
+          window_->NotifyWindowMaximize();
+        else
+          window_->NotifyWindowUnmaximize();
+      } else {
+        // If this is neither a "maximize" or "minimize" event, then we think it
+        // is a "fullscreen" event.
+        // The "IsFullscreen()" becomes true immediately before "OnEvent"
+        // is called, so we can not handle this like "maximize" and "minimize"
+        // by watching whether they have changed.
+        if (is_fullscreen)
+          window_->NotifyWindowEnterFullScreen();
+        else
+          window_->NotifyWindowLeaveFullScreen();
+      }
     }
   }
 }
 
-bool WindowStateWatcher::IsWindowStateEvent(const ui::PlatformEvent& event) {
-  ::Atom changed_atom = event->xproperty.atom;
-  return (changed_atom == gfx::GetAtom("_NET_WM_STATE") &&
-          event->type == PropertyNotify && event->xproperty.window == widget_);
+bool WindowStateWatcher::IsWindowStateEvent(const x11::Event& x11_event) const {
+  auto* property = x11_event.As<x11::PropertyNotifyEvent>();
+  return (property && property->atom == window_state_atom_ &&
+          static_cast<uint32_t>(property->window) == widget_);
 }
 
 }  // namespace electron

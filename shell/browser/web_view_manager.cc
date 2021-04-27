@@ -7,13 +7,13 @@
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/web_contents.h"
-#include "shell/browser/atom_browser_context.h"
+#include "shell/browser/electron_browser_context.h"
 
 namespace electron {
 
-WebViewManager::WebViewManager() {}
+WebViewManager::WebViewManager() = default;
 
-WebViewManager::~WebViewManager() {}
+WebViewManager::~WebViewManager() = default;
 
 void WebViewManager::AddGuest(int guest_instance_id,
                               int element_instance_id,
@@ -28,10 +28,8 @@ void WebViewManager::AddGuest(int guest_instance_id,
 }
 
 void WebViewManager::RemoveGuest(int guest_instance_id) {
-  if (!base::Contains(web_contents_embedder_map_, guest_instance_id))
+  if (web_contents_embedder_map_.erase(guest_instance_id) == 0)
     return;
-
-  web_contents_embedder_map_.erase(guest_instance_id);
 
   // Remove the record of element in embedder too.
   for (const auto& element : element_instance_id_to_guest_map_)
@@ -42,24 +40,9 @@ void WebViewManager::RemoveGuest(int guest_instance_id) {
 }
 
 content::WebContents* WebViewManager::GetEmbedder(int guest_instance_id) {
-  if (base::Contains(web_contents_embedder_map_, guest_instance_id))
-    return web_contents_embedder_map_[guest_instance_id].embedder;
-  else
-    return nullptr;
-}
-
-content::WebContents* WebViewManager::GetGuestByInstanceID(
-    int owner_process_id,
-    int element_instance_id) {
-  ElementInstanceKey key(owner_process_id, element_instance_id);
-  if (!base::Contains(element_instance_id_to_guest_map_, key))
-    return nullptr;
-
-  int guest_instance_id = element_instance_id_to_guest_map_[key];
-  if (base::Contains(web_contents_embedder_map_, guest_instance_id))
-    return web_contents_embedder_map_[guest_instance_id].web_contents;
-  else
-    return nullptr;
+  const auto iter = web_contents_embedder_map_.find(guest_instance_id);
+  return iter == std::end(web_contents_embedder_map_) ? nullptr
+                                                      : iter->second.embedder;
 }
 
 bool WebViewManager::ForEachGuest(content::WebContents* embedder_web_contents,

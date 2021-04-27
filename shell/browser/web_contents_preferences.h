@@ -19,7 +19,7 @@ namespace content {
 struct WebPreferences;
 }
 
-namespace mate {
+namespace gin_helper {
 class Dictionary;
 }
 
@@ -33,7 +33,7 @@ class WebContentsPreferences
   static WebContentsPreferences* From(content::WebContents* web_contents);
 
   WebContentsPreferences(content::WebContents* web_contents,
-                         const mate::Dictionary& web_preferences);
+                         const gin_helper::Dictionary& web_preferences);
   ~WebContentsPreferences() override;
 
   // Set WebPreferences defaults onto the JS object.
@@ -50,7 +50,7 @@ class WebContentsPreferences
                                  bool is_subframe);
 
   // Modify the WebPreferences according to preferences.
-  void OverrideWebkitPrefs(content::WebPreferences* prefs);
+  void OverrideWebkitPrefs(blink::web_pref::WebPreferences* prefs);
 
   // Clear the current WebPreferences.
   void Clear();
@@ -58,11 +58,8 @@ class WebContentsPreferences
   // Return true if the particular preference value exists.
   bool GetPreference(base::StringPiece name, std::string* value) const;
 
-  // Whether to enable the remote module
-  bool IsRemoteModuleEnabled() const;
-
   // Returns the preload script path.
-  bool GetPreloadPath(base::FilePath::StringType* path) const;
+  bool GetPreloadPath(base::FilePath* path) const;
 
   // Returns the web preferences.
   base::Value* preference() { return &preference_; }
@@ -70,10 +67,13 @@ class WebContentsPreferences
 
  private:
   friend class content::WebContentsUserData<WebContentsPreferences>;
-  friend class AtomBrowserClient;
+  friend class ElectronBrowserClient;
 
   // Get WebContents according to process ID.
   static content::WebContents* GetWebContentsFromProcessID(int process_id);
+
+  // Checks if the key is not defined
+  bool IsUndefined(base::StringPiece key);
 
   // Set preference value to given bool if user did not provide value
   bool SetDefaultBoolIfUndefined(base::StringPiece key, bool val);

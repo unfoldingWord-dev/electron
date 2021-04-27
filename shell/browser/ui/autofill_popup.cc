@@ -3,12 +3,15 @@
 // found in the LICENSE file.
 
 #include <algorithm>
+#include <memory>
+
 #include <utility>
 #include <vector>
 
 #include "base/i18n/rtl.h"
-#include "chrome/browser/ui/autofill/popup_view_common.h"
+#include "chrome/browser/ui/views/autofill/autofill_popup_view_utils.h"
 #include "electron/buildflags/buildflags.h"
+#include "mojo/public/cpp/bindings/associated_remote.h"
 #include "shell/browser/native_window_views.h"
 #include "shell/browser/ui/autofill_popup.h"
 #include "shell/common/api/api.mojom.h"
@@ -27,19 +30,6 @@
 #endif
 
 namespace electron {
-
-class PopupViewCommon : public autofill::PopupViewCommon {
- public:
-  explicit PopupViewCommon(const gfx::Rect& window_bounds)
-      : window_bounds_(window_bounds) {}
-
-  gfx::Rect GetWindowBounds(gfx::NativeView container_view) override {
-    return window_bounds_;
-  }
-
- private:
-  gfx::Rect window_bounds_;
-};
 
 AutofillPopup::AutofillPopup() {
   bold_font_list_ = gfx::FontList().DeriveWithWeight(gfx::Font::Weight::BOLD);
@@ -79,7 +69,7 @@ void AutofillPopup::CreateView(content::RenderFrameHost* frame_host,
     }
 
     auto* osr_rwhv = static_cast<OffScreenRenderWidgetHostView*>(rwhv);
-    view_->view_proxy_.reset(new OffscreenViewProxy(view_));
+    view_->view_proxy_ = std::make_unique<OffscreenViewProxy>(view_);
     osr_rwhv->AddViewProxy(view_->view_proxy_.get());
   }
 #endif
@@ -111,9 +101,8 @@ void AutofillPopup::SetItems(const std::vector<base::string16>& values,
 }
 
 void AutofillPopup::AcceptSuggestion(int index) {
-  mojom::ElectronAutofillAgentAssociatedPtr autofill_agent;
-  frame_host_->GetRemoteAssociatedInterfaces()->GetInterface(
-      mojo::MakeRequest(&autofill_agent));
+  mojo::AssociatedRemote<mojom::ElectronAutofillAgent> autofill_agent;
+  frame_host_->GetRemoteAssociatedInterfaces()->GetInterface(&autofill_agent);
   autofill_agent->AcceptDataListSuggestion(GetValueAt(index));
 }
 
@@ -125,10 +114,10 @@ void AutofillPopup::UpdatePopupBounds() {
   gfx::Rect bounds(origin, element_bounds_.size());
   gfx::Rect window_bounds = parent_->GetBoundsInScreen();
 
-  PopupViewCommon popup_view_common(window_bounds);
-  popup_bounds_ = popup_view_common.CalculatePopupBounds(
-      GetDesiredPopupWidth(), GetDesiredPopupHeight(), bounds,
-      gfx::NativeView(), base::i18n::IsRTL());
+  gfx::Size preferred_size =
+      gfx::Size(GetDesiredPopupWidth(), GetDesiredPopupHeight());
+  popup_bounds_ = CalculatePopupBounds(preferred_size, window_bounds, bounds,
+                                       base::i18n::IsRTL());
 }
 
 gfx::Rect AutofillPopup::popup_bounds_in_view() {
@@ -159,7 +148,7 @@ int AutofillPopup::GetDesiredPopupWidth() {
         kEndPadding + 2 * kPopupBorderThickness +
         gfx::GetStringWidth(GetValueAt(i), GetValueFontListForRow(i)) +
         gfx::GetStringWidth(GetLabelAt(i), GetLabelFontListForRow(i));
-    if (GetLabelAt(i).length() > 0)
+    if (!GetLabelAt(i).empty())
       row_size += kNamePadding + kEndPadding;
 
     popup_width = std::max(popup_width, row_size);

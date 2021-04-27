@@ -16,9 +16,9 @@ const readFile = promisify(fs.readFile);
 function parseCommandLine () {
   let help;
   const opts = minimist(process.argv.slice(2), {
-    string: [ 'bump', 'version' ],
-    boolean: [ 'dryRun', 'help' ],
-    alias: { 'version': ['v'] },
+    string: ['bump', 'version'],
+    boolean: ['dryRun', 'help'],
+    alias: { version: ['v'] },
     unknown: arg => { help = true; }
   });
   if (help || opts.help || !opts.bump) {
@@ -90,6 +90,9 @@ async function nextVersion (bumpType, version) {
         break;
       case 'beta':
         throw new Error('Cannot bump to beta from stable.');
+      case 'minor':
+        version = semver.inc(version, 'minor');
+        break;
       case 'stable':
         version = semver.inc(version, 'patch');
         break;
@@ -122,9 +125,9 @@ async function commitVersionBump (version) {
   await GitProcess.exec(gitArgs, ELECTRON_DIR);
 }
 
-// updates atom.rc file with new semver values
+// updates electron.rc file with new semver values
 async function updateWinRC (components) {
-  const filePath = path.resolve(ELECTRON_DIR, 'shell', 'browser', 'resources', 'win', 'atom.rc');
+  const filePath = path.resolve(ELECTRON_DIR, 'shell', 'browser', 'resources', 'win', 'electron.rc');
   const data = await readFile(filePath, 'utf8');
   const arr = data.split('\n');
   arr.forEach((line, idx) => {

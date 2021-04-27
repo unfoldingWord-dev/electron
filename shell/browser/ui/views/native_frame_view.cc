@@ -8,7 +8,7 @@
 
 namespace electron {
 
-const char NativeFrameView::kViewClassName[] = "AtomNativeFrameView";
+const char NativeFrameView::kViewClassName[] = "ElectronNativeFrameView";
 
 NativeFrameView::NativeFrameView(NativeWindow* window, views::Widget* widget)
     : views::NativeFrameView(widget), window_(window) {}
@@ -18,7 +18,10 @@ gfx::Size NativeFrameView::GetMinimumSize() const {
 }
 
 gfx::Size NativeFrameView::GetMaximumSize() const {
-  return window_->GetMaximumSize();
+  gfx::Size size = window_->GetMaximumSize();
+  // Electron public APIs returns (0, 0) when maximum size is not set, but it
+  // would break internal window APIs like HWNDMessageHandler::SetAspectRatio.
+  return size.IsEmpty() ? gfx::Size(INT_MAX, INT_MAX) : size;
 }
 
 const char* NativeFrameView::GetClassName() const {

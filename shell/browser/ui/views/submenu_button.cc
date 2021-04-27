@@ -9,6 +9,7 @@
 
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
+#include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/color_utils.h"
 #include "ui/gfx/text_utils.h"
@@ -19,11 +20,10 @@
 
 namespace electron {
 
-SubmenuButton::SubmenuButton(const base::string16& title,
-                             views::MenuButtonListener* menu_button_listener,
+SubmenuButton::SubmenuButton(PressedCallback callback,
+                             const base::string16& title,
                              const SkColor& background_color)
-    : views::MenuButton(gfx::RemoveAcceleratorChar(title, '&', NULL, NULL),
-                        menu_button_listener),
+    : views::MenuButton(callback, gfx::RemoveAccelerator(title)),
       background_color_(background_color) {
 #if defined(OS_LINUX)
   // Dont' use native style border.
@@ -36,18 +36,18 @@ SubmenuButton::SubmenuButton(const base::string16& title,
                                &text_height_, 0, 0);
 
   SetInkDropMode(InkDropMode::ON);
-  set_ink_drop_base_color(
+  SetInkDropBaseColor(
       color_utils::BlendTowardMaxContrast(background_color_, 0x81));
 }
 
-SubmenuButton::~SubmenuButton() {}
+SubmenuButton::~SubmenuButton() = default;
 
 std::unique_ptr<views::InkDropRipple> SubmenuButton::CreateInkDropRipple()
     const {
   std::unique_ptr<views::InkDropRipple> ripple(
       new views::FloodFillInkDropRipple(
           size(), GetInkDropCenterBasedOnLastEvent(), GetInkDropBaseColor(),
-          ink_drop_visible_opacity()));
+          GetInkDropVisibleOpacity()));
   return ripple;
 }
 
@@ -94,7 +94,8 @@ bool SubmenuButton::GetUnderlinePosition(const base::string16& text,
                                          int* start,
                                          int* end) const {
   int pos, span;
-  base::string16 trimmed = gfx::RemoveAcceleratorChar(text, '&', &pos, &span);
+  base::string16 trimmed =
+      gfx::LocateAndRemoveAcceleratorChar(text, &pos, &span);
   if (pos > -1 && span != 0) {
     *accelerator = base::ToUpperASCII(trimmed[pos]);
     GetCharacterPosition(trimmed, pos, start);

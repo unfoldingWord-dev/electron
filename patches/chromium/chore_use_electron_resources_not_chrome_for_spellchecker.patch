@@ -1,0 +1,58 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Samuel Attard <sattard@slack-corp.com>
+Date: Wed, 23 Oct 2019 14:17:18 -0700
+Subject: chore: use electron resources not chrome for spellchecker
+
+spellchecker uses a few IDS_ resources.  We need to load these from
+Electrons grit header instead of Chromes
+
+diff --git a/chrome/browser/BUILD.gn b/chrome/browser/BUILD.gn
+index 2ace902f57a7a91124d316c1ad5df0e977e0a6d5..cf06039565541ebada001acfe3b6eb2ac0a42b44 100644
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -6206,6 +6206,7 @@ static_library("browser") {
+     deps += [
+       "//components/spellcheck/browser",
+       "//components/spellcheck/common",
++      "//electron:resources",
+     ]
+ 
+     if (!is_android) {
+diff --git a/chrome/browser/spellchecker/spellcheck_factory.cc b/chrome/browser/spellchecker/spellcheck_factory.cc
+index d511c9085253ebfba69ba37f41193d15638bb10f..d98cfc569c775b52687a533e03c595a5e45be87e 100644
+--- a/chrome/browser/spellchecker/spellcheck_factory.cc
++++ b/chrome/browser/spellchecker/spellcheck_factory.cc
+@@ -6,7 +6,7 @@
+ 
+ #include "chrome/browser/profiles/incognito_helpers.h"
+ #include "chrome/browser/spellchecker/spellcheck_service.h"
+-#include "chrome/grit/locale_settings.h"
++#include "electron/grit/electron_resources.h"
+ #include "components/keyed_service/content/browser_context_dependency_manager.h"
+ #include "components/pref_registry/pref_registry_syncable.h"
+ #include "components/prefs/pref_service.h"
+diff --git a/components/language/core/browser/BUILD.gn b/components/language/core/browser/BUILD.gn
+index 41761e18716a7d9221511978dc4582a1804920e2..faea3d936c678e31fa29b93ae1ccd976ad52c7a1 100644
+--- a/components/language/core/browser/BUILD.gn
++++ b/components/language/core/browser/BUILD.gn
+@@ -34,6 +34,7 @@ static_library("browser") {
+     "//components/pref_registry",
+     "//components/prefs",
+     "//components/strings",
++    "//electron:resources",
+     "//ui/base",
+   ]
+ }
+diff --git a/components/language/core/browser/language_prefs.cc b/components/language/core/browser/language_prefs.cc
+index c14811efa87b223729d37695d86f858dd8f366ee..444c8273e4985f7e276ad0dd0fd001b027bc0d47 100644
+--- a/components/language/core/browser/language_prefs.cc
++++ b/components/language/core/browser/language_prefs.cc
+@@ -21,7 +21,7 @@
+ #include "components/pref_registry/pref_registry_syncable.h"
+ #include "components/prefs/pref_service.h"
+ #include "components/prefs/scoped_user_pref_update.h"
+-#include "components/strings/grit/components_locale_settings.h"
++#include "electron/grit/electron_resources.h"
+ #include "ui/base/l10n/l10n_util.h"
+ 
+ namespace language {

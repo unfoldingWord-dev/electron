@@ -17,6 +17,7 @@
 #include "base/mac/scoped_cftyperef.h"
 #include "base/strings/sys_string_conversions.h"
 #include "shell/browser/native_window.h"
+#include "shell/common/gin_converters/file_path_converter.h"
 
 @interface PopUpButtonHandler : NSObject
 
@@ -61,10 +62,10 @@
 @end
 
 // Manages the PopUpButtonHandler.
-@interface AtomAccessoryView : NSView
+@interface ElectronAccessoryView : NSView
 @end
 
-@implementation AtomAccessoryView
+@implementation ElectronAccessoryView
 
 - (void)dealloc {
   auto* popupButton =
@@ -89,12 +90,22 @@ void SetAllowedFileTypes(NSSavePanel* dialog, const Filters& filters) {
 
   // Create array to keep file types and their name.
   for (const Filter& filter : filters) {
-    NSMutableSet* file_type_set = [NSMutableSet set];
+    NSMutableOrderedSet* file_type_set =
+        [NSMutableOrderedSet orderedSetWithCapacity:filters.size()];
     [filter_names addObject:@(filter.first.c_str())];
-    for (const std::string& ext : filter.second) {
+    for (std::string ext : filter.second) {
+      // macOS is incapable of understanding multiple file extensions,
+      // so we need to tokenize the extension that's been passed in.
+      // We want to err on the side of allowing files, so we pass
+      // along only the final extension ('tar.gz' => 'gz').
+      auto pos = ext.rfind('.');
+      if (pos != std::string::npos) {
+        ext.erase(0, pos + 1);
+      }
+
       [file_type_set addObject:@(ext.c_str())];
     }
-    [file_types_list addObject:[file_type_set allObjects]];
+    [file_types_list addObject:[file_type_set array]];
   }
 
   // Passing empty array to setAllowedFileTypes will cause exception.
@@ -113,8 +124,8 @@ void SetAllowedFileTypes(NSSavePanel* dialog, const Filters& filters) {
     return;  // don't add file format picker
 
   // Add file format picker.
-  AtomAccessoryView* accessoryView =
-      [[AtomAccessoryView alloc] initWithFrame:NSMakeRect(0.0, 0.0, 200, 32.0)];
+  ElectronAccessoryView* accessoryView = [[ElectronAccessoryView alloc]
+      initWithFrame:NSMakeRect(0.0, 0.0, 200, 32.0)];
   NSTextField* label =
       [[NSTextField alloc] initWithFrame:NSMakeRect(0, 0, 60, 22)];
 
@@ -191,19 +202,28 @@ void SetupDialog(NSSavePanel* dialog, const DialogSettings& settings) {
     [dialog setNameFieldStringValue:default_filename];
 }
 
-void SetupDialogForProperties(NSOpenPanel* dialog, int properties) {
-  [dialog setCanChooseFiles:(properties & FILE_DIALOG_OPEN_FILE)];
-  if (properties & FILE_DIALOG_OPEN_DIRECTORY)
+void SetupOpenDialogForProperties(NSOpenPanel* dialog, int properties) {
+  [dialog setCanChooseFiles:(properties & OPEN_DIALOG_OPEN_FILE)];
+  if (properties & OPEN_DIALOG_OPEN_DIRECTORY)
     [dialog setCanChooseDirectories:YES];
-  if (properties & FILE_DIALOG_CREATE_DIRECTORY)
+  if (properties & OPEN_DIALOG_CREATE_DIRECTORY)
     [dialog setCanCreateDirectories:YES];
-  if (properties & FILE_DIALOG_MULTI_SELECTIONS)
+  if (properties & OPEN_DIALOG_MULTI_SELECTIONS)
     [dialog setAllowsMultipleSelection:YES];
-  if (properties & FILE_DIALOG_SHOW_HIDDEN_FILES)
+  if (properties & OPEN_DIALOG_SHOW_HIDDEN_FILES)
     [dialog setShowsHiddenFiles:YES];
-  if (properties & FILE_DIALOG_NO_RESOLVE_ALIASES)
+  if (properties & OPEN_DIALOG_NO_RESOLVE_ALIASES)
     [dialog setResolvesAliases:NO];
-  if (properties & FILE_DIALOG_TREAT_PACKAGE_APP_AS_DIRECTORY)
+  if (properties & OPEN_DIALOG_TREAT_PACKAGE_APP_AS_DIRECTORY)
+    [dialog setTreatsFilePackagesAsDirectories:YES];
+}
+
+void SetupSaveDialogForProperties(NSSavePanel* dialog, int properties) {
+  if (properties & SAVE_DIALOG_CREATE_DIRECTORY)
+    [dialog setCanCreateDirectories:YES];
+  if (properties & SAVE_DIALOG_SHOW_HIDDEN_FILES)
+    [dialog setShowsHiddenFiles:YES];
+  if (properties & SAVE_DIALOG_TREAT_PACKAGE_APP_AS_DIRECTORY)
     [dialog setTreatsFilePackagesAsDirectories:YES];
 }
 
@@ -278,7 +298,7 @@ bool ShowOpenDialogSync(const DialogSettings& settings,
   NSOpenPanel* dialog = [NSOpenPanel openPanel];
 
   SetupDialog(dialog, settings);
-  SetupDialogForProperties(dialog, settings.properties);
+  SetupOpenDialogForProperties(dialog, settings.properties);
 
   int chosen = RunModalDialog(dialog, settings);
   if (chosen == NSFileHandlingPanelCancelButton)
@@ -291,15 +311,16 @@ bool ShowOpenDialogSync(const DialogSettings& settings,
 void OpenDialogCompletion(int chosen,
                           NSOpenPanel* dialog,
                           bool security_scoped_bookmarks,
-                          electron::util::Promise promise) {
-  mate::Dictionary dict = mate::Dictionary::CreateEmpty(promise.isolate());
+                          gin_helper::Promise<gin_helper::Dictionary> promise) {
+  v8::HandleScope scope(promise.isolate());
+  gin_helper::Dictionary dict = gin::Dictionary::CreateEmpty(promise.isolate());
   if (chosen == NSFileHandlingPanelCancelButton) {
     dict.Set("canceled", true);
     dict.Set("filePaths", std::vector<base::FilePath>());
 #if defined(MAS_BUILD)
     dict.Set("bookmarks", std::vector<std::string>());
 #endif
-    promise.Resolve(dict.GetHandle());
+    promise.Resolve(dict);
   } else {
     std::vector<base::FilePath> paths;
     dict.Set("canceled", false);
@@ -315,22 +336,22 @@ void OpenDialogCompletion(int chosen,
     ReadDialogPaths(dialog, &paths);
     dict.Set("filePaths", paths);
 #endif
-    promise.Resolve(dict.GetHandle());
+    promise.Resolve(dict);
   }
 }
 
 void ShowOpenDialog(const DialogSettings& settings,
-                    electron::util::Promise promise) {
+                    gin_helper::Promise<gin_helper::Dictionary> promise) {
   NSOpenPanel* dialog = [NSOpenPanel openPanel];
 
   SetupDialog(dialog, settings);
-  SetupDialogForProperties(dialog, settings.properties);
+  SetupOpenDialogForProperties(dialog, settings.properties);
 
   // Capture the value of the security_scoped_bookmarks settings flag
   // and pass it to the completion handler.
   bool security_scoped_bookmarks = settings.security_scoped_bookmarks;
 
-  __block electron::util::Promise p = std::move(promise);
+  __block gin_helper::Promise<gin_helper::Dictionary> p = std::move(promise);
 
   if (!settings.parent_window || !settings.parent_window->GetNativeWindow() ||
       settings.force_detached) {
@@ -355,6 +376,7 @@ bool ShowSaveDialogSync(const DialogSettings& settings, base::FilePath* path) {
   NSSavePanel* dialog = [NSSavePanel savePanel];
 
   SetupDialog(dialog, settings);
+  SetupSaveDialogForProperties(dialog, settings.properties);
 
   int chosen = RunModalDialog(dialog, settings);
   if (chosen == NSFileHandlingPanelCancelButton || ![[dialog URL] isFileURL])
@@ -367,13 +389,14 @@ bool ShowSaveDialogSync(const DialogSettings& settings, base::FilePath* path) {
 void SaveDialogCompletion(int chosen,
                           NSSavePanel* dialog,
                           bool security_scoped_bookmarks,
-                          electron::util::Promise promise) {
-  mate::Dictionary dict = mate::Dictionary::CreateEmpty(promise.isolate());
+                          gin_helper::Promise<gin_helper::Dictionary> promise) {
+  v8::HandleScope scope(promise.isolate());
+  gin_helper::Dictionary dict = gin::Dictionary::CreateEmpty(promise.isolate());
   if (chosen == NSFileHandlingPanelCancelButton) {
     dict.Set("canceled", true);
     dict.Set("filePath", base::FilePath());
 #if defined(MAS_BUILD)
-    dict.Set("bookmark", "");
+    dict.Set("bookmark", base::StringPiece());
 #endif
   } else {
     std::string path = base::SysNSStringToUTF8([[dialog URL] path]);
@@ -387,21 +410,22 @@ void SaveDialogCompletion(int chosen,
     }
 #endif
   }
-  promise.Resolve(dict.GetHandle());
+  promise.Resolve(dict);
 }
 
 void ShowSaveDialog(const DialogSettings& settings,
-                    electron::util::Promise promise) {
+                    gin_helper::Promise<gin_helper::Dictionary> promise) {
   NSSavePanel* dialog = [NSSavePanel savePanel];
 
   SetupDialog(dialog, settings);
+  SetupSaveDialogForProperties(dialog, settings.properties);
   [dialog setCanSelectHiddenExtension:YES];
 
   // Capture the value of the security_scoped_bookmarks settings flag
   // and pass it to the completion handler.
   bool security_scoped_bookmarks = settings.security_scoped_bookmarks;
 
-  __block electron::util::Promise p = std::move(promise);
+  __block gin_helper::Promise<gin_helper::Dictionary> p = std::move(promise);
 
   if (!settings.parent_window || !settings.parent_window->GetNativeWindow() ||
       settings.force_detached) {

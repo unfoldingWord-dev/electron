@@ -6,6 +6,7 @@ const request = require('request');
 const BUILD_APPVEYOR_URL = 'https://ci.appveyor.com/api/builds';
 const CIRCLECI_PIPELINE_URL = 'https://circleci.com/api/v2/project/gh/electron/electron/pipeline';
 const VSTS_URL = 'https://github.visualstudio.com/electron/_apis/build';
+const DEVOPS_URL = 'https://dev.azure.com/electron-ci/electron/_apis/build';
 const CIRCLECI_WAIT_TIME = process.env.CIRCLECI_WAIT_TIME || 30000;
 
 const appVeyorJobs = {
@@ -14,17 +15,25 @@ const appVeyorJobs = {
   'electron-woa': 'electron-woa-release'
 };
 
-const circleCIJobs = [
+const circleCIPublishWorkflows = [
+  'linux-publish',
+  'macos-publish'
+];
+
+const circleCIJobs = circleCIPublishWorkflows.concat([
   'linux-arm-publish',
   'linux-arm64-publish',
   'linux-ia32-publish',
   'linux-x64-publish',
   'mas-publish',
-  'osx-publish'
-];
+  'mas-publish-arm64',
+  'osx-publish',
+  'osx-publish-arm64'
+]);
 
 const vstsArmJobs = [
   'electron-arm-testing',
+  'electron-arm2-testing',
   'electron-arm64-testing',
   'electron-woa-testing'
 ];
@@ -61,8 +70,8 @@ async function makeRequest (requestOptions, parseResponse) {
 async function circleCIcall (targetBranch, job, options) {
   console.log(`Triggering CircleCI to run build job: ${job} on branch: ${targetBranch} with release flag.`);
   const buildRequest = {
-    'branch': targetBranch,
-    'parameters': {
+    branch: targetBranch,
+    parameters: {
       'run-lint': false,
       'run-build-linux': false,
       'run-build-mac': false
@@ -82,18 +91,22 @@ async function circleCIcall (targetBranch, job, options) {
   try {
     const circleResponse = await circleCIRequest(CIRCLECI_PIPELINE_URL, 'POST', buildRequest);
     console.log(`CircleCI release build pipeline ${circleResponse.id} for ${job} triggered.`);
-    const pipelineInfoUrl = `https://circleci.com/api/v2/pipeline/${circleResponse.id}`;
     const workflowId = await getCircleCIWorkflowId(circleResponse.id);
     if (workflowId === -1) {
       return;
     }
-    console.log(`CircleCI release build workflow running at https://circleci.com/workflow-run/${workflowId} for ${job}.`);
-    const jobNumber = await getCircleCIJobNumber(workflowId);
-    if (jobNumber === -1) {
-      return;
+    const workFlowUrl = `https://circleci.com/workflow-run/${workflowId}`;
+    if (options.runningPublishWorkflows) {
+      console.log(`CircleCI release workflow request for ${job} successful.  Check ${workFlowUrl} for status.`);
+    } else {
+      console.log(`CircleCI release build workflow running at https://circleci.com/workflow-run/${workflowId} for ${job}.`);
+      const jobNumber = await getCircleCIJobNumber(workflowId);
+      if (jobNumber === -1) {
+        return;
+      }
+      const jobUrl = `https://circleci.com/gh/electron/electron/${jobNumber}`;
+      console.log(`CircleCI release build request for ${job} successful.  Check ${jobUrl} for status.`);
     }
-    const jobUrl = `https://circleci.com/gh/electron/electron/${jobNumber}`;
-    console.log(`CircleCI release build request for ${job} successful.  Check ${jobUrl} for status.`);
   } catch (err) {
     console.log('Error calling CircleCI: ', err);
   }
@@ -175,7 +188,7 @@ async function circleCIRequest (url, method, requestBody) {
     url,
     headers: {
       'Content-Type': 'application/json',
-      'Accept': 'application/json'
+      Accept: 'application/json'
     },
     body: requestBody ? JSON.stringify(requestBody) : null
   }, true).catch(err => {
@@ -196,7 +209,8 @@ function buildAppVeyor (targetBranch, options) {
 async function callAppVeyor (targetBranch, job, options) {
   console.log(`Triggering AppVeyor to run build job: ${job} on branch: ${targetBranch} with release flag.`);
   const environmentVariables = {
-    ELECTRON_RELEASE: 1
+    ELECTRON_RELEASE: 1,
+    APPVEYOR_BUILD_WORKER_CLOUD: 'libcc-20'
   };
 
   if (!options.ghRelease) {
@@ -220,11 +234,14 @@ async function callAppVeyor (targetBranch, job, options) {
     method: 'POST'
   };
   jobRequestedCount++;
-  const appVeyorResponse = await makeRequest(requestOpts, true).catch(err => {
-    console.log('Error calling AppVeyor:', err);
-  });
-  const buildUrl = `https://ci.appveyor.com/project/electron-bot/${appVeyorJobs[job]}/build/${appVeyorResponse.version}`;
-  console.log(`AppVeyor release build request for ${job} successful.  Check build status at ${buildUrl}`);
+
+  try {
+    const { version } = await makeRequest(requestOpts, true);
+    const buildUrl = `https://ci.appveyor.com/project/electron-bot/${appVeyorJobs[job]}/build/${version}`;
+    console.log(`AppVeyor release build request for ${job} successful.  Check build status at ${buildUrl}`);
+  } catch (err) {
+    console.log('Could not call AppVeyor: ', err);
+  }
 }
 
 function buildCircleCI (targetBranch, options) {
@@ -232,50 +249,54 @@ function buildCircleCI (targetBranch, options) {
     assert(circleCIJobs.includes(options.job), `Unknown CircleCI job name: ${options.job}. Valid values are: ${circleCIJobs}.`);
     circleCIcall(targetBranch, options.job, options);
   } else {
-    circleCIJobs.forEach((job) => circleCIcall(targetBranch, job, options));
+    options.runningPublishWorkflows = true;
+    circleCIPublishWorkflows.forEach((job) => circleCIcall(targetBranch, job, options));
   }
 }
 
 async function buildVSTS (targetBranch, options) {
-  if (options.armTest) {
-    assert(vstsArmJobs.includes(options.job), `Unknown VSTS CI arm test job name: ${options.job}. Valid values are: ${vstsArmJobs}.`);
+  assert(options.armTest, `${options.ci} only works with the --armTest option.`);
+  assert(vstsArmJobs.includes(options.job), `Unknown VSTS CI arm test job name: ${options.job}. Valid values are: ${vstsArmJobs}.`);
+
+  console.log(`Triggering VSTS to run build on branch: ${targetBranch}.`);
+  const environmentVariables = {};
+
+  if (options.circleBuildNum) {
+    environmentVariables.CIRCLE_BUILD_NUM = options.circleBuildNum;
+  } else if (options.appveyorJobId) {
+    environmentVariables.APPVEYOR_JOB_ID = options.appveyorJobId;
   }
 
-  console.log(`Triggering VSTS to run build on branch: ${targetBranch} with release flag.`);
-  const environmentVariables = {
-    ELECTRON_RELEASE: 1
-  };
-
-  if (options.armTest) {
-    if (options.circleBuildNum) {
-      environmentVariables.CIRCLE_BUILD_NUM = options.circleBuildNum;
-    } else if (options.appveyorJobId) {
-      environmentVariables.APPVEYOR_JOB_ID = options.appveyorJobId;
-    }
-  } else {
-    if (!options.ghRelease) {
-      environmentVariables.UPLOAD_TO_S3 = 1;
-    }
+  let vstsURL = VSTS_URL;
+  let vstsToken = process.env.VSTS_TOKEN;
+  assert(vstsToken, `${options.ci} requires the $VSTS_TOKEN environment variable to be provided`);
+  if (options.ci === 'DevOps') {
+    vstsURL = DEVOPS_URL;
+    vstsToken = process.env.DEVOPS_TOKEN;
   }
-
   const requestOpts = {
-    url: `${VSTS_URL}/definitions?api-version=4.1`,
+    url: `${vstsURL}/definitions?api-version=4.1`,
     auth: {
       user: '',
-      password: process.env.VSTS_TOKEN
+      password: vstsToken
     },
     headers: {
       'Content-Type': 'application/json'
     }
   };
-  const vstsResponse = await makeRequest(requestOpts, true).catch(err => {
-    console.log('Error calling VSTS to get build definitions:', err);
-  });
-  const buildsToRun = vstsResponse.value.filter(build => build.name === options.job);
-  buildsToRun.forEach((build) => callVSTSBuild(build, targetBranch, environmentVariables));
+
+  jobRequestedCount++;
+
+  try {
+    const vstsResponse = await makeRequest(requestOpts, true);
+    const buildToRun = vstsResponse.value.find(build => build.name === options.job);
+    callVSTSBuild(buildToRun, targetBranch, environmentVariables, vstsURL, vstsToken);
+  } catch (err) {
+    console.log('Problem calling VSTS to get build definitions: ', err);
+  }
 }
 
-async function callVSTSBuild (build, targetBranch, environmentVariables) {
+async function callVSTSBuild (build, targetBranch, environmentVariables, vstsURL, vstsToken) {
   const buildBody = {
     definition: build,
     sourceBranch: targetBranch,
@@ -285,10 +306,10 @@ async function callVSTSBuild (build, targetBranch, environmentVariables) {
     buildBody.parameters = JSON.stringify(environmentVariables);
   }
   const requestOpts = {
-    url: `${VSTS_URL}/builds?api-version=4.1`,
+    url: `${vstsURL}/builds?api-version=4.1`,
     auth: {
       user: '',
-      password: process.env.VSTS_TOKEN
+      password: vstsToken
     },
     headers: {
       'Content-Type': 'application/json'
@@ -296,11 +317,13 @@ async function callVSTSBuild (build, targetBranch, environmentVariables) {
     body: JSON.stringify(buildBody),
     method: 'POST'
   };
-  jobRequestedCount++;
-  const vstsResponse = await makeRequest(requestOpts, true).catch(err => {
-    console.log(`Error calling VSTS for job ${build.name}`, err);
-  });
-  console.log(`VSTS release build request for ${build.name} successful. Check ${vstsResponse._links.web.href} for status.`);
+
+  try {
+    const { _links } = await makeRequest(requestOpts, true);
+    console.log(`VSTS release build request for ${build.name} successful. Check ${_links.web.href} for status.`);
+  } catch (err) {
+    console.log(`Could not call VSTS for job ${build.name}: `, err);
+  }
 }
 
 function runRelease (targetBranch, options) {
@@ -314,6 +337,7 @@ function runRelease (targetBranch, options) {
         buildAppVeyor(targetBranch, options);
         break;
       }
+      case 'DevOps':
       case 'VSTS': {
         buildVSTS(targetBranch, options);
         break;
@@ -339,7 +363,7 @@ if (require.main === module) {
   const targetBranch = args._[0];
   if (args._.length < 1) {
     console.log(`Trigger CI to build release builds of electron.
-    Usage: ci-release-build.js [--job=CI_JOB_NAME] [--ci=CircleCI|AppVeyor|VSTS]
+    Usage: ci-release-build.js [--job=CI_JOB_NAME] [--ci=CircleCI|AppVeyor|VSTS|DevOps]
     [--ghRelease] [--armTest] [--circleBuildNum=xxx] [--appveyorJobId=xxx] TARGET_BRANCH
     `);
     process.exit(0);

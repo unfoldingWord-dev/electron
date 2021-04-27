@@ -7,11 +7,11 @@
 
 #include <memory>
 
-#include "shell/browser/ui/atom_menu_model.h"
+#include "shell/browser/ui/electron_menu_model.h"
 #include "shell/browser/ui/views/menu_delegate.h"
 #include "shell/browser/ui/views/root_view.h"
 #include "ui/views/accessible_pane_view.h"
-#include "ui/views/controls/button/menu_button_listener.h"
+#include "ui/views/controls/button/button.h"
 #include "ui/views/focus/focus_manager.h"
 #include "ui/views/view.h"
 
@@ -37,7 +37,6 @@ class MenuBarColorUpdater : public views::FocusChangeListener {
 };
 
 class MenuBar : public views::AccessiblePaneView,
-                public views::MenuButtonListener,
                 public electron::MenuDelegate::Observer {
  public:
   static const char kViewClassName[];
@@ -46,7 +45,7 @@ class MenuBar : public views::AccessiblePaneView,
   ~MenuBar() override;
 
   // Replaces current menu with a new one.
-  void SetMenu(AtomMenuModel* menu_model);
+  void SetMenu(ElectronMenuModel* menu_model);
 
   // Shows underline under accelerators.
   void SetAcceleratorVisibility(bool visible);
@@ -62,7 +61,7 @@ class MenuBar : public views::AccessiblePaneView,
 
   // Get the menu under specified screen point.
   bool GetMenuButtonFromScreenPoint(const gfx::Point& point,
-                                    AtomMenuModel** menu_model,
+                                    ElectronMenuModel** menu_model,
                                     views::MenuButton** button);
 
   // electron::MenuDelegate::Observer:
@@ -73,32 +72,28 @@ class MenuBar : public views::AccessiblePaneView,
   bool AcceleratorPressed(const ui::Accelerator& accelerator) override;
   bool SetPaneFocus(views::View* initial_focus) override;
   void RemovePaneFocus() override;
-
- protected:
-  // views::View:
-  const char* GetClassName() const override;
-
-  // views::MenuButtonListener:
-  void OnMenuButtonClicked(views::Button* source,
-                           const gfx::Point& point,
-                           const ui::Event* event) override;
   void OnThemeChanged() override;
 
  private:
   friend class MenuBarColorUpdater;
+
+  // views::View:
+  const char* GetClassName() const override;
+
+  void ButtonPressed(int id, const ui::Event& event);
 
   void RebuildChildren();
   void UpdateViewColors();
 
   void RefreshColorCache();
   SkColor background_color_;
-#if defined(USE_X11)
+#if defined(OS_LINUX)
   SkColor enabled_color_;
   SkColor disabled_color_;
 #endif
 
   RootView* window_ = nullptr;
-  AtomMenuModel* menu_model_ = nullptr;
+  ElectronMenuModel* menu_model_ = nullptr;
 
   View* FindAccelChild(base::char16 key);
 

@@ -1,6 +1,8 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 
+process.noDeprecation = true;
+
 process.on('uncaughtException', (e) => {
   console.error(e);
   process.exit(1);
@@ -26,7 +28,8 @@ app.whenReady().then(() => {
   win = new BrowserWindow({
     show: false,
     webPreferences: {
-      preload: path.resolve(__dirname, 'preload.js')
+      preload: path.resolve(__dirname, 'preload.js'),
+      contextIsolation: true
     }
   });
   win.loadFile('index.html');

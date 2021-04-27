@@ -1,5 +1,6 @@
 
 import {
+  desktopCapturer,
   ipcRenderer,
   remote,
   webFrame,
@@ -12,7 +13,7 @@ import {
 import * as fs from 'fs'
 
 // In renderer process (web page).
-// https://github.com/atom/electron/blob/master/docs/api/ipc-renderer.md
+// https://github.com/electron/electron/blob/master/docs/api/ipc-renderer.md
 console.log(ipcRenderer.sendSync('synchronous-message', 'ping')) // prints "pong"
 
 ipcRenderer.on('asynchronous-reply', (event, arg: any) => {
@@ -23,7 +24,7 @@ ipcRenderer.on('asynchronous-reply', (event, arg: any) => {
 ipcRenderer.send('asynchronous-message', 'ping')
 
 // remote
-// https://github.com/atom/electron/blob/master/docs/api/remote.md
+// https://github.com/electron/electron/blob/master/docs/api/remote.md
 
 const BrowserWindow = remote.BrowserWindow
 const win = new BrowserWindow({ width: 800, height: 600 })
@@ -33,22 +34,22 @@ remote.getCurrentWindow().on('close', () => {
   // blabla...
 })
 
-remote.getCurrentWindow().capturePage().then(buf => {
-  fs.writeFile('/tmp/screenshot.png', buf, err => {
+remote.getCurrentWindow().capturePage().then(image => {
+  fs.writeFile('/tmp/screenshot.png', image.toBitmap(), err => {
     console.log(err)
   })
 })
 
 remote.getCurrentWebContents().print()
 
-remote.getCurrentWindow().capturePage().then(buf => {
-  remote.require('fs').writeFile('/tmp/screenshot.png', buf, (err: Error) => {
+remote.getCurrentWindow().capturePage().then(image => {
+  remote.require('fs').writeFile('/tmp/screenshot.png', image.toBitmap(), (err: Error) => {
     console.log(err)
   })
 })
 
 // web-frame
-// https://github.com/atom/electron/blob/master/docs/api/web-frame.md
+// https://github.com/electron/electron/blob/master/docs/api/web-frame.md
 
 webFrame.setZoomFactor(2)
 console.log(webFrame.getZoomFactor())
@@ -57,7 +58,6 @@ webFrame.setZoomLevel(200)
 console.log(webFrame.getZoomLevel())
 
 webFrame.setVisualZoomLevelLimits(50, 200)
-webFrame.setLayoutZoomLevelLimits(50, 200)
 
 webFrame.setSpellCheckProvider('en-US', {
   spellCheck (words, callback) {
@@ -80,7 +80,7 @@ console.log(webFrame.getResourceUsage())
 webFrame.clearCache()
 
 // clipboard
-// https://github.com/atom/electron/blob/master/docs/api/clipboard.md
+// https://github.com/electron/electron/blob/master/docs/api/clipboard.md
 
 clipboard.writeText('Example String')
 clipboard.writeText('Example String', 'selection')
@@ -96,7 +96,7 @@ clipboard.write({
 })
 
 // crash-reporter
-// https://github.com/atom/electron/blob/master/docs/api/crash-reporter.md
+// https://github.com/electron/electron/blob/master/docs/api/crash-reporter.md
 
 crashReporter.start({
   productName: 'YourName',
@@ -106,9 +106,7 @@ crashReporter.start({
 })
 
 // desktopCapturer
-// https://github.com/atom/electron/blob/master/docs/api/desktop-capturer.md
-
-const desktopCapturer = require('electron').desktopCapturer
+// https://github.com/electron/electron/blob/master/docs/api/desktop-capturer.md
 
 desktopCapturer.getSources({ types: ['window', 'screen'] }).then(sources => {
   for (let i = 0; i < sources.length; ++i) {
@@ -140,7 +138,7 @@ function getUserMediaError (error: Error) {
 }
 
 // File object
-// https://github.com/atom/electron/blob/master/docs/api/file-object.md
+// https://github.com/electron/electron/blob/master/docs/api/file-object.md
 
 /*
 <div id="holder">
@@ -166,7 +164,7 @@ holder.ondrop = function (e) {
 }
 
 // nativeImage
-// https://github.com/atom/electron/blob/master/docs/api/native-image.md
+// https://github.com/electron/electron/blob/master/docs/api/native-image.md
 
 const Tray = remote.Tray
 const appIcon2 = new Tray('/Users/somebody/images/icon.png')
@@ -186,18 +184,18 @@ process.once('loaded', function () {
 })
 
 // screen
-// https://github.com/atom/electron/blob/master/docs/api/screen.md
+// https://github.com/electron/electron/blob/master/docs/api/screen.md
 
 const app = remote.app
 
 let mainWindow: Electron.BrowserWindow = null
 
-app.on('ready', () => {
+app.whenReady().then(() => {
   const size = screen.getPrimaryDisplay().workAreaSize
   mainWindow = new BrowserWindow({ width: size.width, height: size.height })
 })
 
-app.on('ready', () => {
+app.whenReady().then(() => {
   const displays = screen.getAllDisplays()
   let externalDisplay: any = null
   for (const i in displays) {
@@ -216,12 +214,12 @@ app.on('ready', () => {
 })
 
 // shell
-// https://github.com/atom/electron/blob/master/docs/api/shell.md
+// https://github.com/electron/electron/blob/master/docs/api/shell.md
 
 shell.openExternal('https://github.com').then(() => {})
 
 // <webview>
-// https://github.com/atom/electron/blob/master/docs/api/web-view-tag.md
+// https://github.com/electron/electron/blob/master/docs/api/web-view-tag.md
 
 const webview = document.createElement('webview')
 webview.loadURL('https://github.com')
@@ -257,7 +255,6 @@ webview.capturePage().then(image => { console.log(image) })
 {
   const opened: boolean = webview.isDevToolsOpened()
   const focused: boolean = webview.isDevToolsFocused()
-  const focused2: boolean = webview.getWebContents().isFocused()
 }
 
 // In guest page.

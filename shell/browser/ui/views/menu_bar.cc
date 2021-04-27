@@ -17,8 +17,8 @@
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/widget/widget.h"
 
-#if defined(USE_X11)
-#include "chrome/browser/ui/libgtkui/gtk_util.h"
+#if defined(OS_LINUX)
+#include "ui/gtk/gtk_util.h"
 #endif
 
 #if defined(OS_WIN)
@@ -39,7 +39,7 @@ const char MenuBar::kViewClassName[] = "ElectronMenuBar";
 MenuBarColorUpdater::MenuBarColorUpdater(MenuBar* menu_bar)
     : menu_bar_(menu_bar) {}
 
-MenuBarColorUpdater::~MenuBarColorUpdater() {}
+MenuBarColorUpdater::~MenuBarColorUpdater() = default;
 
 void MenuBarColorUpdater::OnDidChangeFocus(views::View* focused_before,
                                            views::View* focused_now) {
@@ -68,7 +68,7 @@ MenuBar::~MenuBar() {
   window_->GetFocusManager()->RemoveFocusChangeListener(color_updater_.get());
 }
 
-void MenuBar::SetMenu(AtomMenuModel* model) {
+void MenuBar::SetMenu(ElectronMenuModel* model) {
   menu_model_ = model;
   RebuildChildren();
 }
@@ -101,7 +101,7 @@ int MenuBar::GetItemCount() const {
 }
 
 bool MenuBar::GetMenuButtonFromScreenPoint(const gfx::Point& screenPoint,
-                                           AtomMenuModel** menu_model,
+                                           ElectronMenuModel** menu_model,
                                            views::MenuButton** button) {
   if (!GetBoundsInScreen().Contains(screenPoint))
     return false;
@@ -109,7 +109,7 @@ bool MenuBar::GetMenuButtonFromScreenPoint(const gfx::Point& screenPoint,
   auto children = GetChildrenInZOrder();
   for (int i = 0, n = children.size(); i < n; ++i) {
     if (children[i]->GetBoundsInScreen().Contains(screenPoint) &&
-        (menu_model_->GetTypeAt(i) == AtomMenuModel::TYPE_SUBMENU)) {
+        (menu_model_->GetTypeAt(i) == ElectronMenuModel::TYPE_SUBMENU)) {
       *menu_model = menu_model_->GetSubmenuModelAt(i);
       *button = static_cast<views::MenuButton*>(children[i]);
       return true;
@@ -159,17 +159,15 @@ bool MenuBar::AcceleratorPressed(const ui::Accelerator& accelerator) {
           views::FocusManager::FocusChangeReason::kFocusTraversal);
       return true;
     default: {
-      auto children = GetChildrenInZOrder();
-      for (int i = 0, n = children.size(); i < n; ++i) {
-        auto* button = static_cast<SubmenuButton*>(children[i]);
+      for (auto* child : GetChildrenInZOrder()) {
+        auto* button = static_cast<SubmenuButton*>(child);
         bool shifted = false;
         auto keycode =
             electron::KeyboardCodeFromCharCode(button->accelerator(), &shifted);
 
         if (keycode == accelerator.key_code()) {
-          const gfx::Point p(0, 0);
           auto event = accelerator.ToKeyEvent();
-          OnMenuButtonClicked(button, p, &event);
+          ButtonPressed(button->tag(), event);
           return true;
         }
       }
@@ -204,10 +202,9 @@ bool MenuBar::SetPaneFocus(views::View* initial_focus) {
   bool result = views::AccessiblePaneView::SetPaneFocus(initial_focus);
 
   if (result) {
-    auto children = GetChildrenInZOrder();
     std::set<ui::KeyboardCode> reg;
-    for (int i = 0, n = children.size(); i < n; ++i) {
-      auto* button = static_cast<SubmenuButton*>(children[i]);
+    for (auto* child : GetChildrenInZOrder()) {
+      auto* button = static_cast<SubmenuButton*>(child);
       bool shifted = false;
       auto keycode =
           electron::KeyboardCodeFromCharCode(button->accelerator(), &shifted);
@@ -235,10 +232,9 @@ void MenuBar::RemovePaneFocus() {
   views::AccessiblePaneView::RemovePaneFocus();
   SetAcceleratorVisibility(false);
 
-  auto children = GetChildrenInZOrder();
   std::set<ui::KeyboardCode> unreg;
-  for (int i = 0, n = children.size(); i < n; ++i) {
-    auto* button = static_cast<SubmenuButton*>(children[i]);
+  for (auto* child : GetChildrenInZOrder()) {
+    auto* button = static_cast<SubmenuButton*>(child);
     bool shifted = false;
     auto keycode =
         electron::KeyboardCodeFromCharCode(button->accelerator(), &shifted);
@@ -258,9 +254,7 @@ const char* MenuBar::GetClassName() const {
   return kViewClassName;
 }
 
-void MenuBar::OnMenuButtonClicked(views::Button* source,
-                                  const gfx::Point& point,
-                                  const ui::Event* event) {
+void MenuBar::ButtonPressed(int id, const ui::Event& event) {
   // Hide the accelerator when a submenu is activated.
   SetAcceleratorVisibility(false);
 
@@ -270,30 +264,38 @@ void MenuBar::OnMenuButtonClicked(views::Button* source,
   if (!window_->HasFocus())
     window_->RequestFocus();
 
-  int id = source->tag();
-  AtomMenuModel::ItemType type = menu_model_->GetTypeAt(id);
-  if (type != AtomMenuModel::TYPE_SUBMENU) {
+  ElectronMenuModel::ItemType type = menu_model_->GetTypeAt(id);
+  if (type != ElectronMenuModel::TYPE_SUBMENU) {
     menu_model_->ActivatedAt(id, 0);
     return;
   }
 
+  SubmenuButton* source = nullptr;
+  for (auto* child : children()) {
+    auto* button = static_cast<SubmenuButton*>(child);
+    if (button->tag() == id) {
+      source = button;
+      break;
+    }
+  }
+  DCHECK(source);
+
   // Deleted in MenuDelegate::OnMenuClosed
-  MenuDelegate* menu_delegate = new MenuDelegate(this);
-  menu_delegate->RunMenu(menu_model_->GetSubmenuModelAt(id), source,
-                         event != nullptr && event->IsKeyEvent()
-                             ? ui::MENU_SOURCE_KEYBOARD
-                             : ui::MENU_SOURCE_MOUSE);
+  auto* menu_delegate = new MenuDelegate(this);
+  menu_delegate->RunMenu(
+      menu_model_->GetSubmenuModelAt(id), source,
+      event.IsKeyEvent() ? ui::MENU_SOURCE_KEYBOARD : ui::MENU_SOURCE_MOUSE);
   menu_delegate->AddObserver(this);
 }
 
 void MenuBar::RefreshColorCache() {
   const ui::NativeTheme* theme = GetNativeTheme();
   if (theme) {
-#if defined(USE_X11)
-    background_color_ = libgtkui::GetBgColor("GtkMenuBar#menubar");
-    enabled_color_ = libgtkui::GetFgColor(
-        "GtkMenuBar#menubar GtkMenuItem#menuitem GtkLabel");
-    disabled_color_ = libgtkui::GetFgColor(
+#if defined(OS_LINUX)
+    background_color_ = gtk::GetBgColor("GtkMenuBar#menubar");
+    enabled_color_ =
+        gtk::GetFgColor("GtkMenuBar#menubar GtkMenuItem#menuitem GtkLabel");
+    disabled_color_ = gtk::GetFgColor(
         "GtkMenuBar#menubar GtkMenuItem#menuitem:disabled GtkLabel");
 #else
     background_color_ =
@@ -303,6 +305,7 @@ void MenuBar::RefreshColorCache() {
 }
 
 void MenuBar::OnThemeChanged() {
+  views::AccessiblePaneView::OnThemeChanged();
   RefreshColorCache();
   UpdateViewColors();
 }
@@ -310,8 +313,9 @@ void MenuBar::OnThemeChanged() {
 void MenuBar::RebuildChildren() {
   RemoveAllChildViews(true);
   for (int i = 0, n = GetItemCount(); i < n; ++i) {
-    auto* button =
-        new SubmenuButton(menu_model_->GetLabelAt(i), this, background_color_);
+    auto* button = new SubmenuButton(
+        base::BindRepeating(&MenuBar::ButtonPressed, base::Unretained(this), i),
+        menu_model_->GetLabelAt(i), background_color_);
     button->set_tag(i);
     AddChildView(button);
   }
@@ -325,7 +329,7 @@ void MenuBar::UpdateViewColors() {
   // set child colors
   if (menu_model_ == nullptr)
     return;
-#if defined(USE_X11)
+#if defined(OS_LINUX)
   const auto& textColor = has_focus_ ? enabled_color_ : disabled_color_;
   for (auto* child : GetChildrenInZOrder()) {
     auto* button = static_cast<SubmenuButton*>(child);

@@ -23,10 +23,8 @@ class DevToolsManagerDelegate : public content::DevToolsManagerDelegate {
 
   // DevToolsManagerDelegate implementation.
   void Inspect(content::DevToolsAgentHost* agent_host) override;
-  void HandleCommand(content::DevToolsAgentHost* agent_host,
-                     content::DevToolsAgentHostClient* client,
-                     const std::string& method,
-                     const std::string& message,
+  void HandleCommand(content::DevToolsAgentHostClientChannel* channel,
+                     base::span<const uint8_t> message,
                      NotHandledCallback callback) override;
   scoped_refptr<content::DevToolsAgentHost> CreateNewTarget(
       const GURL& url) override;

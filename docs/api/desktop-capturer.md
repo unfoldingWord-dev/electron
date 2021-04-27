@@ -3,7 +3,7 @@
 > Access information about media sources that can be used to capture audio and
 > video from the desktop using the [`navigator.mediaDevices.getUserMedia`] API.
 
-Process: [Renderer](../glossary.md#renderer-process)
+Process: [Main](../glossary.md#main-process), [Renderer](../glossary.md#renderer-process)
 
 The following example shows how to capture video from a desktop window whose
 title is `Electron`:
@@ -91,7 +91,11 @@ The `desktopCapturer` module has the following methods:
 
 Returns `Promise<DesktopCapturerSource[]>` - Resolves with an array of [`DesktopCapturerSource`](structures/desktop-capturer-source.md) objects, each `DesktopCapturerSource` represents a screen or an individual window that can be captured.
 
+**Note** Capturing the screen contents requires user consent on macOS 10.15 Catalina or higher,
+which can detected by [`systemPreferences.getMediaAccessStatus`].
+
 [`navigator.mediaDevices.getUserMedia`]: https://developer.mozilla.org/en/docs/Web/API/MediaDevices/getUserMedia
+[`systemPreferences.getMediaAccessStatus`]: system-preferences.md#systempreferencesgetmediaaccessstatusmediatype-windows-macos
 
 ## Caveats
 

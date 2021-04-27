@@ -1,19 +1,14 @@
-declare var isCI: boolean;
+declare let standardScheme: string;
 
 declare namespace Electron {
-  interface Menu {
-    delegate: {
-      executeCommand(menu: Menu, event: any, id: number): void;
-      menuWillShow(menu: Menu): void;
-    };
-    getAcceleratorTextAt(index: number): string;
-  }
-
-  interface MenuItem {
-    getDefaultRoleAccelerator(): Accelerator | undefined;
-  }
-
   interface WebContents {
     getOwnerBrowserWindow(): BrowserWindow;
+    getWebPreferences(): any;
+  }
+
+  interface Session {
+    destroy(): void;
   }
 }
+
+declare module 'dbus-native';

@@ -6,14 +6,15 @@ Subject: gtk_visibility.patch
 Allow electron to depend on GTK in the GN build.
 
 diff --git a/build/config/linux/gtk/BUILD.gn b/build/config/linux/gtk/BUILD.gn
-index d78f7407c179fe44180800a234e9461c56849402..dae8fa63037803ebaf2e04fb2b9547d2db7ba29c 100644
+index 5491aef735fc277521acbff97c1484fa81ef9ba4..8ff2728d1843e6d436aa2c59a6b991f2f257e864 100644
 --- a/build/config/linux/gtk/BUILD.gn
 +++ b/build/config/linux/gtk/BUILD.gn
-@@ -26,6 +26,7 @@ group("gtk") {
-   visibility = [
-     "//chrome/test:interactive_ui_tests",
-     "//chrome/test:unit_tests",
+@@ -29,6 +29,8 @@ group("gtk") {
+     # This should probably be moved into //ui/gtk.
+     "//ui/ozone/platform/wayland",
+ 
 +    "//electron:*",
++
+     # These are all for WebRTC.
      "//examples:peerconnection_client",
-     "//gpu/gles2_conform_support:gles2_conform_test_windowless",
-     "//remoting/host/linux",
+     "//remoting/host:common",

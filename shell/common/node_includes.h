@@ -5,7 +5,7 @@
 #ifndef SHELL_COMMON_NODE_INCLUDES_H_
 #define SHELL_COMMON_NODE_INCLUDES_H_
 
-#include "base/logging.h"
+#include "base/check.h"
 
 // Include common headers for using node APIs.
 
@@ -59,13 +59,16 @@
 
 #undef debug_string    // This is defined in macOS SDK in AssertMacros.h.
 #undef require_string  // This is defined in macOS SDK in AssertMacros.h.
+
 #include "env-inl.h"
 #include "env.h"
 #include "node.h"
 #include "node_buffer.h"
 #include "node_internals.h"
+#include "node_options-inl.h"
 #include "node_options.h"
 #include "node_platform.h"
+#include "tracing/agent.h"
 
 // Alternative to NODE_MODULE_CONTEXT_AWARE_X.
 // Allows to explicitly register builtin modules instead of using

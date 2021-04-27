@@ -2,24 +2,28 @@ module electron.mojom;
 
 import "mojo/public/mojom/base/string16.mojom";
 import "ui/gfx/geometry/mojom/geometry.mojom";
-import "electron/shell/common/api/native_types.mojom";
-import "mojo/public/mojom/base/values.mojom";
+import "third_party/blink/public/mojom/messaging/cloneable_message.mojom";
+import "third_party/blink/public/mojom/messaging/transferable_message.mojom";
 
 interface ElectronRenderer {
   Message(
       bool internal,
-      bool send_to_all,
       string channel,
-      LegacyListValue arguments,
+      blink.mojom.CloneableMessage arguments,
       int32 sender_id);
 
-  UpdateCrashpadPipeName(string pipe_name);
+  ReceivePostMessage(string channel, blink.mojom.TransferableMessage message);
 
   TakeHeapSnapshot(handle file) => (bool success);
 };
 
 interface ElectronAutofillAgent {
   AcceptDataListSuggestion(mojo_base.mojom.String16 value);
+};
+
+interface ElectronAutofillDriver {
+  ShowAutofillPopup(gfx.mojom.RectF bounds, array<mojo_base.mojom.String16> values, array<mojo_base.mojom.String16> labels);
+  HideAutofillPopup();
 };
 
 struct DraggableRegion {
@@ -33,13 +37,20 @@ interface ElectronBrowser {
   Message(
       bool internal,
       string channel,
-      LegacyListValue arguments);
+      blink.mojom.CloneableMessage arguments);
 
   // Emits an event on |channel| from the ipcMain JavaScript object in the main
   // process, and returns the response.
   Invoke(
+      bool internal,
       string channel,
-      LegacyListValue arguments) => (LegacyListValue result);
+      blink.mojom.CloneableMessage arguments) => (blink.mojom.CloneableMessage result);
+
+  // Informs underlying WebContents that first non-empty layout was performed
+  // by compositor.
+  OnFirstNonEmptyLayout();
+
+  ReceivePostMessage(string channel, blink.mojom.TransferableMessage message);
 
   // Emits an event on |channel| from the ipcMain JavaScript object in the main
   // process, and waits synchronously for a response.
@@ -47,20 +58,19 @@ interface ElectronBrowser {
   MessageSync(
     bool internal,
     string channel,
-    LegacyListValue arguments) => (LegacyListValue result);
+    blink.mojom.CloneableMessage arguments) => (blink.mojom.CloneableMessage result);
 
   // Emits an event from the |ipcRenderer| JavaScript object in the target
   // WebContents's main frame, specified by |web_contents_id|.
   MessageTo(
     bool internal,
-    bool send_to_all,
     int32 web_contents_id,
     string channel,
-    LegacyListValue arguments);
+    blink.mojom.CloneableMessage arguments);
 
   MessageHost(
     string channel,
-    LegacyListValue arguments);
+    blink.mojom.CloneableMessage arguments);
 
   UpdateDraggableRegions(
     array<DraggableRegion> regions);
@@ -69,8 +79,4 @@ interface ElectronBrowser {
 
   [Sync]
   DoGetZoomLevel() => (double result);
-
-  // TODO: move these into a separate interface
-  ShowAutofillPopup(gfx.mojom.RectF bounds, array<mojo_base.mojom.String16> values, array<mojo_base.mojom.String16> labels);
-  HideAutofillPopup();
 };

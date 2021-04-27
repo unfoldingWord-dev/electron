@@ -2,7 +2,7 @@
 
 > Manage files and URLs using their default applications.
 
-Process: [Main](../glossary.md#main-process), [Renderer](../glossary.md#renderer-process)
+Process: [Main](../glossary.md#main-process), [Renderer](../glossary.md#renderer-process) (non-sandboxed only)
 
 The `shell` module provides functions related to desktop integration.
 
@@ -14,6 +14,8 @@ const { shell } = require('electron')
 shell.openExternal('https://github.com')
 ```
 
+**Note:** While the `shell` module can be used in the renderer process, it will not function in a sandboxed renderer.
+
 ## Methods
 
 The `shell` module has the following methods:
@@ -24,11 +26,11 @@ The `shell` module has the following methods:
 
 Show the given file in a file manager. If possible, select the file.
 
-### `shell.openItem(fullPath)`
+### `shell.openPath(path)`
 
-* `fullPath` String
+* `path` String
 
-Returns `Boolean` - Whether the item was successfully opened.
+Returns `Promise<String>` - Resolves with a string containing the error message corresponding to the failure if a failure occurred, otherwise "".
 
 Open the given file in the desktop's default manner.
 
@@ -43,13 +45,26 @@ Returns `Promise<void>`
 
 Open the given external protocol URL in the desktop's default manner. (For example, mailto: URLs in the user's default mail agent).
 
-### `shell.moveItemToTrash(fullPath)`
+### `shell.moveItemToTrash(fullPath[, deleteOnFail])` _Deprecated_
 
 * `fullPath` String
+* `deleteOnFail` Boolean (optional) - Whether or not to unilaterally remove the item if the Trash is disabled or unsupported on the volume. _macOS_
 
-Returns `Boolean` - Whether the item was successfully moved to the trash.
+Returns `Boolean` - Whether the item was successfully moved to the trash or otherwise deleted.
+
+> NOTE: This method is deprecated. Use `shell.trashItem` instead.
 
 Move the given file to trash and returns a boolean status for the operation.
+
+### `shell.trashItem(path)`
+
+* `path` String - path to the item to be moved to the trash.
+
+Returns `Promise<void>` - Resolves when the operation has been completed.
+Rejects if there was an error while deleting the requested item.
+
+This moves a path to the OS-specific trash location (Trash on macOS, Recycle
+Bin on Windows, and a desktop-environment-specific location on Linux).
 
 ### `shell.beep()`
 

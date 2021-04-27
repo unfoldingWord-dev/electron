@@ -9,19 +9,19 @@
 #include <utility>
 
 #include "base/files/file_util.h"
-#include "base/message_loop/message_loop.h"
 #include "base/no_destructor.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
 #include "base/threading/thread_restrictions.h"
 #include "base/threading/thread_task_runner_handle.h"
-#include "shell/browser/atom_browser_main_parts.h"
-#include "shell/browser/atom_paths.h"
 #include "shell/browser/browser_observer.h"
+#include "shell/browser/electron_browser_main_parts.h"
 #include "shell/browser/login_handler.h"
 #include "shell/browser/native_window.h"
 #include "shell/browser/window_list.h"
 #include "shell/common/application_info.h"
+#include "shell/common/electron_paths.h"
+#include "shell/common/gin_helper/arguments.h"
 
 namespace electron {
 
@@ -40,6 +40,12 @@ void RunQuitClosure(base::OnceClosure quit) {
 
 }  // namespace
 
+#if defined(OS_WIN)
+Browser::LaunchItem::LaunchItem() = default;
+Browser::LaunchItem::~LaunchItem() = default;
+Browser::LaunchItem::LaunchItem(const LaunchItem& other) = default;
+#endif
+
 Browser::LoginItemSettings::LoginItemSettings() = default;
 Browser::LoginItemSettings::~LoginItemSettings() = default;
 Browser::LoginItemSettings::LoginItemSettings(const LoginItemSettings& other) =
@@ -55,7 +61,7 @@ Browser::~Browser() {
 
 // static
 Browser* Browser::Get() {
-  return AtomBrowserMainParts::Get()->browser();
+  return ElectronBrowserMainParts::Get()->browser();
 }
 
 void Browser::Quit() {
@@ -72,11 +78,11 @@ void Browser::Quit() {
     electron::WindowList::CloseAllWindows();
 }
 
-void Browser::Exit(mate::Arguments* args) {
+void Browser::Exit(gin::Arguments* args) {
   int code = 0;
   args->GetNext(&code);
 
-  if (!AtomBrowserMainParts::Get()->SetExitCode(code)) {
+  if (!ElectronBrowserMainParts::Get()->SetExitCode(code)) {
     // Message loop is not ready, quit directly.
     exit(code);
   } else {
@@ -165,7 +171,7 @@ void Browser::WillFinishLaunching() {
     observer.OnWillFinishLaunching();
 }
 
-void Browser::DidFinishLaunching(const base::DictionaryValue& launch_info) {
+void Browser::DidFinishLaunching(base::DictionaryValue launch_info) {
   // Make sure the userData directory is created.
   base::ThreadRestrictions::ScopedAllowIO allow_io;
   base::FilePath user_data;
@@ -180,14 +186,14 @@ void Browser::DidFinishLaunching(const base::DictionaryValue& launch_info) {
     observer.OnFinishLaunching(launch_info);
 }
 
-const util::Promise& Browser::WhenReady(v8::Isolate* isolate) {
+v8::Local<v8::Value> Browser::WhenReady(v8::Isolate* isolate) {
   if (!ready_promise_) {
-    ready_promise_.reset(new util::Promise(isolate));
+    ready_promise_ = std::make_unique<gin_helper::Promise<void>>(isolate);
     if (is_ready()) {
       ready_promise_->Resolve();
     }
   }
-  return *ready_promise_;
+  return ready_promise_->GetHandle();
 }
 
 void Browser::OnAccessibilitySupportChanged() {
@@ -198,6 +204,12 @@ void Browser::OnAccessibilitySupportChanged() {
 void Browser::PreMainMessageLoopRun() {
   for (BrowserObserver& observer : observers_) {
     observer.OnPreMainMessageLoopRun();
+  }
+}
+
+void Browser::PreCreateThreads() {
+  for (BrowserObserver& observer : observers_) {
+    observer.OnPreCreateThreads();
   }
 }
 
@@ -250,10 +262,15 @@ void Browser::OnWindowAllClosed() {
   }
 }
 
-#if defined(OS_MACOSX)
+#if defined(OS_MAC)
 void Browser::NewWindowForTab() {
   for (BrowserObserver& observer : observers_)
     observer.OnNewWindowForTab();
+}
+
+void Browser::DidBecomeActive() {
+  for (BrowserObserver& observer : observers_)
+    observer.OnDidBecomeActive();
 }
 #endif
 

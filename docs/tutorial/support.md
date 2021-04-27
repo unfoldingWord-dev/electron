@@ -3,26 +3,31 @@
 ## Finding Support
 
 If you have a security concern,
-please see the [security document](../../SECURITY.md).
+please see the [security document](https://github.com/electron/electron/tree/master/SECURITY.md).
 
 If you're looking for programming help,
 for answers to questions,
 or to join in discussion with other developers who use Electron,
 you can interact with the community in these locations:
-- [`electron`](https://discuss.atom.io/c/electron) category on the Atom
-forums
-- `#atom-shell` channel on Freenode
-- `#electron` channel on [Atom's Slack](https://discuss.atom.io/t/join-us-on-slack/16638?source_topic_id=25406)
-- [`electron-ru`](https://telegram.me/electron_ru) *(Russian)*
-- [`electron-br`](https://electron-br.slack.com) *(Brazilian Portuguese)*
-- [`electron-kr`](https://electron-kr.github.io/electron-kr) *(Korean)*
-- [`electron-jp`](https://electron-jp.slack.com) *(Japanese)*
-- [`electron-tr`](https://electron-tr.herokuapp.com) *(Turkish)*
-- [`electron-id`](https://electron-id.slack.com) *(Indonesia)*
-- [`electron-pl`](https://electronpl.github.io) *(Poland)*
+
+* [`Electron's Discord`](https://discord.com/invite/electron) has channels for:
+  * Getting help
+  * Ecosystem apps like [Electron Forge](https://github.com/electron-userland/electron-forge) and [Electron Fiddle](https://github.com/electron/fiddle)
+  * Sharing ideas with other Electron app developers
+  * And more!
+* [`electron`](https://discuss.atom.io/c/electron) category on the Atom forums
+* `#atom-shell` channel on Freenode
+* `#electron` channel on [Atom's Slack](https://discuss.atom.io/t/join-us-on-slack/16638?source_topic_id=25406)
+* [`electron-ru`](https://telegram.me/electron_ru) *(Russian)*
+* [`electron-br`](https://electron-br.slack.com) *(Brazilian Portuguese)*
+* [`electron-kr`](https://electron-kr.github.io/electron-kr) *(Korean)*
+* [`electron-jp`](https://electron-jp.slack.com) *(Japanese)*
+* [`electron-tr`](https://electron-tr.herokuapp.com) *(Turkish)*
+* [`electron-id`](https://electron-id.slack.com) *(Indonesia)*
+* [`electron-pl`](https://electronpl.github.io) *(Poland)*
 
 If you'd like to contribute to Electron,
-see the [contributing document](../../CONTRIBUTING.md).
+see the [contributing document](https://github.com/electron/electron/blob/master/CONTRIBUTING.md).
 
 If you've found a bug in a [supported version](#supported-versions) of Electron,
 please report it with the [issue tracker](../development/issues.md).
@@ -34,8 +39,10 @@ tools and resources.
 ## Supported Versions
 
 The latest three *stable* major versions are supported by the Electron team.
-For example, if the latest release is 6.x.y, then the 5.x.y as well
-as the 4.x.y series are supported.
+For example, if the latest release is 6.1.x, then the 5.0.x as well
+as the 4.2.x series are supported.  We only support the latest minor release
+for each stable release series.  This means that in the case of a security fix
+6.1.x will receive the fix, but we will not release a new version of 6.0.x.
 
 The latest stable release unilaterally receives all fixes from `master`,
 and the version prior to that receives the vast majority of those fixes
@@ -47,10 +54,19 @@ fixes previously merged to `master`, though this may be on a case-by-case
 basis for some older supported lines. All contested decisions around release
 line backports will be resolved by the [Releases Working Group](https://github.com/electron/governance/tree/master/wg-releases) as an agenda item at their weekly meeting the week the backport PR is raised.
 
+When an API is changed or removed in a way that breaks existing functionality, the
+previous functionality will be supported for a minimum of two major versions when
+possible before being removed. For example, if a function takes three arguments,
+and that number is reduced to two in major version 10, the three-argument version would
+continue to work until, at minimum, major version 12. Past the minimum two-version
+threshold, we will attempt to support backwards compatibility beyond two versions
+until the maintainers feel the maintenance burden is too high to continue doing so.
+
 ### Currently supported versions
-- 6.x.y
-- 5.x.y
-- 4.x.y
+
+* 12.x.y
+* 11.x.y
+* 10.x.y
 
 ### End-of-life
 
@@ -78,7 +94,9 @@ Following platforms are supported by Electron:
 ### macOS
 
 Only 64bit binaries are provided for macOS, and the minimum macOS version
-supported is macOS 10.10 (Yosemite).
+supported is macOS 10.11 (El Capitan).
+
+Native support for Apple Silicon (`arm64`) devices was added in Electron 11.0.0.
 
 ### Windows
 
@@ -86,26 +104,18 @@ Windows 7 and later are supported, older operating systems are not supported
 (and do not work).
 
 Both `ia32` (`x86`) and `x64` (`amd64`) binaries are provided for Windows.
-Running Electron apps on Windows for ARM devices is possible by using the
-ia32 binary.
+[Native support for Windows on Arm (`arm64`) devices was added in Electron 6.0.8.](windows-arm.md).
+Running apps packaged with previous versions is possible using the ia32 binary.
 
 ### Linux
 
-The prebuilt `ia32` (`i686`) and `x64` (`amd64`) binaries of Electron are built on
-Ubuntu 12.04, the `armv7l` binary is built against ARM v7 with hard-float ABI and
-NEON for Debian Wheezy.
-
-[Until the release of Electron 2.0][arm-breaking-change], Electron will also
-continue to release the `armv7l` binary with a simple `arm` suffix. Both binaries
-are identical.
+The prebuilt binaries of Electron are built on Ubuntu 18.04.
 
 Whether the prebuilt binary can run on a distribution depends on whether the
 distribution includes the libraries that Electron is linked to on the building
-platform, so only Ubuntu 12.04 is guaranteed to work, but following platforms
+platform, so only Ubuntu 18.04 is guaranteed to work, but following platforms
 are also verified to be able to run the prebuilt binaries of Electron:
 
-* Ubuntu 12.04 and newer
-* Fedora 21
-* Debian 8
-
-[arm-breaking-change]: https://github.com/electron/electron/blob/master/docs/api/breaking-changes.md#duplicate-arm-assets
+* Ubuntu 14.04 and newer
+* Fedora 24 and newer
+* Debian 8 and newer

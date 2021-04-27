@@ -57,6 +57,9 @@ class NativeWindowObserver : public base::CheckedObserver {
   // Called when window gains focus.
   virtual void OnWindowFocus() {}
 
+  // Called when window gained or lost key window status.
+  virtual void OnWindowIsKeyChanged(bool is_key) {}
+
   // Called when window is shown.
   virtual void OnWindowShow() {}
 
@@ -71,6 +74,7 @@ class NativeWindowObserver : public base::CheckedObserver {
   virtual void OnWindowWillResize(const gfx::Rect& new_bounds,
                                   bool* prevent_default) {}
   virtual void OnWindowResize() {}
+  virtual void OnWindowResized() {}
   virtual void OnWindowWillMove(const gfx::Rect& new_bounds,
                                 bool* prevent_default) {}
   virtual void OnWindowMove() {}
@@ -89,6 +93,7 @@ class NativeWindowObserver : public base::CheckedObserver {
   virtual void OnTouchBarItemResult(const std::string& item_id,
                                     const base::DictionaryValue& details) {}
   virtual void OnNewWindowForTab() {}
+  virtual void OnSystemContextMenu(int x, int y, bool* prevent_default) {}
 
 // Called when window message received
 #if defined(OS_WIN)

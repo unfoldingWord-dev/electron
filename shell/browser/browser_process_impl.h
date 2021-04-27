@@ -38,6 +38,7 @@ class BrowserProcessImpl : public BrowserProcess {
 
   static void ApplyProxyModeFromCommandLine(ValueMapPrefStore* pref_store);
 
+  BuildState* GetBuildState() override;
   void PostEarlyInitialization();
   void PreCreateThreads();
   void PostDestroyThreads() {}
@@ -76,12 +77,10 @@ class BrowserProcessImpl : public BrowserProcess {
   BackgroundModeManager* background_mode_manager() override;
   StatusTray* status_tray() override;
   safe_browsing::SafeBrowsingService* safe_browsing_service() override;
-  safe_browsing::ClientSideDetectionService* safe_browsing_detection_service()
-      override;
   subresource_filter::RulesetService* subresource_filter_ruleset_service()
       override;
-  optimization_guide::OptimizationGuideService* optimization_guide_service()
-      override;
+  federated_learning::FlocSortingLshClustersService*
+  floc_sorting_lsh_clusters_service() override;
   component_updater::ComponentUpdateService* component_updater() override;
   MediaFileSystemRegistry* media_file_system_registry() override;
   WebRtcLogUploader* webrtc_log_uploader() override;
@@ -90,8 +89,6 @@ class BrowserProcessImpl : public BrowserProcess {
   resource_coordinator::ResourceCoordinatorParts* resource_coordinator_parts()
       override;
   resource_coordinator::TabManager* GetTabManager() override;
-  shell_integration::DefaultWebClientState CachedDefaultWebClientState()
-      override;
   void CreateDevToolsProtocolHandler() override {}
   void CreateDevToolsAutoOpener() override {}
   void set_background_mode_manager_for_test(

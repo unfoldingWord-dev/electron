@@ -13,6 +13,7 @@
 #include "base/memory/ref_counted.h"
 #include "base/optional.h"
 #include "chrome/browser/net/proxy_config_monitor.h"
+#include "mojo/public/cpp/bindings/remote.h"
 #include "services/network/public/mojom/network_context.mojom.h"
 #include "services/network/public/mojom/network_service.mojom.h"
 
@@ -56,7 +57,13 @@ class SystemNetworkContextManager {
   // Destroys the global SystemNetworkContextManager instance.
   static void DeleteInstance();
 
-  // Returns default set of parameters for configuring the network service.
+  // Configures default set of parameters for configuring the network context.
+  void ConfigureDefaultNetworkContextParams(
+      network::mojom::NetworkContextParams* network_context_params);
+
+  // Same as ConfigureDefaultNetworkContextParams() but returns a newly
+  // allocated network::mojom::NetworkContextParams with the
+  // CertVerifierCreationParams already placed into the NetworkContextParams.
   network::mojom::NetworkContextParamsPtr CreateDefaultNetworkContextParams();
 
   // Returns the System NetworkContext. May only be called after SetUp(). Does
@@ -91,12 +98,12 @@ class SystemNetworkContextManager {
 
   // NetworkContext using the network service, if the network service is
   // enabled. nullptr, otherwise.
-  network::mojom::NetworkContextPtr network_context_;
+  mojo::Remote<network::mojom::NetworkContext> network_context_;
 
   // URLLoaderFactory backed by the NetworkContext returned by GetContext(), so
   // consumers don't all need to create their own factory.
   scoped_refptr<URLLoaderFactoryForSystem> shared_url_loader_factory_;
-  network::mojom::URLLoaderFactoryPtr url_loader_factory_;
+  mojo::Remote<network::mojom::URLLoaderFactory> url_loader_factory_;
 
   DISALLOW_COPY_AND_ASSIGN(SystemNetworkContextManager);
 };

@@ -14,9 +14,9 @@
 
 #include "base/compiler_specific.h"
 #include "base/macros.h"
-#include "base/memory/weak_ptr.h"
 #include "base/win/scoped_gdi_object.h"
 #include "shell/browser/ui/tray_icon.h"
+#include "shell/browser/ui/win/notify_icon_host.h"
 
 namespace gfx {
 class Point;
@@ -24,8 +24,7 @@ class Point;
 
 namespace views {
 class MenuRunner;
-class Widget;
-}  // namespace views
+}
 
 namespace electron {
 
@@ -34,7 +33,11 @@ class NotifyIconHost;
 class NotifyIcon : public TrayIcon {
  public:
   // Constructor which provides this icon's unique ID and messaging window.
-  NotifyIcon(NotifyIconHost* host, UINT id, HWND window, UINT message);
+  NotifyIcon(NotifyIconHost* host,
+             UINT id,
+             HWND window,
+             UINT message,
+             GUID guid);
   ~NotifyIcon() override;
 
   // Handles a click event from the user - if |left_button_click| is true and
@@ -53,22 +56,25 @@ class NotifyIcon : public TrayIcon {
   UINT icon_id() const { return icon_id_; }
   HWND window() const { return window_; }
   UINT message_id() const { return message_id_; }
+  GUID guid() const { return guid_; }
 
   // Overridden from TrayIcon:
   void SetImage(HICON image) override;
   void SetPressedImage(HICON image) override;
   void SetToolTip(const std::string& tool_tip) override;
-  void DisplayBalloon(HICON icon,
-                      const base::string16& title,
-                      const base::string16& contents) override;
+  void DisplayBalloon(const BalloonOptions& options) override;
+  void RemoveBalloon() override;
+  void Focus() override;
   void PopUpContextMenu(const gfx::Point& pos,
-                        AtomMenuModel* menu_model) override;
-  void SetContextMenu(AtomMenuModel* menu_model) override;
+                        ElectronMenuModel* menu_model) override;
+  void CloseContextMenu() override;
+  void SetContextMenu(ElectronMenuModel* menu_model) override;
   gfx::Rect GetBounds() override;
+
+  base::WeakPtr<NotifyIcon> GetWeakPtr() { return weak_factory_.GetWeakPtr(); }
 
  private:
   void InitIconData(NOTIFYICONDATA* icon_data);
-  void OnContextMenuClosed();
 
   // The tray that owns us.  Weak.
   NotifyIconHost* host_;
@@ -86,16 +92,18 @@ class NotifyIcon : public TrayIcon {
   base::win::ScopedHICON icon_;
 
   // The context menu.
-  AtomMenuModel* menu_model_ = nullptr;
+  ElectronMenuModel* menu_model_ = nullptr;
+
+  // An optional GUID used for identifying tray entries on Windows
+  GUID guid_ = GUID_DEFAULT;
+
+  // indicates whether the tray entry is associated with a guid
+  bool is_using_guid_ = false;
 
   // Context menu associated with this icon (if any).
   std::unique_ptr<views::MenuRunner> menu_runner_;
 
-  // Temporary widget for the context menu, needed for keyboard event capture.
-  std::unique_ptr<views::Widget> widget_;
-
-  // WeakPtrFactory for CloseClosure safety.
-  base::WeakPtrFactory<NotifyIcon> weak_factory_;
+  base::WeakPtrFactory<NotifyIcon> weak_factory_{this};
 
   DISALLOW_COPY_AND_ASSIGN(NotifyIcon);
 };

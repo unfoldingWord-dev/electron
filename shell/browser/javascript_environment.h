@@ -34,6 +34,8 @@ class JavascriptEnvironment {
     return v8::Local<v8::Context>::New(isolate_, context_);
   }
 
+  static v8::Isolate* GetIsolate();
+
  private:
   v8::Isolate* Initialize(uv_loop_t* event_loop);
   // Leaked on exit.
@@ -41,11 +43,8 @@ class JavascriptEnvironment {
 
   v8::Isolate* isolate_;
   gin::IsolateHolder isolate_holder_;
-  v8::Isolate::Scope isolate_scope_;
   v8::Locker locker_;
-  v8::HandleScope handle_scope_;
   v8::Global<v8::Context> context_;
-  v8::Context::Scope context_scope_;
 
   std::unique_ptr<MicrotasksRunner> microtasks_runner_;
 
@@ -57,6 +56,8 @@ class NodeEnvironment {
  public:
   explicit NodeEnvironment(node::Environment* env);
   ~NodeEnvironment();
+
+  node::Environment* env() { return env_; }
 
  private:
   node::Environment* env_;

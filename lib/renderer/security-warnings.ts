@@ -1,5 +1,6 @@
 import { webFrame } from 'electron';
-import { invoke } from '@electron/internal/renderer/ipc-renderer-internal-utils';
+import { ipcRendererInternal } from '@electron/internal/renderer/ipc-renderer-internal';
+import { IPC_MESSAGES } from '@electron/internal/common/ipc-messages';
 
 let shouldLog: boolean | null = null;
 
@@ -76,10 +77,11 @@ const isLocalhost = function () {
  *
  * @returns {boolean} Is a CSP with `unsafe-eval` set?
  */
-const isUnsafeEvalEnabled = function () {
-  return webFrame.executeJavaScript(`(${(() => {
+const isUnsafeEvalEnabled: () => Promise<boolean> = function () {
+  // Call _executeJavaScript to bypass the world-safe deprecation warning
+  return (webFrame as any)._executeJavaScript(`(${(() => {
     try {
-      new Function(''); // eslint-disable-line no-new,no-new-func
+      eval(window.trustedTypes.emptyScript); // eslint-disable-line no-eval
     } catch {
       return false;
     }
@@ -178,7 +180,7 @@ const warnAboutInsecureCSP = function () {
 
     console.warn('%cElectron Security Warning (Insecure Content-Security-Policy)',
       'font-weight: bold;', warning);
-  });
+  }).catch(() => {});
 };
 
 /**
@@ -222,8 +224,8 @@ const warnAboutExperimentalFeatures = function (webPreferences?: Electron.WebPre
  */
 const warnAboutEnableBlinkFeatures = function (webPreferences?: Electron.WebPreferences) {
   if (!webPreferences ||
-    !webPreferences.hasOwnProperty('enableBlinkFeatures') ||
-    (webPreferences.enableBlinkFeatures && webPreferences.enableBlinkFeatures.length === 0)) {
+    !Object.prototype.hasOwnProperty.call(webPreferences, 'enableBlinkFeatures') ||
+    (webPreferences.enableBlinkFeatures != null && webPreferences.enableBlinkFeatures.length === 0)) {
     return;
   }
 
@@ -268,7 +270,9 @@ const warnAboutAllowedPopups = function () {
 // Logs a warning message about the remote module
 
 const warnAboutRemoteModuleWithRemoteContent = function (webPreferences?: Electron.WebPreferences) {
-  if (!webPreferences || !webPreferences.enableRemoteModule || isLocalhost()) return;
+  if (!webPreferences || isLocalhost()) return;
+  const remoteModuleEnabled = webPreferences.enableRemoteModule != null ? !!webPreferences.enableRemoteModule : true;
+  if (!remoteModuleEnabled) return;
 
   if (getIsRemoteProtocol()) {
     const warning = `This renderer process has "enableRemoteModule" enabled
@@ -299,7 +303,7 @@ const logSecurityWarnings = function (
 
 const getWebPreferences = async function () {
   try {
-    return invoke<Electron.WebPreferences>('ELECTRON_BROWSER_GET_LAST_WEB_PREFERENCES');
+    return ipcRendererInternal.invoke<Electron.WebPreferences>(IPC_MESSAGES.BROWSER_GET_LAST_WEB_PREFERENCES);
   } catch (error) {
     console.warn(`getLastWebPreferences() failed: ${error}`);
   }

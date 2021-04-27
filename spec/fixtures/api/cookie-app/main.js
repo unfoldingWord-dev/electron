@@ -1,6 +1,6 @@
 const { app, session } = require('electron');
 
-app.on('ready', async function () {
+app.whenReady().then(async function () {
   const url = 'http://foo.bar';
   const persistentSession = session.fromPartition('persist:ence-test');
   const name = 'test';
@@ -17,16 +17,11 @@ app.on('ready', async function () {
     url
   });
 
-  const maybeRemove = async (pred) => new Promise(async (resolve, reject) => {
-    try {
-      if (pred()) {
-        await persistentSession.cookies.remove(url, name);
-      }
-      resolve();
-    } catch (error) {
-      reject(error);
+  const maybeRemove = async (pred) => {
+    if (pred()) {
+      await persistentSession.cookies.remove(url, name);
     }
-  });
+  };
 
   try {
     await maybeRemove(() => process.env.PHASE === 'one');

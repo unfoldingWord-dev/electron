@@ -3,6 +3,7 @@
 # found in the LICENSE file.
 
 import("//build/config/ui.gni")
+import("//components/spellcheck/spellcheck_build_features.gni")
 import("//electron/buildflags/buildflags.gni")
 import("//printing/buildflags/buildflags.gni")
 import("//third_party/widevine/cdm/widevine.gni")
@@ -11,8 +12,12 @@ import("//third_party/widevine/cdm/widevine.gni")
 static_library("chrome") {
   visibility = [ "//electron:electron_lib" ]
   sources = [
+    "//chrome/browser/accessibility/accessibility_ui.cc",
+    "//chrome/browser/accessibility/accessibility_ui.h",
     "//chrome/browser/browser_process.cc",
     "//chrome/browser/browser_process.h",
+    "//chrome/browser/crash_upload_list/crash_upload_list_crashpad.cc",
+    "//chrome/browser/crash_upload_list/crash_upload_list_crashpad.h",
     "//chrome/browser/devtools/devtools_contents_resizing_strategy.cc",
     "//chrome/browser/devtools/devtools_contents_resizing_strategy.h",
     "//chrome/browser/devtools/devtools_embedder_message_dispatcher.cc",
@@ -21,14 +26,8 @@ static_library("chrome") {
     "//chrome/browser/devtools/devtools_file_system_indexer.h",
     "//chrome/browser/extensions/global_shortcut_listener.cc",
     "//chrome/browser/extensions/global_shortcut_listener.h",
-    "//chrome/browser/extensions/global_shortcut_listener_mac.h",
-    "//chrome/browser/extensions/global_shortcut_listener_mac.mm",
-    "//chrome/browser/extensions/global_shortcut_listener_win.cc",
-    "//chrome/browser/extensions/global_shortcut_listener_win.h",
     "//chrome/browser/icon_loader.cc",
     "//chrome/browser/icon_loader.h",
-    "//chrome/browser/icon_loader_mac.mm",
-    "//chrome/browser/icon_loader_win.cc",
     "//chrome/browser/icon_manager.cc",
     "//chrome/browser/icon_manager.h",
     "//chrome/browser/net/chrome_mojo_proxy_resolver_factory.cc",
@@ -39,38 +38,90 @@ static_library("chrome") {
     "//chrome/browser/net/proxy_service_factory.h",
     "//chrome/browser/predictors/preconnect_manager.cc",
     "//chrome/browser/predictors/preconnect_manager.h",
+    "//chrome/browser/predictors/predictors_features.cc",
+    "//chrome/browser/predictors/predictors_features.h",
     "//chrome/browser/predictors/proxy_lookup_client_impl.cc",
     "//chrome/browser/predictors/proxy_lookup_client_impl.h",
     "//chrome/browser/predictors/resolve_host_client_impl.cc",
     "//chrome/browser/predictors/resolve_host_client_impl.h",
     "//chrome/browser/ssl/security_state_tab_helper.cc",
     "//chrome/browser/ssl/security_state_tab_helper.h",
-    "//chrome/browser/ui/autofill/popup_view_common.cc",
-    "//chrome/browser/ui/autofill/popup_view_common.h",
-    "//chrome/browser/win/chrome_process_finder.cc",
-    "//chrome/browser/win/chrome_process_finder.h",
+    "//chrome/browser/ssl/tls_deprecation_config.cc",
+    "//chrome/browser/ui/views/autofill/autofill_popup_view_utils.cc",
+    "//chrome/browser/ui/views/autofill/autofill_popup_view_utils.h",
     "//extensions/browser/app_window/size_constraints.cc",
     "//extensions/browser/app_window/size_constraints.h",
   ]
+
+  if (is_mac) {
+    sources += [
+      "//chrome/browser/extensions/global_shortcut_listener_mac.h",
+      "//chrome/browser/extensions/global_shortcut_listener_mac.mm",
+      "//chrome/browser/icon_loader_mac.mm",
+      "//chrome/browser/media/webrtc/system_media_capture_permissions_mac.h",
+      "//chrome/browser/media/webrtc/system_media_capture_permissions_mac.mm",
+    ]
+  }
+
+  if (is_win) {
+    sources += [
+      "//chrome/browser/extensions/global_shortcut_listener_win.cc",
+      "//chrome/browser/extensions/global_shortcut_listener_win.h",
+      "//chrome/browser/icon_loader_win.cc",
+      "//chrome/browser/win/chrome_process_finder.cc",
+      "//chrome/browser/win/chrome_process_finder.h",
+      "//chrome/child/v8_crashpad_support_win.cc",
+      "//chrome/child/v8_crashpad_support_win.h",
+    ]
+  }
+
   public_deps = [
     "//chrome/common",
     "//chrome/common:version_header",
     "//components/keyed_service/content",
+    "//components/paint_preview/buildflags",
     "//components/proxy_config",
     "//components/security_state/content",
     "//content/public/browser",
   ]
+
   deps = [
     "//chrome/browser:resource_prefetch_predictor_proto",
-    "//components/feature_engagement:buildflags",
+    "//chrome/services/speech:buildflags",
+    "//components/optimization_guide/proto:optimization_guide_proto",
   ]
 
   if (is_linux) {
     sources += [ "//chrome/browser/icon_loader_auralinux.cc" ]
+    if (use_x11) {
+      sources += [
+        "//chrome/browser/extensions/global_shortcut_listener_x11.cc",
+        "//chrome/browser/extensions/global_shortcut_listener_x11.h",
+      ]
+    } else if (use_ozone) {
+      sources += [
+        "//chrome/browser/extensions/global_shortcut_listener_ozone.cc",
+        "//chrome/browser/extensions/global_shortcut_listener_ozone.h",
+      ]
+    }
     sources += [
-      "//chrome/browser/extensions/global_shortcut_listener_x11.cc",
-      "//chrome/browser/extensions/global_shortcut_listener_x11.h",
+      "//chrome/browser/ui/views/status_icons/concat_menu_model.cc",
+      "//chrome/browser/ui/views/status_icons/concat_menu_model.h",
+      "//chrome/browser/ui/views/status_icons/status_icon_linux_dbus.cc",
+      "//chrome/browser/ui/views/status_icons/status_icon_linux_dbus.h",
     ]
+    public_deps += [
+      "//components/dbus/menu",
+      "//components/dbus/thread_linux",
+    ]
+  }
+
+  if (is_win) {
+    sources += [
+      "//chrome/browser/win/icon_reader_service.cc",
+      "//chrome/browser/win/icon_reader_service.h",
+    ]
+    public_deps += [ "//chrome/services/util_win:lib" ]
   }
 
   if (enable_desktop_capturer) {
@@ -92,14 +143,25 @@ static_library("chrome") {
       "//chrome/browser/platform_util.h",
       "//chrome/browser/ui/browser_dialogs.h",
       "//chrome/browser/ui/color_chooser.h",
+      "//chrome/browser/ui/views/eye_dropper/eye_dropper.cc",
+      "//chrome/browser/ui/views/eye_dropper/eye_dropper.h",
+      "//chrome/browser/ui/views/eye_dropper/eye_dropper_view.cc",
+      "//chrome/browser/ui/views/eye_dropper/eye_dropper_view.h",
     ]
 
     if (use_aura) {
       sources += [
         "//chrome/browser/platform_util_aura.cc",
-        "//chrome/browser/ui/views/color_chooser_aura.cc",
-        "//chrome/browser/ui/views/color_chooser_aura.h",
+        "//chrome/browser/ui/views/eye_dropper/eye_dropper_view_aura.cc",
       ]
+
+      if (!is_win) {
+        sources += [
+          "//chrome/browser/ui/views/color_chooser_aura.cc",
+          "//chrome/browser/ui/views/color_chooser_aura.h",
+        ]
+      }
+
       deps += [ "//components/feature_engagement" ]
     }
 
@@ -108,6 +170,8 @@ static_library("chrome") {
         "//chrome/browser/media/webrtc/window_icon_util_mac.mm",
         "//chrome/browser/ui/cocoa/color_chooser_mac.h",
         "//chrome/browser/ui/cocoa/color_chooser_mac.mm",
+        "//chrome/browser/ui/views/eye_dropper/eye_dropper_view_mac.h",
+        "//chrome/browser/ui/views/eye_dropper/eye_dropper_view_mac.mm",
       ]
       deps += [
         "//components/remote_cocoa/app_shim",
@@ -127,13 +191,6 @@ static_library("chrome") {
     if (is_linux) {
       sources += [ "//chrome/browser/media/webrtc/window_icon_util_x11.cc" ]
     }
-  }
-
-  if (enable_tts) {
-    sources += [
-      "//chrome/browser/speech/tts_controller_delegate_impl.cc",
-      "//chrome/browser/speech/tts_controller_delegate_impl.h",
-    ]
   }
 
   if (enable_widevine) {
@@ -160,8 +217,6 @@ static_library("chrome") {
       "//chrome/browser/printing/print_view_manager_basic.h",
       "//chrome/browser/printing/printer_query.cc",
       "//chrome/browser/printing/printer_query.h",
-      "//chrome/browser/printing/printing_message_filter.cc",
-      "//chrome/browser/printing/printing_message_filter.h",
       "//chrome/browser/printing/printing_service.cc",
       "//chrome/browser/printing/printing_service.h",
     ]
@@ -170,9 +225,9 @@ static_library("chrome") {
       "//chrome/services/printing:lib",
       "//components/printing/browser",
       "//components/printing/renderer",
-      "//components/services/pdf_compositor",
-      "//components/services/pdf_compositor/public/cpp",
-      "//components/services/pdf_compositor/public/mojom",
+      "//components/services/print_compositor",
+      "//components/services/print_compositor/public/cpp",
+      "//components/services/print_compositor/public/mojom",
     ]
 
     deps += [
@@ -215,4 +270,144 @@ static_library("chrome") {
       "//components/vector_icons:vector_icons",
     ]
   }
+
+  if (enable_electron_extensions) {
+    sources += [
+      "//chrome/browser/extensions/chrome_url_request_util.cc",
+      "//chrome/browser/extensions/chrome_url_request_util.h",
+      "//chrome/browser/plugins/plugin_response_interceptor_url_loader_throttle.cc",
+      "//chrome/browser/plugins/plugin_response_interceptor_url_loader_throttle.h",
+      "//chrome/renderer/extensions/extension_hooks_delegate.cc",
+      "//chrome/renderer/extensions/extension_hooks_delegate.h",
+      "//chrome/renderer/extensions/tabs_hooks_delegate.cc",
+      "//chrome/renderer/extensions/tabs_hooks_delegate.h",
+    ]
+
+    if (enable_pdf_viewer) {
+      sources += [
+        "//chrome/browser/pdf/pdf_extension_util.cc",
+        "//chrome/browser/pdf/pdf_extension_util.h",
+        "//chrome/renderer/pepper/chrome_pdf_print_client.cc",
+        "//chrome/renderer/pepper/chrome_pdf_print_client.h",
+      ]
+    }
+  }
+
+  if (!is_mas_build) {
+    sources += [ "//chrome/browser/hang_monitor/hang_crash_dump.h" ]
+    if (is_mac) {
+      sources += [ "//chrome/browser/hang_monitor/hang_crash_dump_mac.cc" ]
+    } else if (is_win) {
+      sources += [ "//chrome/browser/hang_monitor/hang_crash_dump_win.cc" ]
+    } else {
+      sources += [ "//chrome/browser/hang_monitor/hang_crash_dump.cc" ]
+    }
+  }
+}
+
+source_set("plugins") {
+  sources = []
+  deps = []
+  frameworks = []
+
+  # browser side
+  sources += [
+    "//chrome/browser/renderer_host/pepper/chrome_browser_pepper_host_factory.cc",
+    "//chrome/browser/renderer_host/pepper/chrome_browser_pepper_host_factory.h",
+    "//chrome/browser/renderer_host/pepper/pepper_isolated_file_system_message_filter.cc",
+    "//chrome/browser/renderer_host/pepper/pepper_isolated_file_system_message_filter.h",
+  ]
+  deps += [
+    "//media:media_buildflags",
+    "//ppapi/buildflags",
+    "//ppapi/proxy:ipc",
+    "//services/device/public/mojom",
+  ]
+  if (enable_pdf_viewer) {
+    deps += [ "//components/pdf/browser" ]
+  }
+
+  # renderer side
+  sources += [
+    "//chrome/renderer/pepper/chrome_renderer_pepper_host_factory.cc",
+    "//chrome/renderer/pepper/chrome_renderer_pepper_host_factory.h",
+    "//chrome/renderer/pepper/pepper_shared_memory_message_filter.cc",
+    "//chrome/renderer/pepper/pepper_shared_memory_message_filter.h",
+  ]
+  if (enable_pdf_viewer) {
+    sources += [
+      "//chrome/renderer/pepper/pepper_flash_font_file_host.cc",
+      "//chrome/renderer/pepper/pepper_flash_font_file_host.h",
+    ]
+    if (enable_pdf_viewer) {
+      deps += [ "//components/pdf/renderer" ]
+    }
+  }
+  deps += [
+    "//components/strings",
+    "//media:media_buildflags",
+    "//ppapi/host",
+    "//ppapi/proxy",
+    "//ppapi/proxy:ipc",
+    "//ppapi/shared_impl",
+    "//skia",
+  ]
+}
+
+# This source set is just so we don't have to depend on all of //chrome/browser
+# You may have to add new files here during the upgrade if //chrome/browser/spellchecker
+# gets more files
+source_set("chrome_spellchecker") {
+  sources = []
+  deps = []
+  libs = []
+  public_deps = []
+
+  if (enable_builtin_spellchecker) {
+    sources += [
+      "//chrome/browser/spellchecker/spell_check_host_chrome_impl.cc",
+      "//chrome/browser/spellchecker/spell_check_host_chrome_impl.h",
+      "//chrome/browser/spellchecker/spellcheck_custom_dictionary.cc",
+      "//chrome/browser/spellchecker/spellcheck_custom_dictionary.h",
+      "//chrome/browser/spellchecker/spellcheck_factory.cc",
+      "//chrome/browser/spellchecker/spellcheck_factory.h",
+      "//chrome/browser/spellchecker/spellcheck_hunspell_dictionary.cc",
+      "//chrome/browser/spellchecker/spellcheck_hunspell_dictionary.h",
+      "//chrome/browser/spellchecker/spellcheck_language_blocklist_policy_handler.cc",
+      "//chrome/browser/spellchecker/spellcheck_language_blocklist_policy_handler.h",
+      "//chrome/browser/spellchecker/spellcheck_language_policy_handler.cc",
+      "//chrome/browser/spellchecker/spellcheck_language_policy_handler.h",
+      "//chrome/browser/spellchecker/spellcheck_service.cc",
+      "//chrome/browser/spellchecker/spellcheck_service.h",
+    ]
+
+    if (has_spellcheck_panel) {
+      sources += [
+        "//chrome/browser/spellchecker/spell_check_panel_host_impl.cc",
+        "//chrome/browser/spellchecker/spell_check_panel_host_impl.h",
+      ]
+    }
+
+    if (use_browser_spellchecker) {
+      sources += [
+        "//chrome/browser/spellchecker/spelling_request.cc",
+        "//chrome/browser/spellchecker/spelling_request.h",
+      ]
+    }
+
+    deps += [
+      "//base:base_static",
+      "//components/language/core/browser",
+      "//components/spellcheck:buildflags",
+      "//components/sync",
+    ]
+
+    public_deps += [ "//chrome/common:constants" ]
+  }
+
+  public_deps += [
+    "//components/spellcheck/browser",
+    "//components/spellcheck/common",
+    "//components/spellcheck/renderer",
+  ]
 }

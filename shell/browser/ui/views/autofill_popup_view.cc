@@ -11,6 +11,8 @@
 #include "base/i18n/rtl.h"
 #include "cc/paint/skia_paint_canvas.h"
 #include "content/public/browser/render_view_host.h"
+#include "ui/accessibility/ax_enums.mojom.h"
+#include "ui/base/dragdrop/drag_drop_types.h"
 #include "ui/events/keycodes/keyboard_codes.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/geometry/point.h"
@@ -71,7 +73,7 @@ void AutofillPopupView::Show() {
     // The widget is destroyed by the corresponding NativeWidget, so we use
     // a weak pointer to hold the reference and don't have to worry about
     // deletion.
-    views::Widget* widget = new views::Widget;
+    auto* widget = new views::Widget;
     views::Widget::InitParams params(views::Widget::InitParams::TYPE_POPUP);
     params.delegate = this;
     params.parent = parent_widget_->GetNativeView();
@@ -245,7 +247,7 @@ void AutofillPopupView::OnPaint(gfx::Canvas* canvas) {
   if (view_proxy_.get()) {
     bitmap.allocN32Pixels(popup_->popup_bounds_in_view().width(),
                           popup_->popup_bounds_in_view().height(), true);
-    paint_canvas.reset(new cc::SkiaPaintCanvas(bitmap));
+    paint_canvas = std::make_unique<cc::SkiaPaintCanvas>(bitmap);
     draw_canvas = new gfx::Canvas(paint_canvas.get(), 1.0);
   }
 #endif

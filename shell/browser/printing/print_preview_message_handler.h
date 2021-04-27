@@ -9,14 +9,17 @@
 
 #include "base/memory/ref_counted_memory.h"
 #include "base/memory/weak_ptr.h"
-#include "components/services/pdf_compositor/public/mojom/pdf_compositor.mojom.h"
+#include "components/printing/common/print.mojom.h"
+#include "components/services/print_compositor/public/mojom/print_compositor.mojom.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_contents_user_data.h"
-#include "shell/common/promise_util.h"
+#include "mojo/public/cpp/bindings/associated_receiver.h"
+#include "mojo/public/cpp/bindings/associated_remote.h"
+#include "shell/common/gin_helper/promise.h"
 #include "v8/include/v8.h"
 
 struct PrintHostMsg_DidPreviewDocument_Params;
-struct PrintHostMsg_PreviewIds;
+struct PrintHostMsg_DidPreviewPage_Params;
 
 namespace content {
 class RenderFrameHost;
@@ -27,11 +30,13 @@ namespace electron {
 // Manages the print preview handling for a WebContents.
 class PrintPreviewMessageHandler
     : public content::WebContentsObserver,
+      public printing::mojom::PrintPreviewUI,
       public content::WebContentsUserData<PrintPreviewMessageHandler> {
  public:
   ~PrintPreviewMessageHandler() override;
 
-  void PrintToPDF(const base::DictionaryValue& options, util::Promise promise);
+  void PrintToPDF(base::DictionaryValue options,
+                  gin_helper::Promise<v8::Local<v8::Value>> promise);
 
  protected:
   // content::WebContentsObserver implementation.
@@ -45,24 +50,49 @@ class PrintPreviewMessageHandler
 
   void OnMetafileReadyForPrinting(
       content::RenderFrameHost* render_frame_host,
-      const PrintHostMsg_DidPreviewDocument_Params& params,
-      const PrintHostMsg_PreviewIds& ids);
-  void OnCompositePdfDocumentDone(const PrintHostMsg_PreviewIds& ids,
-                                  printing::mojom::PdfCompositor::Status status,
-                                  base::ReadOnlySharedMemoryRegion region);
-  void OnPrintPreviewFailed(int document_cookie,
-                            const PrintHostMsg_PreviewIds& ids);
-  void OnPrintPreviewCancelled(int document_cookie,
-                               const PrintHostMsg_PreviewIds& ids);
+      const printing::mojom::DidPreviewDocumentParams& params,
+      const printing::mojom::PreviewIds& ids);
+  void OnCompositeDocumentToPdfDone(
+      const printing::mojom::PreviewIds& ids,
+      printing::mojom::PrintCompositor::Status status,
+      base::ReadOnlySharedMemoryRegion region);
+  void OnPrepareForDocumentToPdfDone(
+      const printing::mojom::PreviewIds& ids,
+      printing::mojom::PrintCompositor::Status status);
+  void OnDidPrepareForDocumentToPdf(content::RenderFrameHost* render_frame_host,
+                                    int document_cookie,
+                                    const printing::mojom::PreviewIds& ids);
+  void OnCompositePdfPageDone(int page_number,
+                              int document_cookie,
+                              const printing::mojom::PreviewIds& ids,
+                              printing::mojom::PrintCompositor::Status status,
+                              base::ReadOnlySharedMemoryRegion region);
+  void OnDidPreviewPage(content::RenderFrameHost* render_frame_host,
+                        const printing::mojom::DidPreviewPageParams& params,
+                        const printing::mojom::PreviewIds& ids);
 
-  util::Promise GetPromise(int request_id);
+  // printing::mojo::PrintPreviewUI:
+  void SetOptionsFromDocument(
+      const printing::mojom::OptionsFromDocumentParamsPtr params,
+      int32_t request_id) override {}
+  void PrintPreviewFailed(int32_t document_cookie, int32_t request_id) override;
+  void PrintPreviewCancelled(int32_t document_cookie,
+                             int32_t request_id) override;
+  void PrinterSettingsInvalid(int32_t document_cookie,
+                              int32_t request_id) override {}
+
+  gin_helper::Promise<v8::Local<v8::Value>> GetPromise(int request_id);
 
   void ResolvePromise(int request_id,
                       scoped_refptr<base::RefCountedMemory> data_bytes);
   void RejectPromise(int request_id);
 
-  using PromiseMap = std::map<int, electron::util::Promise>;
+  using PromiseMap = std::map<int, gin_helper::Promise<v8::Local<v8::Value>>>;
   PromiseMap promise_map_;
+
+  mojo::AssociatedRemote<printing::mojom::PrintRenderFrame> print_render_frame_;
+
+  mojo::AssociatedReceiver<printing::mojom::PrintPreviewUI> receiver_{this};
 
   base::WeakPtrFactory<PrintPreviewMessageHandler> weak_ptr_factory_;
 

@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "content/public/browser/bluetooth_chooser.h"
-#include "shell/browser/api/atom_api_web_contents.h"
+#include "shell/browser/api/electron_api_web_contents.h"
 
 namespace electron {
 
@@ -41,6 +41,7 @@ class BluetoothChooser : public content::BluetoothChooser {
   api::WebContents* api_web_contents_;
   EventHandler event_handler_;
   int num_retries_ = 0;
+  bool refreshing_ = false;
 
   DISALLOW_COPY_AND_ASSIGN(BluetoothChooser);
 };

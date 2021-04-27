@@ -10,17 +10,9 @@ const path = require('path');
 const SOURCE_ROOT = path.normalize(path.dirname(__dirname));
 const DEPOT_TOOLS = path.resolve(SOURCE_ROOT, '..', 'third_party', 'depot_tools');
 
-const BLACKLIST = new Set([
-  ['shell', 'browser', 'mac', 'atom_application.h'],
-  ['shell', 'browser', 'mac', 'atom_application_delegate.h'],
+const IGNORELIST = new Set([
   ['shell', 'browser', 'resources', 'win', 'resource.h'],
   ['shell', 'browser', 'notifications', 'mac', 'notification_center_delegate.h'],
-  ['shell', 'browser', 'ui', 'cocoa', 'atom_menu_controller.h'],
-  ['shell', 'browser', 'ui', 'cocoa', 'atom_ns_window.h'],
-  ['shell', 'browser', 'ui', 'cocoa', 'atom_ns_window_delegate.h'],
-  ['shell', 'browser', 'ui', 'cocoa', 'atom_preview_item.h'],
-  ['shell', 'browser', 'ui', 'cocoa', 'atom_touch_bar.h'],
-  ['shell', 'browser', 'ui', 'cocoa', 'atom_inspectable_web_contents_view.h'],
   ['shell', 'browser', 'ui', 'cocoa', 'event_dispatching_window.h'],
   ['shell', 'browser', 'ui', 'cocoa', 'NSColor+Hex.h'],
   ['shell', 'browser', 'ui', 'cocoa', 'NSString+ANSI.h'],
@@ -31,6 +23,8 @@ const BLACKLIST = new Set([
   ['spec', 'ts-smoke', 'runner.js']
 ].map(tokens => path.join(SOURCE_ROOT, ...tokens)));
 
+const IS_WINDOWS = process.platform === 'win32';
+
 function spawnAndCheckExitCode (cmd, args, opts) {
   opts = Object.assign({ stdio: 'inherit' }, opts);
   const status = childProcess.spawnSync(cmd, args, opts).status;
@@ -38,7 +32,7 @@ function spawnAndCheckExitCode (cmd, args, opts) {
 }
 
 function cpplint (args) {
-  const result = childProcess.spawnSync('cpplint.py', args, { encoding: 'utf8' });
+  const result = childProcess.spawnSync(IS_WINDOWS ? 'cpplint.bat' : 'cpplint.py', args, { encoding: 'utf8', shell: true });
   // cpplint.py writes EVERYTHING to stderr, including status messages
   if (result.stderr) {
     for (const line of result.stderr.split(/[\r\n]+/)) {
@@ -47,15 +41,20 @@ function cpplint (args) {
       }
     }
   }
-  if (result.status) {
-    process.exit(result.status);
+  if (result.status !== 0) {
+    if (result.error) console.error(result.error);
+    process.exit(result.status || 1);
   }
 }
 
-const LINTERS = [ {
+function isObjCHeader (filename) {
+  return /\/(mac|cocoa)\//.test(filename);
+}
+
+const LINTERS = [{
   key: 'c++',
-  roots: ['shell', 'native_mate'],
-  test: filename => filename.endsWith('.cc') || filename.endsWith('.h'),
+  roots: ['shell'],
+  test: filename => filename.endsWith('.cc') || (filename.endsWith('.h') && !isObjCHeader(filename)),
   run: (opts, filenames) => {
     if (opts.fix) {
       spawnAndCheckExitCode('python', ['script/run-clang-format.py', '--fix', ...filenames]);
@@ -94,14 +93,44 @@ const LINTERS = [ {
   }
 }, {
   key: 'javascript',
-  roots: ['lib', 'spec', 'script', 'default_app'],
-  ignoreRoots: ['spec/node_modules'],
+  roots: ['build', 'default_app', 'lib', 'npm', 'script', 'spec', 'spec-main'],
+  ignoreRoots: ['spec/node_modules', 'spec-main/node_modules'],
   test: filename => filename.endsWith('.js') || filename.endsWith('.ts'),
   run: (opts, filenames) => {
     const cmd = path.join(SOURCE_ROOT, 'node_modules', '.bin', 'eslint');
-    const args = [ '--cache', '--ext', '.js,.ts', ...filenames ];
+    const args = ['--cache', '--ext', '.js,.ts'];
     if (opts.fix) args.unshift('--fix');
-    spawnAndCheckExitCode(cmd, args, { cwd: SOURCE_ROOT });
+    // Windows has a max command line length of 2047 characters, so we can't provide
+    // all of the filenames without going over that. To work around it, run eslint
+    // multiple times and chunk the filenames so that each run is under that limit.
+    // Use a much higher limit on other platforms which will effectively be a no-op.
+    const MAX_FILENAME_ARGS_LENGTH = IS_WINDOWS ? 1900 : 100 * 1024;
+    const cmdOpts = { stdio: 'inherit', shell: IS_WINDOWS, cwd: SOURCE_ROOT };
+    if (IS_WINDOWS) {
+      // When running with shell spaces in filenames are problematic
+      filenames = filenames.map(filename => `"${filename}"`);
+    }
+    const chunkedFilenames = filenames.reduce((chunkedFilenames, filename) => {
+      const currentChunk = chunkedFilenames[chunkedFilenames.length - 1];
+      const currentChunkLength = currentChunk.reduce((totalLength, _filename) => totalLength + _filename.length, 0);
+      if (currentChunkLength + filename.length > MAX_FILENAME_ARGS_LENGTH) {
+        chunkedFilenames.push([filename]);
+      } else {
+        currentChunk.push(filename);
+      }
+      return chunkedFilenames;
+    }, [[]]);
+    const allOk = chunkedFilenames.map(filenames => {
+      const result = childProcess.spawnSync(cmd, [...args, ...filenames], cmdOpts);
+      if (result.error) {
+        console.error(result.error);
+        process.exit(result.status || 1);
+      }
+      return result.status === 0;
+    }).every(x => x);
+    if (!allOk) {
+      process.exit(1);
+    }
   }
 }, {
   key: 'gn',
@@ -136,7 +165,7 @@ const LINTERS = [ {
   key: 'patches',
   roots: ['patches'],
   test: () => true,
-  run: () => {
+  run: (opts, filenames) => {
     const patchesDir = path.resolve(__dirname, '../patches');
     for (const patchTarget of fs.readdirSync(patchesDir)) {
       const targetDir = path.resolve(patchesDir, patchTarget);
@@ -179,13 +208,30 @@ const LINTERS = [ {
         }
       }
     }
+
+    let ok = true;
+    filenames.filter(f => f.endsWith('.patch')).forEach(f => {
+      const patchText = fs.readFileSync(f, 'utf8');
+      if (/^Subject: .*$\s+^diff/m.test(patchText)) {
+        console.warn(`Patch file '${f}' has no description. Every patch must contain a justification for why the patch exists and the plan for its removal.`);
+        ok = false;
+      }
+      const trailingWhitespace = patchText.split('\n').filter(line => line.startsWith('+')).some(line => /\s+$/.test(line));
+      if (trailingWhitespace) {
+        console.warn(`Patch file '${f}' has trailing whitespace on some lines.`);
+        ok = false;
+      }
+    });
+    if (!ok) {
+      process.exit(1);
+    }
   }
 }];
 
 function parseCommandLine () {
   let help;
   const opts = minimist(process.argv.slice(2), {
-    boolean: [ 'c++', 'objc', 'javascript', 'python', 'gn', 'patches', 'help', 'changed', 'fix', 'verbose', 'only' ],
+    boolean: ['c++', 'objc', 'javascript', 'python', 'gn', 'patches', 'help', 'changed', 'fix', 'verbose', 'only'],
     alias: { 'c++': ['cc', 'cpp', 'cxx'], javascript: ['js', 'es'], python: 'py', changed: 'c', help: 'h', verbose: 'v' },
     unknown: arg => { help = true; }
   });
@@ -224,16 +270,16 @@ async function findMatchingFiles (top, test) {
 
 async function findFiles (args, linter) {
   let filenames = [];
-  let whitelist = null;
+  let includelist = null;
 
-  // build the whitelist
+  // build the includelist
   if (args.changed) {
-    whitelist = await findChangedFiles(SOURCE_ROOT);
-    if (!whitelist.size) {
+    includelist = await findChangedFiles(SOURCE_ROOT);
+    if (!includelist.size) {
       return [];
     }
   } else if (args.only) {
-    whitelist = new Set(args._);
+    includelist = new Set(args._.map(p => path.resolve(p)));
   }
 
   // accumulate the raw list of files
@@ -250,12 +296,12 @@ async function findFiles (args, linter) {
     filenames = filenames.filter(fileName => !ignoreFiles.has(fileName));
   }
 
-  // remove blacklisted files
-  filenames = filenames.filter(x => !BLACKLIST.has(x));
+  // remove ignored files
+  filenames = filenames.filter(x => !IGNORELIST.has(x));
 
-  // if a whitelist exists, remove anything not in it
-  if (whitelist) {
-    filenames = filenames.filter(x => whitelist.has(x));
+  // if a includelist exists, remove anything not in it
+  if (includelist) {
+    filenames = filenames.filter(x => includelist.has(x));
   }
 
   // it's important that filenames be relative otherwise clang-format will

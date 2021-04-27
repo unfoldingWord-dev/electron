@@ -11,13 +11,15 @@
 
 #include "base/callback.h"
 #include "base/strings/string16.h"
-#include "native_mate/arguments.h"
-#include "native_mate/dictionary.h"
-#include "shell/browser/api/atom_api_web_contents.h"
-#include "shell/common/native_mate_converters/callback.h"
-#include "shell/common/native_mate_converters/gurl_converter.h"
-#include "shell/common/native_mate_converters/net_converter.h"
-#include "shell/common/native_mate_converters/value_converter.h"
+#include "base/threading/sequenced_task_runner_handle.h"
+#include "gin/arguments.h"
+#include "gin/dictionary.h"
+#include "shell/browser/api/electron_api_web_contents.h"
+#include "shell/browser/javascript_environment.h"
+#include "shell/common/gin_converters/callback_converter.h"
+#include "shell/common/gin_converters/gurl_converter.h"
+#include "shell/common/gin_converters/net_converter.h"
+#include "shell/common/gin_converters/value_converter.h"
 
 using content::BrowserThread;
 
@@ -36,8 +38,8 @@ LoginHandler::LoginHandler(
       auth_required_callback_(std::move(auth_required_callback)) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
-  base::PostTaskWithTraits(
-      FROM_HERE, {BrowserThread::UI},
+  base::SequencedTaskRunnerHandle::Get()->PostTask(
+      FROM_HERE,
       base::BindOnce(&LoginHandler::EmitEvent, weak_factory_.GetWeakPtr(),
                      auth_info, is_main_frame, url, response_headers,
                      first_auth_attempt));
@@ -49,17 +51,16 @@ void LoginHandler::EmitEvent(
     const GURL& url,
     scoped_refptr<net::HttpResponseHeaders> response_headers,
     bool first_auth_attempt) {
-  v8::Isolate* isolate = v8::Isolate::GetCurrent();
+  v8::Isolate* isolate = JavascriptEnvironment::GetIsolate();
+  v8::HandleScope scope(isolate);
 
-  auto api_web_contents = api::WebContents::From(isolate, web_contents());
-  if (api_web_contents.IsEmpty()) {
+  api::WebContents* api_web_contents = api::WebContents::From(web_contents());
+  if (!api_web_contents) {
     std::move(auth_required_callback_).Run(base::nullopt);
     return;
   }
 
-  v8::HandleScope scope(isolate);
-
-  auto details = mate::Dictionary::CreateEmpty(isolate);
+  auto details = gin::Dictionary::CreateEmpty(isolate);
   details.Set("url", url);
 
   // These parameters aren't documented, and I'm not sure that they're useful,
@@ -80,7 +81,7 @@ void LoginHandler::EmitEvent(
 
 LoginHandler::~LoginHandler() = default;
 
-void LoginHandler::CallbackFromJS(mate::Arguments* args) {
+void LoginHandler::CallbackFromJS(gin::Arguments* args) {
   if (auth_required_callback_) {
     base::string16 username, password;
     if (!args->GetNext(&username) || !args->GetNext(&password)) {

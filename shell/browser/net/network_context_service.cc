@@ -4,45 +4,45 @@
 
 #include "shell/browser/net/network_context_service.h"
 
+#include <utility>
+
 #include "chrome/common/chrome_constants.h"
 #include "content/public/browser/network_service_instance.h"
+#include "net/net_buildflags.h"
 #include "services/network/network_service.h"
-#include "shell/browser/atom_browser_client.h"
 #include "shell/browser/browser_process_impl.h"
+#include "shell/browser/electron_browser_client.h"
 #include "shell/browser/net/system_network_context_manager.h"
 
 namespace electron {
 
 NetworkContextService::NetworkContextService(content::BrowserContext* context)
-    : browser_context_(static_cast<AtomBrowserContext*>(context)),
+    : browser_context_(static_cast<ElectronBrowserContext*>(context)),
       proxy_config_monitor_(browser_context_->prefs()) {}
 
 NetworkContextService::~NetworkContextService() = default;
 
-network::mojom::NetworkContextPtr
-NetworkContextService::CreateNetworkContext() {
-  network::mojom::NetworkContextPtr network_context;
+void NetworkContextService::ConfigureNetworkContextParams(
+    network::mojom::NetworkContextParams* network_context_params,
+    network::mojom::CertVerifierCreationParams* cert_verifier_creation_params) {
+  bool in_memory = browser_context_->IsOffTheRecord();
+  const base::FilePath& path = browser_context_->GetPath();
 
-  content::GetNetworkService()->CreateNetworkContext(
-      MakeRequest(&network_context),
-      CreateNetworkContextParams(browser_context_->IsOffTheRecord(),
-                                 browser_context_->GetPath()));
+  g_browser_process->system_network_context_manager()
+      ->ConfigureDefaultNetworkContextParams(network_context_params);
 
-  return network_context;
-}
+  mojo::Remote<network::mojom::SSLConfigClient> ssl_config_client;
+  network_context_params->ssl_config_client_receiver =
+      ssl_config_client.BindNewPipeAndPassReceiver();
+  browser_context_->SetSSLConfigClient(std::move(ssl_config_client));
 
-network::mojom::NetworkContextParamsPtr
-NetworkContextService::CreateNetworkContextParams(bool in_memory,
-                                                  const base::FilePath& path) {
-  network::mojom::NetworkContextParamsPtr network_context_params =
-      g_browser_process->system_network_context_manager()
-          ->CreateDefaultNetworkContextParams();
+  network_context_params->initial_ssl_config = browser_context_->GetSSLConfig();
 
   network_context_params->user_agent = browser_context_->GetUserAgent();
 
   network_context_params->accept_language =
       net::HttpUtil::GenerateAcceptLanguageHeader(
-          AtomBrowserClient::Get()->GetApplicationLocale());
+          ElectronBrowserClient::Get()->GetApplicationLocale());
 
   // Enable the HTTP cache.
   network_context_params->http_cache_enabled =
@@ -80,12 +80,10 @@ NetworkContextService::CreateNetworkContextParams(bool in_memory,
   network_context_params->enable_ftp_url_support = true;
 #endif  // !BUILDFLAG(DISABLE_FTP_SUPPORT)
 
-  proxy_config_monitor_.AddToNetworkContextParams(network_context_params.get());
+  proxy_config_monitor_.AddToNetworkContextParams(network_context_params);
 
   BrowserProcessImpl::ApplyProxyModeFromCommandLine(
       browser_context_->in_memory_pref_store());
-
-  return network_context_params;
 }
 
 }  // namespace electron

@@ -7,21 +7,21 @@
 #include <string>
 #include <vector>
 
-#include "base/message_loop/message_loop_current.h"
 #include "base/message_loop/message_pump_mac.h"
 #include "base/strings/sys_string_conversions.h"
+#include "base/task/current_thread.h"
 #include "base/task/post_task.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "shell/browser/ui/cocoa/NSString+ANSI.h"
-#include "shell/browser/ui/cocoa/atom_menu_controller.h"
+#include "shell/browser/ui/cocoa/electron_menu_controller.h"
 #include "ui/events/cocoa/cocoa_event_utils.h"
 #include "ui/gfx/mac/coordinate_conversion.h"
 #include "ui/native_theme/native_theme.h"
 
 @interface StatusItemView : NSView {
-  electron::TrayIconCocoa* trayIcon_;   // weak
-  AtomMenuController* menuController_;  // weak
+  electron::TrayIconCocoa* trayIcon_;       // weak
+  ElectronMenuController* menuController_;  // weak
   BOOL ignoreDoubleClickEvents_;
   base::scoped_nsobject<NSStatusItem> statusItem_;
   base::scoped_nsobject<NSTrackingArea> trackingArea_;
@@ -103,13 +103,42 @@
   return ignoreDoubleClickEvents_;
 }
 
-- (void)setTitle:(NSString*)title {
+- (void)setTitle:(NSString*)title font_type:(NSString*)font_type {
+  NSMutableAttributedString* attributed_title =
+      [[NSMutableAttributedString alloc] initWithString:title];
+
   if ([title containsANSICodes]) {
-    [[statusItem_ button]
-        setAttributedTitle:[title attributedStringParsingANSICodes]];
-  } else {
-    [[statusItem_ button] setTitle:title];
+    attributed_title = [title attributedStringParsingANSICodes];
   }
+
+  // Change font type, if specified
+  CGFloat existing_size = [[[statusItem_ button] font] pointSize];
+  if ([font_type isEqualToString:@"monospaced"]) {
+    if (@available(macOS 10.15, *)) {
+      NSDictionary* attributes = @{
+        NSFontAttributeName :
+            [NSFont monospacedSystemFontOfSize:existing_size
+                                        weight:NSFontWeightRegular]
+      };
+      [attributed_title
+          setAttributes:attributes
+                  range:NSMakeRange(0, [attributed_title length])];
+    }
+  } else if ([font_type isEqualToString:@"monospacedDigit"]) {
+    if (@available(macOS 10.11, *)) {
+      NSDictionary* attributes = @{
+        NSFontAttributeName :
+            [NSFont monospacedDigitSystemFontOfSize:existing_size
+                                             weight:NSFontWeightRegular]
+      };
+      [attributed_title
+          setAttributes:attributes
+                  range:NSMakeRange(0, [attributed_title length])];
+    }
+  }
+
+  // Set title
+  [[statusItem_ button] setAttributedTitle:attributed_title];
 
   // Fix icon margins.
   if (title.length > 0) {
@@ -125,24 +154,12 @@
   return [statusItem_ button].title;
 }
 
-- (void)setMenuController:(AtomMenuController*)menu {
+- (void)setMenuController:(ElectronMenuController*)menu {
   menuController_ = menu;
   [statusItem_ setMenu:[menuController_ menu]];
 }
 
-- (void)mouseDown:(NSEvent*)event {
-  // Pass click to superclass to show menu. Custom mouseUp handler won't be
-  // invoked.
-  if (menuController_) {
-    [super mouseDown:event];
-  } else {
-    [[statusItem_ button] highlight:YES];
-  }
-}
-
-- (void)mouseUp:(NSEvent*)event {
-  [[statusItem_ button] highlight:NO];
-
+- (void)handleClickNotifications:(NSEvent*)event {
   // If we are ignoring double click events, we should ignore the `clickCount`
   // value and immediately emit a click event.
   BOOL shouldBeHandledAsASingleClick =
@@ -162,15 +179,40 @@
         ui::EventFlagsFromModifiers([event modifierFlags]));
 }
 
-- (void)popUpContextMenu:(electron::AtomMenuModel*)menu_model {
+- (void)mouseDown:(NSEvent*)event {
+  trayIcon_->NotifyMouseDown(
+      gfx::ScreenPointFromNSPoint([event locationInWindow]),
+      ui::EventFlagsFromModifiers([event modifierFlags]));
+
+  // Pass click to superclass to show menu. Custom mouseUp handler won't be
+  // invoked.
+  if (menuController_) {
+    [self handleClickNotifications:event];
+    [super mouseDown:event];
+  } else {
+    [[statusItem_ button] highlight:YES];
+  }
+}
+
+- (void)mouseUp:(NSEvent*)event {
+  [[statusItem_ button] highlight:NO];
+
+  trayIcon_->NotifyMouseUp(
+      gfx::ScreenPointFromNSPoint([event locationInWindow]),
+      ui::EventFlagsFromModifiers([event modifierFlags]));
+
+  [self handleClickNotifications:event];
+}
+
+- (void)popUpContextMenu:(electron::ElectronMenuModel*)menu_model {
   // Make sure events can be pumped while the menu is up.
-  base::MessageLoopCurrent::ScopedNestableTaskAllower allow;
+  base::CurrentThread::ScopedNestableTaskAllower allow;
 
   // Show a custom menu.
   if (menu_model) {
-    base::scoped_nsobject<AtomMenuController> menuController(
-        [[AtomMenuController alloc] initWithModel:menu_model
-                            useDefaultAccelerator:NO]);
+    base::scoped_nsobject<ElectronMenuController> menuController(
+        [[ElectronMenuController alloc] initWithModel:menu_model
+                                useDefaultAccelerator:NO]);
     // Hacky way to mimic design of ordinary tray menu.
     [statusItem_ setMenu:[menuController menu]];
     // -performClick: is a blocking call, which will run the task loop inside
@@ -191,6 +233,12 @@
     base::ScopedPumpMessagesInPrivateModes pump_private;
 
     [[statusItem_ button] performClick:self];
+  }
+}
+
+- (void)closeContextMenu {
+  if (menuController_) {
+    [menuController_ cancel];
   }
 }
 
@@ -287,8 +335,10 @@ void TrayIconCocoa::SetToolTip(const std::string& tool_tip) {
   [status_item_view_ setToolTip:base::SysUTF8ToNSString(tool_tip)];
 }
 
-void TrayIconCocoa::SetTitle(const std::string& title) {
-  [status_item_view_ setTitle:base::SysUTF8ToNSString(title)];
+void TrayIconCocoa::SetTitle(const std::string& title,
+                             const TitleOptions& options) {
+  [status_item_view_ setTitle:base::SysUTF8ToNSString(title)
+                    font_type:base::SysUTF8ToNSString(options.font_type)];
 }
 
 std::string TrayIconCocoa::GetTitle() {
@@ -303,23 +353,27 @@ bool TrayIconCocoa::GetIgnoreDoubleClickEvents() {
   return [status_item_view_ getIgnoreDoubleClickEvents];
 }
 
-void TrayIconCocoa::PopUpOnUI(AtomMenuModel* menu_model) {
+void TrayIconCocoa::PopUpOnUI(ElectronMenuModel* menu_model) {
   [status_item_view_ popUpContextMenu:menu_model];
 }
 
 void TrayIconCocoa::PopUpContextMenu(const gfx::Point& pos,
-                                     AtomMenuModel* menu_model) {
-  base::PostTaskWithTraits(
+                                     ElectronMenuModel* menu_model) {
+  base::PostTask(
       FROM_HERE, {content::BrowserThread::UI},
       base::BindOnce(&TrayIconCocoa::PopUpOnUI, weak_factory_.GetWeakPtr(),
                      base::Unretained(menu_model)));
 }
 
-void TrayIconCocoa::SetContextMenu(AtomMenuModel* menu_model) {
+void TrayIconCocoa::CloseContextMenu() {
+  [status_item_view_ closeContextMenu];
+}
+
+void TrayIconCocoa::SetContextMenu(ElectronMenuModel* menu_model) {
   if (menu_model) {
     // Create native menu.
-    menu_.reset([[AtomMenuController alloc] initWithModel:menu_model
-                                    useDefaultAccelerator:NO]);
+    menu_.reset([[ElectronMenuController alloc] initWithModel:menu_model
+                                        useDefaultAccelerator:NO]);
   } else {
     menu_.reset();
   }
@@ -331,7 +385,7 @@ gfx::Rect TrayIconCocoa::GetBounds() {
 }
 
 // static
-TrayIcon* TrayIcon::Create() {
+TrayIcon* TrayIcon::Create(base::Optional<UUID> guid) {
   return new TrayIconCocoa;
 }
 

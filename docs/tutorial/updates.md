@@ -7,7 +7,7 @@ Electron's [autoUpdater](../api/auto-updater.md) module.
 
 ## Using `update.electronjs.org`
 
-GitHub's Electron team maintains [update.electronjs.org], a free and open-source
+The Electron team maintains [update.electronjs.org], a free and open-source
 webservice that Electron apps can use to self-update. The service is designed
 for Electron apps that meet the following criteria:
 
@@ -39,14 +39,6 @@ If you need to customize your configuration, you can
 [pass options to `update-electron-app`][update-electron-app]
 or
 [use the update service directly][update.electronjs.org].
-
-## Using `electron-builder`
-
-If your app is packaged with [`electron-builder`][electron-builder-lib] you can use the
-[electron-updater] module, which does not require a server and allows for updates
-from S3, GitHub or any other static file host. This sidesteps Electron's built-in
-update mechanism, meaning that the rest of this documentation will not apply to
-`electron-builder`'s updater.
 
 ## Deploying an Update Server
 
@@ -88,9 +80,9 @@ Next, construct the URL of the update server and tell
 
 ```javascript
 const server = 'https://your-deployment-url.com'
-const feed = `${server}/update/${process.platform}/${app.getVersion()}`
+const url = `${server}/update/${process.platform}/${app.getVersion()}`
 
-autoUpdater.setFeedURL(feed)
+autoUpdater.setFeedURL({ url })
 ```
 
 As the final step, check for updates. The example below will check every minute:
@@ -123,8 +115,8 @@ autoUpdater.on('update-downloaded', (event, releaseNotes, releaseName) => {
     detail: 'A new version has been downloaded. Restart the application to apply the updates.'
   }
 
-  dialog.showMessageBox(dialogOpts, (response) => {
-    if (response === 0) autoUpdater.quitAndInstall()
+  dialog.showMessageBox(dialogOpts).then((returnValue) => {
+    if (returnValue.response === 0) autoUpdater.quitAndInstall()
   })
 })
 ```
@@ -140,8 +132,10 @@ autoUpdater.on('error', message => {
 })
 ```
 
-[electron-builder-lib]: https://github.com/electron-userland/electron-builder
-[electron-updater]: https://www.electron.build/auto-update
+## Handling Updates Manually
+
+Because the requests made by Auto Update aren't under your direct control, you may find situations that are difficult to handle (such as if the update server is behind authentication). The `url` field does support files, which means that with some effort, you can sidestep the server-communication aspect of the process. [Here's an example of how this could work](https://github.com/electron/electron/issues/5020#issuecomment-477636990).
+
 [now]: https://zeit.co/now
 [hazel]: https://github.com/zeit/hazel
 [nuts]: https://github.com/GitbookIO/nuts

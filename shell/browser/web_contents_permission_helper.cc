@@ -10,9 +10,8 @@
 
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/render_process_host.h"
-#include "shell/browser/atom_permission_manager.h"
+#include "shell/browser/electron_permission_manager.h"
 #include "shell/browser/media/media_stream_devices_controller.h"
-#include "shell/common/native_mate_converters/gurl_converter.h"
 
 namespace {
 
@@ -44,8 +43,14 @@ void MediaAccessAllowed(const content::MediaStreamRequest& request,
 }
 
 void OnPointerLockResponse(content::WebContents* web_contents, bool allowed) {
-  if (web_contents)
-    web_contents->GotResponseToLockMouseRequest(allowed);
+  if (web_contents) {
+    if (allowed)
+      web_contents->GotResponseToLockMouseRequest(
+          blink::mojom::PointerLockResult::kSuccess);
+    else
+      web_contents->GotResponseToLockMouseRequest(
+          blink::mojom::PointerLockResult::kPermissionDenied);
+  }
 }
 
 void OnPermissionResponse(base::OnceCallback<void(bool)> callback,
@@ -62,7 +67,7 @@ WebContentsPermissionHelper::WebContentsPermissionHelper(
     content::WebContents* web_contents)
     : web_contents_(web_contents) {}
 
-WebContentsPermissionHelper::~WebContentsPermissionHelper() {}
+WebContentsPermissionHelper::~WebContentsPermissionHelper() = default;
 
 void WebContentsPermissionHelper::RequestPermission(
     content::PermissionType permission,
@@ -70,7 +75,7 @@ void WebContentsPermissionHelper::RequestPermission(
     bool user_gesture,
     const base::DictionaryValue* details) {
   auto* rfh = web_contents_->GetMainFrame();
-  auto* permission_manager = static_cast<AtomPermissionManager*>(
+  auto* permission_manager = static_cast<ElectronPermissionManager*>(
       web_contents_->GetBrowserContext()->GetPermissionControllerDelegate());
   auto origin = web_contents_->GetLastCommittedURL();
   permission_manager->RequestPermissionWithDetails(
@@ -82,7 +87,7 @@ bool WebContentsPermissionHelper::CheckPermission(
     content::PermissionType permission,
     const base::DictionaryValue* details) const {
   auto* rfh = web_contents_->GetMainFrame();
-  auto* permission_manager = static_cast<AtomPermissionManager*>(
+  auto* permission_manager = static_cast<ElectronPermissionManager*>(
       web_contents_->GetBrowserContext()->GetPermissionControllerDelegate());
   auto origin = web_contents_->GetLastCommittedURL();
   return permission_manager->CheckPermissionWithDetails(permission, rfh, origin,
@@ -153,6 +158,14 @@ bool WebContentsPermissionHelper::CheckMediaAccessPermission(
   // The permission type doesn't matter here, AUDIO_CAPTURE/VIDEO_CAPTURE
   // are presented as same type in content_converter.h.
   return CheckPermission(content::PermissionType::AUDIO_CAPTURE, &details);
+}
+
+bool WebContentsPermissionHelper::CheckSerialAccessPermission(
+    const url::Origin& embedding_origin) const {
+  base::DictionaryValue details;
+  details.SetString("securityOrigin", embedding_origin.GetURL().spec());
+  return CheckPermission(
+      static_cast<content::PermissionType>(PermissionType::SERIAL), &details);
 }
 
 WEB_CONTENTS_USER_DATA_KEY_IMPL(WebContentsPermissionHelper)

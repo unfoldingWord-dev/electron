@@ -15,15 +15,23 @@
 #include "shell/browser/window_list.h"
 #include "shell/common/application_info.h"
 
-#if defined(USE_X11)
-#include "chrome/browser/ui/libgtkui/gtk_util.h"
-#include "chrome/browser/ui/libgtkui/unity_service.h"
+#if defined(OS_LINUX)
+#include "shell/browser/linux/unity_service.h"
+#include "ui/gtk/gtk_util.h"
 #endif
 
 namespace electron {
 
 const char kXdgSettings[] = "xdg-settings";
 const char kXdgSettingsDefaultSchemeHandler[] = "default-url-scheme-handler";
+
+// The use of the ForTesting flavors is a hack workaround to avoid having to
+// patch these as friends into the associated guard classes.
+class LaunchXdgUtilityScopedAllowBaseSyncPrimitives
+    : public base::ScopedAllowBaseSyncPrimitivesForTesting {};
+
+class GetXdgAppOutputScopedAllowBlocking
+    : public base::ScopedAllowBlockingForTesting {};
 
 bool LaunchXdgUtility(const std::vector<std::string>& argv, int* exit_code) {
   *exit_code = EXIT_FAILURE;
@@ -32,34 +40,51 @@ bool LaunchXdgUtility(const std::vector<std::string>& argv, int* exit_code) {
     return false;
 
   base::LaunchOptions options;
-  options.fds_to_remap.push_back(std::make_pair(devnull, STDIN_FILENO));
+  options.fds_to_remap.emplace_back(devnull, STDIN_FILENO);
 
   base::Process process = base::LaunchProcess(argv, options);
   close(devnull);
 
   if (!process.IsValid())
     return false;
+  LaunchXdgUtilityScopedAllowBaseSyncPrimitives allow_base_sync_primitives;
   return process.WaitForExit(exit_code);
+}
+
+base::Optional<std::string> GetXdgAppOutput(
+    const std::vector<std::string>& argv) {
+  std::string reply;
+  int success_code;
+  GetXdgAppOutputScopedAllowBlocking allow_blocking;
+  bool ran_ok = base::GetAppOutputWithExitCode(base::CommandLine(argv), &reply,
+                                               &success_code);
+
+  if (!ran_ok || success_code != EXIT_SUCCESS)
+    return base::Optional<std::string>();
+
+  return base::make_optional(reply);
 }
 
 bool SetDefaultWebClient(const std::string& protocol) {
   std::unique_ptr<base::Environment> env(base::Environment::Create());
 
-  std::vector<std::string> argv;
-  argv.push_back(kXdgSettings);
-  argv.push_back("set");
+  std::vector<std::string> argv = {kXdgSettings, "set"};
   if (!protocol.empty()) {
-    argv.push_back(kXdgSettingsDefaultSchemeHandler);
-    argv.push_back(protocol);
+    argv.emplace_back(kXdgSettingsDefaultSchemeHandler);
+    argv.emplace_back(protocol);
   }
-  argv.push_back(libgtkui::GetDesktopName(env.get()));
+  std::string desktop_name;
+  if (!env->GetVar("CHROME_DESKTOP", &desktop_name)) {
+    return false;
+  }
+  argv.emplace_back(desktop_name);
 
   int exit_code;
   bool ran_ok = LaunchXdgUtility(argv, &exit_code);
   return ran_ok && exit_code == EXIT_SUCCESS;
 }
 
-void Browser::Focus() {
+void Browser::Focus(gin::Arguments* args) {
   // Focus on the first visible window.
   for (auto* const window : WindowList::GetWindows()) {
     if (window->IsVisible()) {
@@ -76,47 +101,49 @@ void Browser::ClearRecentDocuments() {}
 void Browser::SetAppUserModelID(const base::string16& name) {}
 
 bool Browser::SetAsDefaultProtocolClient(const std::string& protocol,
-                                         mate::Arguments* args) {
+                                         gin::Arguments* args) {
   return SetDefaultWebClient(protocol);
 }
 
 bool Browser::IsDefaultProtocolClient(const std::string& protocol,
-                                      mate::Arguments* args) {
+                                      gin::Arguments* args) {
   std::unique_ptr<base::Environment> env(base::Environment::Create());
 
   if (protocol.empty())
     return false;
 
-  std::vector<std::string> argv;
-  argv.push_back(kXdgSettings);
-  argv.push_back("check");
-  argv.push_back(kXdgSettingsDefaultSchemeHandler);
-  argv.push_back(protocol);
-  argv.push_back(libgtkui::GetDesktopName(env.get()));
-
-  std::string reply;
-  int success_code;
-  bool ran_ok = base::GetAppOutputWithExitCode(base::CommandLine(argv), &reply,
-                                               &success_code);
-
-  if (!ran_ok || success_code != EXIT_SUCCESS)
+  std::string desktop_name;
+  if (!env->GetVar("CHROME_DESKTOP", &desktop_name))
+    return false;
+  const std::vector<std::string> argv = {kXdgSettings, "check",
+                                         kXdgSettingsDefaultSchemeHandler,
+                                         protocol, desktop_name};
+  const auto output = GetXdgAppOutput(argv);
+  if (!output)
     return false;
 
   // Allow any reply that starts with "yes".
-  return base::StartsWith(reply, "yes", base::CompareCase::SENSITIVE) ? true
-                                                                      : false;
+  return base::StartsWith(output.value(), "yes", base::CompareCase::SENSITIVE);
 }
 
 // Todo implement
 bool Browser::RemoveAsDefaultProtocolClient(const std::string& protocol,
-                                            mate::Arguments* args) {
+                                            gin::Arguments* args) {
   return false;
 }
 
-bool Browser::SetBadgeCount(int count) {
-  if (IsUnityRunning()) {
-    unity::SetDownloadCount(count);
-    badge_count_ = count;
+base::string16 Browser::GetApplicationNameForProtocol(const GURL& url) {
+  const std::vector<std::string> argv = {
+      "xdg-mime", "query", "default",
+      std::string("x-scheme-handler/") + url.scheme()};
+
+  return base::ASCIIToUTF16(GetXdgAppOutput(argv).value_or(std::string()));
+}
+
+bool Browser::SetBadgeCount(base::Optional<int> count) {
+  if (IsUnityRunning() && count.has_value()) {
+    unity::SetDownloadCount(count.value());
+    badge_count_ = count.value();
     return true;
   } else {
     return false;
@@ -209,8 +236,8 @@ void Browser::ShowAboutPanel() {
   gtk_widget_destroy(dialogWidget);
 }
 
-void Browser::SetAboutPanelOptions(const base::DictionaryValue& options) {
-  about_panel_options_ = options.Clone();
+void Browser::SetAboutPanelOptions(base::DictionaryValue options) {
+  about_panel_options_ = std::move(options);
 }
 
 }  // namespace electron

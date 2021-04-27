@@ -1,14 +1,18 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
-From: Anonymous <anonymous@electronjs.org>
-Date: Thu, 20 Sep 2018 17:46:53 -0700
+From: deepak1556 <hop2deep@gmail.com>
+Date: Fri, 10 Apr 2020 15:14:49 -0700
 Subject: web_contents.patch
 
+This allows overriding the RenderViewHostDelegateView of a WebContents, which
+is needed for OSR.
+
+Originally landed in https://github.com/electron/libchromiumcontent/pull/226.
 
 diff --git a/content/browser/web_contents/web_contents_impl.cc b/content/browser/web_contents/web_contents_impl.cc
-index fbc1dc348385a9a1b97405342ded52e2308baf2c..b894dbb3d435ed3302bdd8e667ac0e628404a932 100644
+index eac2487f18332616b1550bd7fa1f39f5c532b079..bc54b385d792eaad00c13fe43e9be1536397c5d7 100644
 --- a/content/browser/web_contents/web_contents_impl.cc
 +++ b/content/browser/web_contents/web_contents_impl.cc
-@@ -2137,6 +2137,12 @@ void WebContentsImpl::Init(const WebContents::CreateParams& params) {
+@@ -2725,6 +2725,12 @@ void WebContentsImpl::Init(const WebContents::CreateParams& params) {
    std::string unique_name;
    frame_tree_.root()->SetFrameName(params.main_frame_name, unique_name);
  
@@ -21,101 +25,38 @@ index fbc1dc348385a9a1b97405342ded52e2308baf2c..b894dbb3d435ed3302bdd8e667ac0e62
    WebContentsViewDelegate* delegate =
        GetContentClient()->browser()->GetWebContentsViewDelegate(this);
  
-@@ -2152,6 +2158,7 @@ void WebContentsImpl::Init(const WebContents::CreateParams& params) {
-           &render_view_host_delegate_view_);
-     }
+@@ -2735,6 +2741,7 @@ void WebContentsImpl::Init(const WebContents::CreateParams& params) {
+     view_.reset(CreateWebContentsView(this, delegate,
+                                       &render_view_host_delegate_view_));
    }
 +  }  //  !view_
    CHECK(render_view_host_delegate_view_);
    CHECK(view_.get());
  
-diff --git a/content/browser/web_contents/web_contents_view_guest.cc b/content/browser/web_contents/web_contents_view_guest.cc
-index ecaf30bcb7b916a92a69641dd7b96a3633d407c0..0af625928ca6227a21cd4263a14a42b72095399c 100644
---- a/content/browser/web_contents/web_contents_view_guest.cc
-+++ b/content/browser/web_contents/web_contents_view_guest.cc
-@@ -68,19 +68,27 @@ gfx::NativeWindow WebContentsViewGuest::GetTopLevelNativeWindow() const {
- 
- void WebContentsViewGuest::OnGuestAttached(WebContentsView* parent_view) {
- #if defined(USE_AURA)
-+  if (!platform_view_->GetNativeView())
-+    return;
-   // In aura, ScreenPositionClient doesn't work properly if we do
-   // not have the native view associated with this WebContentsViewGuest in the
-   // view hierarchy. We add this view as embedder's child here.
-   // This would go in WebContentsViewGuest::CreateView, but that is too early to
-   // access embedder_web_contents(). Therefore, we do it here.
--  parent_view->GetNativeView()->AddChild(platform_view_->GetNativeView());
-+  if (parent_view->GetNativeView() != platform_view_->GetNativeView()) {
-+    parent_view->GetNativeView()->AddChild(platform_view_->GetNativeView());
-+  }
- #endif  // defined(USE_AURA)
- }
- 
- void WebContentsViewGuest::OnGuestDetached(WebContentsView* old_parent_view) {
- #if defined(USE_AURA)
--  old_parent_view->GetNativeView()->RemoveChild(
--      platform_view_->GetNativeView());
-+  if (!platform_view_->GetNativeView())
-+    return;
-+  if (old_parent_view->GetNativeView() != platform_view_->GetNativeView()) {
-+    old_parent_view->GetNativeView()->RemoveChild(
-+        platform_view_->GetNativeView());
-+  }
- #endif  // defined(USE_AURA)
- }
- 
-@@ -132,11 +140,22 @@ RenderWidgetHostViewBase* WebContentsViewGuest::CreateViewForWidget(
-         render_widget_host->GetView());
-   }
- 
-+  RenderWidgetHost* embedder_render_widget_host =
-+    guest_->embedder_web_contents()->GetRenderViewHost()->GetWidget();
-+  RenderWidgetHostViewBase* embedder_render_widget_host_view =
-+      static_cast<RenderWidgetHostViewBase*>(
-+        embedder_render_widget_host->GetView());
-   RenderWidgetHostViewBase* platform_widget =
--      platform_view_->CreateViewForWidget(render_widget_host, true);
--
--  return RenderWidgetHostViewGuest::Create(render_widget_host, guest_,
--                                           platform_widget->GetWeakPtr());
-+      embedder_render_widget_host_view->CreateViewForWidget(
-+        render_widget_host,
-+        embedder_render_widget_host,
-+        platform_view_.get());
-+  RenderWidgetHostViewGuest* guest_view = RenderWidgetHostViewGuest::Create(
-+    render_widget_host, guest_, platform_widget->GetWeakPtr());
-+  platform_widget->InitAsGuest(embedder_render_widget_host->GetView(),
-+                               guest_view);
-+
-+  return guest_view;
- }
- 
- RenderWidgetHostViewBase* WebContentsViewGuest::CreateViewForChildWidget(
 diff --git a/content/public/browser/web_contents.h b/content/public/browser/web_contents.h
-index b5ff1cc5d6f60d22839b9bc06ab4e2c55d9cc6c7..d22f0dcefa2a8ccb13d4d993bc37241beb664757 100644
+index 05efddc8d80fad9be7f4276d51a80ab0b747e484..c558236eb621ae6a67468afaa1b8431b9857a35f 100644
 --- a/content/public/browser/web_contents.h
 +++ b/content/public/browser/web_contents.h
-@@ -78,9 +78,12 @@ class BrowserPluginGuestDelegate;
- class InterstitialPage;
+@@ -87,8 +87,11 @@ class BrowserContext;
+ class BrowserPluginGuestDelegate;
  class RenderFrameHost;
  class RenderViewHost;
 +class RenderViewHostDelegateView;
- class RenderWidgetHost;
  class RenderWidgetHostView;
 +class RenderWidgetHostViewBase;
  class WebContentsDelegate;
 +class WebContentsView;
+ class WebUI;
  struct CustomContextMenuContext;
  struct DropData;
- struct MHTMLGenerationParams;
-@@ -216,6 +219,10 @@ class WebContents : public PageNavigator,
-       kInitializeAndWarmupRendererProcess,
-     } desired_renderer_state;
+@@ -222,6 +225,10 @@ class WebContents : public PageNavigator,
+     // Sandboxing flags set on the new WebContents.
+     network::mojom::WebSandboxFlags starting_sandbox_flags;
  
 +    // Optionally specify the view and delegate view.
 +    content::WebContentsView* view = nullptr;
 +    content::RenderViewHostDelegateView* delegate_view = nullptr;
 +
-     // Sandboxing flags set on the new WebContents.
-     blink::WebSandboxFlags starting_sandbox_flags;
- 
+     // Value used to set the last time the WebContents was made active, this is
+     // the value that'll be returned by GetLastActiveTime(). If this is left
+     // default initialized then the value is not passed on to the WebContents
