@@ -141,7 +141,7 @@ pre_deps_hooks = [
   },
   {
     'name': 'setup_graphite',
-    'condition': 'checkout_graphite && apply_patches && process_deps',
+    'condition': 'checkout_graphite and apply_patches and process_deps',
     'pattern': 'src/electron',
     'action': [
       'python3',
