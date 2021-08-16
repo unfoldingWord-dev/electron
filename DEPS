@@ -23,12 +23,14 @@ vars = {
     'cdc0729c8bf8576bfef18629186e1e9ecf1b0d9f',
 
   'pyyaml_version': '3.12',
+  'graphite_version': '92f59dcc52f73ce747f1cdc831579ed2546884aa',
 
   'chromium_git': 'https://chromium.googlesource.com',
   'electron_git': 'https://github.com/electron',
   'nodejs_git': 'https://github.com/nodejs',
   'yaml_git': 'https://github.com/yaml',
   'squirrel_git': 'https://github.com/Squirrel',
+  'graphite_git': 'https://github.com/silnrsi',
 
   # KEEP IN SYNC WITH utils.js FILE
   'yarn_version': '1.15.2',
@@ -44,6 +46,7 @@ vars = {
   'checkout_node': True,
   'checkout_nan': True,
   'checkout_pgo_profiles': True,
+  'checkout_graphite': True,
 
   # It's only needed to parse the native tests configurations.
   'checkout_pyyaml': False,
@@ -88,6 +91,10 @@ deps = {
     'url': (Var("nodejs_git")) + '/node.git@' + (Var("node_version")),
     'condition': 'checkout_node and process_deps',
   },
+  'src/third_party/graphite/graphite2': {
+    'url': (Var("graphite_git")) + '/graphite.git@' + (Var("graphite_version")),
+    'condition': 'checkout_graphite and process_deps',
+  },
   'src/electron/vendor/pyyaml': {
     'url': (Var("yaml_git")) + '/pyyaml.git@' + (Var("pyyaml_version")),
     'condition': 'checkout_pyyaml and process_deps',
@@ -119,6 +126,16 @@ pre_deps_hooks = [
       'src/electron/patches/mtime-cache.json',
       '--patches-config',
       'src/electron/patches/config.json',
+    ],
+  },
+  {
+    'name': 'setup_graphite',
+    'condition': 'checkout_graphite and apply_patches and process_deps',
+    'pattern': 'src/electron',
+    'action': [
+      'python3',
+      '-c',
+      'import os; os.makedirs(os.path.join("src", "electron", "third_party", "graphite"));',
     ],
   },
 ]
