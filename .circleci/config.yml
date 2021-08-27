@@ -1522,7 +1522,7 @@ commands:
                 condition: << parameters.restore-src-cache >>
                 steps:
                   - maybe-restore-portaled-src-cache
-            - *step-maybe-restore-git-cache
+            # - *step-maybe-restore-git-cache
             - *step-set-git-cache-path
             # This sync call only runs if .circle-sync-done is an EMPTY file
             - *step-gclient-sync
