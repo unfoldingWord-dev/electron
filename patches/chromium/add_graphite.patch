@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Joel <da1nerd@pm.me>
 Date: Tue, 23 Jul 2019 15:48:39 -0700
-Subject: [PATCH] adds graphite support for font rendering - patched for v14.2.9
+Subject: [PATCH] adds graphite support for font rendering - patched for v17.3.1
 
 diff --git a/third_party/BUILD.gn b/third_party/BUILD.gn
 index a62632e2c3fcf..0a8714996d3b9 100644
@@ -196,7 +196,7 @@ index be6f93b56915a..f175e50ff1447 100644
  
  if (use_system_harfbuzz) {
    import("//build/config/linux/pkg_config.gni")
-@@ -336,6 +337,17 @@ if (use_system_harfbuzz) {
+@@ -393,6 +394,17 @@ if (use_system_harfbuzz) {
        public += [ "src/src/hb-glib.h" ]
        sources += [ "src/src/hb-glib.cc" ]
      }
