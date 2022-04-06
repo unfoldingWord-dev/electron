@@ -3,16 +3,14 @@ rem echo off
 rem cd Development\Electronite
 rem set PATH=%cd%\depot_tools;%PATH%
 rem .\step.bat get v17.3.1-graphite
-rem   git config --global user.email "you@example.com"
-rem   git config --global user.name "Your Name"
 
 
 set ELECTRONITE_REPO="https://github.com/unfoldingWord/electronite"
 set working_dir=%cd%
 set GIT_CACHE_PATH=%working_dir%\git_cache
 mkdir %GIT_CACHE_PATH%
-set SCCACHE_BUCKET=electronjs-sccache
-set SCCACHE_TWO_TIER=true
+rem set SCCACHE_BUCKET=electronjs-sccache
+rem set SCCACHE_TWO_TIER=true
 set DEPOT_TOOLS_WIN_TOOLCHAIN=0
 set NINJA_STATUS="[%%r processes, %%f/%%t @ %%o/s : %%es] "
 echo "GIT_CACHE_PATH=%GIT_CACHE_PATH%"
@@ -32,25 +30,10 @@ rem -------------
 rem start command
 rem -------------
 if "%1" == "get" goto Get
-if "%1" == "resync" goto Resync
 if "%1" == "build" goto Build
 if "%1" == "build-continue" goto BuildContinue
 if "%1" == "release" goto Release
 goto MissingTag
-
-:Resync
-rem ####################
-rem  Resync - continue build after fetch error
-rem ####################
-
-rem fetch code
-echo Resync - retrying failed sync.
-
-echo Applying electron patches
-call gclient sync --with_branch_heads --with_tags
-
-goto End
-
 
 :Get
 rem ####################
@@ -136,11 +119,11 @@ set CHROMIUM_BUILDTOOLS_PATH=%cd%\buildtools
 
 if %build_32bit% == true (
     echo Generating 32bit configuration...
-    call gn gen out/Release-x86 --args="target_cpu=\"x86\" import(\"//electron/build/args/release.gn\") cc_wrapper=\"%working_dir%/electron-gn/src/electron/external_binaries/sccache\""
+    call gn gen out/Release-x86 --args="target_cpu=\"x86\" import(\"//electron/build/args/release.gn\")"
     call ninja -C out/Release-x86 electron
 ) else (
     echo Generating configuration...
-    call gn gen out/Release --args="import(\"//electron/build/args/release.gn\") cc_wrapper=\"%working_dir%/electron-gn/src/electron/external_binaries/sccache\""
+    call gn gen out/Release --args="import(\"//electron/build/args/release.gn\")"
     call ninja -C out/Release electron
 )
 
@@ -179,7 +162,6 @@ rem ####################
     echo where ^<command^> is one of:
     echo     get ^<ref^>     - fetches all of the code.
     echo                       Where ^<ref^> is a branch or tag.
-    echo     resync          - run after fetch error with uncommitted changes, retries sync
     echo     build [arch]    - compiles electronite. The default arch is x64, but you can specify x86.
     echo     build-continue [arch]  - continues interrupted electronite build. arch needs to be same as previous build.
     echo     release [arch]  - creates the distributable. The default arch is x64, but you can specify x86.

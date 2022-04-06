@@ -3,8 +3,8 @@ set ELECTRONITE_REPO="https://github.com/unfoldingWord/electronite"
 set working_dir=%cd%
 set GIT_CACHE_PATH=%working_dir%\git_cache
 mkdir %GIT_CACHE_PATH%
-set SCCACHE_BUCKET=electronjs-sccache
-set SCCACHE_TWO_TIER=true
+rem set SCCACHE_BUCKET=electronjs-sccache
+rem set SCCACHE_TWO_TIER=true
 set DEPOT_TOOLS_WIN_TOOLCHAIN=0
 set NINJA_STATUS="[%%r processes, %%f/%%t @ %%o/s : %%es] "
 echo "GIT_CACHE_PATH=%GIT_CACHE_PATH%"
