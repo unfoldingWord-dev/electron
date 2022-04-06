@@ -61,7 +61,7 @@ cd ..
 
 rem echo Show Changes
 rem call git status
-echo Commit all Changes so patches will not fail?
+echo Commit all Changes so sync with patches will not fail?
 rem this is a hack so that Windows sync will not fail when there are uncommitted changes after git checkout
 call git add -A
 call git commit -m "commit changes" --author="A U Thor <author@example.com>"
@@ -85,11 +85,11 @@ set CHROMIUM_BUILDTOOLS_PATH=%cd%\buildtools
 
 if %build_32bit% == true (
     echo Generating 32bit configuration...
-    call gn gen out/Release-x86 --args="target_cpu=\"x86\" import(\"//electron/build/args/release.gn\") cc_wrapper=\"%working_dir%/electron-gn/src/electron/external_binaries/sccache\""
+    call gn gen out/Release-x86 --args="target_cpu=\"x86\" import(\"//electron/build/args/release.gn\")"
     call ninja -C out/Release-x86 electron
 ) else (
     echo Generating configuration...
-    call gn gen out/Release --args="import(\"//electron/build/args/release.gn\") cc_wrapper=\"%working_dir%/electron-gn/src/electron/external_binaries/sccache\""
+    call gn gen out/Release --args="import(\"//electron/build/args/release.gn\")"
     call ninja -C out/Release electron
 )
 

@@ -87,7 +87,7 @@ cd ..
 
 echo Changes
 call git status
-echo Commit all Changes so patches will not fail?
+echo Commit all Changes so sync with patches will not fail?
 call git add -A
 call git commit -m "commit changes" --author="A U Thor <author@example.com>"
 cd..
