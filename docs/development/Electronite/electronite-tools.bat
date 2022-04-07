@@ -79,7 +79,7 @@ rem ####################
 set build_32bit=false
 if %2 == x86 set build_32bit=true
 
-echo Building release
+echo Continuing Build release
 cd electron-gn\src
 set CHROMIUM_BUILDTOOLS_PATH=%cd%\buildtools
 
@@ -108,11 +108,11 @@ set CHROMIUM_BUILDTOOLS_PATH=%cd%\buildtools
 
 if %build_32bit% == true (
     echo Generating 32bit configuration...
-    call gn gen out/Release-x86 --args="target_cpu=\"x86\" import(\"//electron/build/args/release.gn\") cc_wrapper=\"%working_dir%/electron-gn/src/electron/external_binaries/sccache\""
+    call gn gen out/Release-x86 --args="target_cpu=\"x86\" import(\"//electron/build/args/release.gn\")"
     call ninja -C out/Release-x86 electron
 ) else (
     echo Generating configuration...
-    call gn gen out/Release --args="import(\"//electron/build/args/release.gn\") cc_wrapper=\"%working_dir%/electron-gn/src/electron/external_binaries/sccache\""
+    call gn gen out/Release --args="import(\"//electron/build/args/release.gn\")"
     call ninja -C out/Release electron
 )
 
