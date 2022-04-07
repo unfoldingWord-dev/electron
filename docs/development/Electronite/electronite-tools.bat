@@ -7,6 +7,7 @@ mkdir %GIT_CACHE_PATH%
 rem sccache no longer supported in Electron
 rem set SCCACHE_BUCKET=electronjs-sccache
 rem set SCCACHE_TWO_TIER=true
+
 set DEPOT_TOOLS_WIN_TOOLCHAIN=0
 set NINJA_STATUS="[%%r processes, %%f/%%t @ %%o/s : %%es] "
 echo "GIT_CACHE_PATH=%GIT_CACHE_PATH%"
@@ -79,7 +80,7 @@ rem ####################
 rem build continue
 rem ####################
 set build_32bit=false
-if %2 == x86 set build_32bit=true
+if "%2" == "x86" set build_32bit=true
 
 echo Continuing Build release
 cd electron-gn\src
@@ -102,7 +103,7 @@ rem ####################
 rem build release
 rem ####################
 set build_32bit=false
-if %2 == x86 set build_32bit=true
+if "%2" == "x86" set build_32bit=true
 
 echo Building release
 cd electron-gn\src
