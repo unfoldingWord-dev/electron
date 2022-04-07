@@ -28,7 +28,6 @@ rem start command
 rem -------------
 if "%1" == "get" goto Get
 if "%1" == "build" goto Build
-if "%1" == "build-continue" goto BuildContinue
 if "%1" == "release" goto Release
 goto MissingTag
 
@@ -75,29 +74,6 @@ call gclient sync --with_branch_heads --with_tags
 
 goto End
 
-:BuildContinue
-rem ####################
-rem build continue
-rem ####################
-set build_32bit=false
-if "%2" == "x86" set build_32bit=true
-
-echo Continuing Build release
-cd electron-gn\src
-set CHROMIUM_BUILDTOOLS_PATH=%cd%\buildtools
-
-if %build_32bit% == true (
-    echo Generating 32bit configuration...
-    call gn gen out/Release-x86 --args="target_cpu=\"x86\" import(\"//electron/build/args/release.gn\")"
-    call ninja -C out/Release-x86 electron
-) else (
-    echo Generating configuration...
-    call gn gen out/Release --args="import(\"//electron/build/args/release.gn\")"
-    call ninja -C out/Release electron
-)
-
-goto End
-
 :Build
 rem ####################
 rem build release
@@ -126,7 +102,7 @@ rem ####################
 rem create distributable
 rem ####################
 set release_32bit=false
-if %2 == x86 set release_32bit=true
+if "%2" == "x86" set release_32bit=true
 cd electron-gn\src
 if %release_32bit% == true (
     echo Creating 32bit distributable
@@ -155,7 +131,6 @@ rem ####################
     echo     get ^<ref^>     - fetches all of the code.
     echo                       Where ^<ref^> is a branch or tag.
     echo     build [arch]    - compiles Electronite. The default arch is x64, but you can specify x86.
-    echo     build-continue [arch]  - continues interrupted electronite build. arch needs to be same as previous build.
     echo     release [arch]  - creates the distributable. The default arch is x64, but you can specify x86.
     echo For detailed instructions on building Electron
     echo see https://github.com/electron/electron/blob/master/docs/development/build-instructions-gn.md

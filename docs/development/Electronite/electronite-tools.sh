@@ -11,6 +11,7 @@ mkdir -p "${GIT_CACHE_PATH}"
 # sccache no longer supported in Electron
 # export SCCACHE_BUCKET="electronjs-sccache"
 # export SCCACHE_TWO_TIER=true
+
 export NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
 echo "GIT_CACHE_PATH=${GIT_CACHE_PATH}"
 echo "SCCACHE_BUCKET=${SCCACHE_BUCKET}"
@@ -40,29 +41,6 @@ if [ "$COMMAND" == "get" ]; then
   cd -
   echo "Applying electron patches"
   gclient sync --with_branch_heads --with_tags
-  exit 0
-fi
-
-##########################
-# continue interrupted build
-##########################
-if [ "$COMMAND" == "build-continue" ]; then
-  if [ $# -ge 2 ]; then
-    TARGET=$2
-    RELEASE_TARGET="-${TARGET}"
-    export GN_EXTRA_ARGS="${GN_EXTRA_ARGS} target_cpu=\"${TARGET}\""
-    echo "Building for ${TARGET}"
-     # "arm64"
-  else
-    RELEASE_TARGET=""
-  fi
-
-  echo "Continue Building target: ${RELEASE_TARGET}"
-  cd electron-gn/src
-  export CHROMIUM_BUILDTOOLS_PATH=`pwd`/buildtools
-#  export GN_EXTRA_ARGS="${GN_EXTRA_ARGS} cc_wrapper=\"${PWD}/electron/external_binaries/sccache\""
-  ninja -C out/Release${RELEASE_TARGET} electron
-  cd -
   exit 0
 fi
 
@@ -136,9 +114,6 @@ where <command> is one of:
 
     build <target> - compiles Electronite, target is optional, defaults to x64,
                        Could be arm64.
-
-    build-continue <target> - continues interrupted Electronite build.  Use 
-                       Same target as previous build.
 
     release <target> - creates the distributable.  Use same target as
                        previous build.

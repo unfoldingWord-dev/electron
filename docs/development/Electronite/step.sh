@@ -44,29 +44,6 @@ if [ "$COMMAND" == "get" ]; then
 fi
 
 ##########################
-# continue interrupted build
-##########################
-if [ "$COMMAND" == "build-continue" ]; then
-  if [ $# -ge 2 ]; then
-    TARGET=$2
-    RELEASE_TARGET="-${TARGET}"
-    export GN_EXTRA_ARGS="${GN_EXTRA_ARGS} target_cpu=\"${TARGET}\""
-    echo "Building for ${TARGET}"
-     # "arm64"
-  else
-    RELEASE_TARGET=""
-  fi
-
-  echo "Continue Building target: ${RELEASE_TARGET}"
-  cd electron-gn/src
-  export CHROMIUM_BUILDTOOLS_PATH=`pwd`/buildtools
-#  export GN_EXTRA_ARGS="${GN_EXTRA_ARGS} cc_wrapper=\"${PWD}/electron/external_binaries/sccache\""
-  ninja -C out/Release${RELEASE_TARGET} electron
-  cd -
-  exit 0
-fi
-
-##########################
 # build release
 ##########################
 if [ "$COMMAND" == "build" ]; then
@@ -136,9 +113,6 @@ where <command> is one of:
 
     build <target> - compiles Electronite, target is optional, defaults to x64,
                        Could be arm64.
-
-    build-continue <target> - continues interrupted Electronite build.  Use 
-                       Same target as previous build.
 
     release <target> - creates the distributable.  Use same target as
                        previous build.
