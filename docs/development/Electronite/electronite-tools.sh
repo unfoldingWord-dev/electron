@@ -7,6 +7,8 @@ COMMAND=$1
 # Configure environment variables and paths
 export GIT_CACHE_PATH=`pwd`/git_cache
 mkdir -p "${GIT_CACHE_PATH}"
+
+# sccache no longer supported in Electron
 # export SCCACHE_BUCKET="electronjs-sccache"
 # export SCCACHE_TWO_TIER=true
 export NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
