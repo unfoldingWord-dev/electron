@@ -7,6 +7,8 @@ COMMAND=$1
 # Configure environment variables and paths
 export GIT_CACHE_PATH=`pwd`/git_cache
 mkdir -p "${GIT_CACHE_PATH}"
+
+# sccache no longer supported in Electron
 # export SCCACHE_BUCKET="electronjs-sccache"
 # export SCCACHE_TWO_TIER=true
 export NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
@@ -45,16 +47,24 @@ fi
 # continue interrupted build
 ##########################
 if [ "$COMMAND" == "build-continue" ]; then
-  echo "Continue Building release"
+  if [ $# -ge 2 ]; then
+    TARGET=$2
+    RELEASE_TARGET="-${TARGET}"
+    export GN_EXTRA_ARGS="${GN_EXTRA_ARGS} target_cpu=\"${TARGET}\""
+    echo "Building for ${TARGET}"
+     # "arm64"
+  else
+    RELEASE_TARGET=""
+  fi
+
+  echo "Continue Building target: ${RELEASE_TARGET}"
   cd electron-gn/src
   export CHROMIUM_BUILDTOOLS_PATH=`pwd`/buildtools
 #  export GN_EXTRA_ARGS="${GN_EXTRA_ARGS} cc_wrapper=\"${PWD}/electron/external_binaries/sccache\""
-  ninja -C out/Release electron
+  ninja -C out/Release${RELEASE_TARGET} electron
   cd -
   exit 0
 fi
-
-
 
 ##########################
 # build release
@@ -70,7 +80,7 @@ if [ "$COMMAND" == "build" ]; then
     RELEASE_TARGET=""
   fi
 
-  echo "Building release: ${RELEASE_TARGET}"
+  echo "Building target: ${RELEASE_TARGET}"
 
   cd electron-gn/src
   export CHROMIUM_BUILDTOOLS_PATH=`pwd`/buildtools
@@ -86,12 +96,24 @@ fi
 # create distributable
 ##########################
 if [ "$COMMAND" == "release" ]; then
+  if [ $# -ge 2 ]; then
+    TARGET=$2
+    RELEASE_TARGET="-${TARGET}"
+    export GN_EXTRA_ARGS="${GN_EXTRA_ARGS} target_cpu=\"${TARGET}\""
+    echo "Building for ${TARGET}"
+     # "arm64"
+  else
+    RELEASE_TARGET=""
+  fi
+
+  echo "Building release: ${RELEASE_TARGET}"
+
   echo "Creating distributable"
   cd electron-gn/src
   if [ "`uname`" != "Darwin" ]; then
-    ./electron/script/strip-binaries.py -d out/Release
+    ./electron/script/strip-binaries.py -d out/Release${RELEASE_TARGET}
   fi
-  ninja -C out/Release electron:electron_dist_zip
+  ninja -C out/Release${RELEASE_TARGET} electron:electron_dist_zip
   exit 0
 fi
 
@@ -102,8 +124,8 @@ if [ "$COMMAND" == "" ]; then
   echo "***********************
 *  Electronite Tools  *
 ***********************
-This is a set of tools for compiling electronite.
-The source for electronite is at https://github.com/unfoldingWord-dev/electronite.
+This is a set of tools for compiling Electronite.
+The source for Electronite is at https://github.com/unfoldingWord-dev/electronite.
 
 Usage: ./electronite-tools.sh <command>
 
@@ -112,12 +134,14 @@ where <command> is one of:
     get <ref> - fetches all of the code.
                 Where <ref> is a branch or tag.
 
-    build <target> - compiles electronite, target is optional, defaults to x64,
+    build <target> - compiles Electronite, target is optional, defaults to x64,
                        Could be arm64.
 
-    build-continue - continues interrupted electronite build.
+    build-continue <target> - continues interrupted Electronite build.  Use 
+                       Same target as previous build.
 
-    release   - creates the distributable.
+    release <target> - creates the distributable.  Use same target as
+                       previous build.
 
 For detailed instructions on building Electron
 see https://github.com/electron/electron/blob/master/docs/development/build-instructions-gn.md
