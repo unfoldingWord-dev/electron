@@ -21,12 +21,13 @@ WINDOWSSDKDIR=C:\Program Files (x86)\Windows Kits\10
 ```
 
 ### Build Electronite
-- _**Note:** Use command prompt, not powershell as it will cause problems_
+- _**Note:** Use command prompt, not powershell as it will cause problems._
 - cd to the folder you will use for build
 - unzip the depot_tools here
 - download build script to this folder from: https://github.com/unfoldingWord/electronite/blob/v17.3.1-graphite/docs/development/Electronite/electronite-tools.bat
 - before build do: `set PATH=%cd%\depot_tools;%PATH%`
-- get source files: `.\electronite-tools.bat get v17.3.1-graphite`
+- get source files (this can take several hours the first time as the git cache is loaded): `.\electronite-tools.bat get v17.3.1-graphite`
+- builds can take over 20 hours on a VM.
 - build Electronite for 32-bit Windows:
   - build for 32-bit: `.\electronite-tools.bat build x86`
   - create release for 32-bit: `.\electronite-tools.bat release x86`

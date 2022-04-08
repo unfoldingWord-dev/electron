@@ -26,7 +26,8 @@ pip3 install --user pyobjc
 - download build script to this folder from: https://github.com/unfoldingWord/electronite/blob/v17.3.1-graphite/docs/development/Electronite/electronite-tools.sh
 - set execute permission on script: `chmod +x ./electronite-tools.sh`
 - before build do: `export PATH=/path/to/depot_tools:$PATH`
-- get source files: `./electronite-tools.sh get v17.3.1-graphite`
+- get source files (this can take several hours the first time as the git cache is loaded): `./electronite-tools.sh get v17.3.1-graphite`
+- builds can take over 15 hours on a VM.
 - build Electronite for MacOS Intel 64-bit:
     - build for 64-bit: `./electronite-tools.sh build x64`
     - create release for 32-bit: `./electronite-tools.sh release x64`
