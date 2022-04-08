@@ -12,8 +12,8 @@ Based on wiki notes for `electronite-v12.0.5` from: https://github.com/unfolding
 
 Running the scripts without arguments will display the following commands which you will generally want to execute in order:
 1. `get <ref>` fetches all of the code. Where `<ref>` is a branch or tag.
-2. `build [target]` compiles Electronite
-3. `release [target]` creates the distributable.
+2. `build [target]` compiles Electronite for target (default is x64)
+3. `release [target]` creates the distributable (default is x64)
 
 Also, you'll want to build code from a properly tagged release because [other tooling](https://github.com/topics/electronite) expects a specific naming convention.
 When tagging a new release of Electronite use the same naming convention as Electron with the addition of a `-graphite` suffix. For example if Electron has a `v7.2.3` release, Electronite will have a corresponding `v7.2.3-graphite` release.
