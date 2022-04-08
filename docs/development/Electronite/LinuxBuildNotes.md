@@ -10,6 +10,12 @@
 - set execute permission on script: `chmod +x ./electronite-tools.sh`
 - before build do: `export PATH=/path/to/depot_tools:$PATH`
 - get source files: `./electronite-tools.sh get v17.3.1-graphite`
+- to create arm64 builds, you must have installed the arm64 dependencies mentioned in the Linux build instructions above.  Then run:
+```
+cd electron-gn/src
+build/linux/sysroot_scripts/install-sysroot.py --arch=arm64
+cd ../..
+```
 - build Electronite for Intel 64-bit:
     - build for 64-bit: `./electronite-tools.sh build x64`
     - create release for 32-bit: `./electronite-tools.sh release x64`
