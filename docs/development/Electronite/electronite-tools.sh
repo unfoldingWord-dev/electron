@@ -75,13 +75,14 @@ fi
 ##########################
 if [ "$COMMAND" == "release" ]; then
   if [ $# -ge 2 ]; then
-    TARGET=$2
+    TARGET="$2"
     RELEASE_TARGET="-${TARGET}"
+    STRIP_TARGET=--target-cpu=$TARGET
     export GN_EXTRA_ARGS="${GN_EXTRA_ARGS} target_cpu=\"${TARGET}\""
     echo "Building for ${TARGET}"
-     # "arm64"
   else
     RELEASE_TARGET=""
+    STRIP_TARGET=""
   fi
 
   echo "Building release: ${RELEASE_TARGET}"
@@ -89,7 +90,7 @@ if [ "$COMMAND" == "release" ]; then
   echo "Creating distributable"
   cd electron-gn/src
   if [ "`uname`" != "Darwin" ]; then
-    ./electron/script/strip-binaries.py -d out/Release${RELEASE_TARGET}
+    ./electron/script/strip-binaries.py ${STRIP_TARGET} -d out/Release${RELEASE_TARGET}
   fi
   ninja -C out/Release${RELEASE_TARGET} electron:electron_dist_zip
   exit 0

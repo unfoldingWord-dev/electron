@@ -83,7 +83,6 @@ if [ "$COMMAND" == "release" ]; then
     STRIP_TARGET=--target-cpu=$TARGET
     export GN_EXTRA_ARGS="${GN_EXTRA_ARGS} target_cpu=\"${TARGET}\""
     echo "Building for ${TARGET}"
-     # "arm64"
   else
     RELEASE_TARGET=""
     STRIP_TARGET=""
