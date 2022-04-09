@@ -20,7 +20,7 @@ cd ../..
 - build Electronite for Intel 64-bit:
     - build for 64-bit: `./electronite-tools.sh build x64`
     - create release for 32-bit: `./electronite-tools.sh release x64`
-- build Electronite for Arm 64-bit:
+- ~~build Electronite for Arm 64-bit~~ (this doesn't seem to be working - output is huge):
     - build for arm 64-bit: `./electronite-tools.sh build arm64`
     - create release for arm 64-bit: `./electronite-tools.sh release arm64`
 

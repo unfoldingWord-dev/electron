@@ -35,3 +35,11 @@ Updating Electronite is pretty straight forward.
 # Building
 
 [Build Notes](https://github.com/unfoldingWord/electronite/blob/v17.3.1-graphite/docs/development/Electronite/ElectroniteCurrentVersionBuildNotes.md)
+
+# Other Electronite Steps
+
+Will need to update and publish these packages:
+- https://github.com/unfoldingWord-dev/electronite-cli
+    - look at the README.md
+- https://github.com/unfoldingWord-box3/electronite-packager
+    - this doesn't have notes yet - for now just merged in master branch from Electron to update version to latest `15.4.0`
