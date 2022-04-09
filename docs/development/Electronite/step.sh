@@ -1,5 +1,8 @@
 #!/bin/bash
-# set -e
+set -e
+
+# show commands as they are executed
+set -x
 
 ELECTRONITE_REPO="https://github.com/unfoldingWord/electronite"
 COMMAND=$1
@@ -11,6 +14,7 @@ mkdir -p "${GIT_CACHE_PATH}"
 # sccache no longer supported in Electron
 # export SCCACHE_BUCKET="electronjs-sccache"
 # export SCCACHE_TWO_TIER=true
+
 export NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
 echo "GIT_CACHE_PATH=${GIT_CACHE_PATH}"
 echo "SCCACHE_BUCKET=${SCCACHE_BUCKET}"
@@ -74,13 +78,15 @@ fi
 ##########################
 if [ "$COMMAND" == "release" ]; then
   if [ $# -ge 2 ]; then
-    TARGET=$2
+    TARGET="$2"
     RELEASE_TARGET="-${TARGET}"
+    STRIP_TARGET=--target-cpu=$TARGET
     export GN_EXTRA_ARGS="${GN_EXTRA_ARGS} target_cpu=\"${TARGET}\""
     echo "Building for ${TARGET}"
      # "arm64"
   else
     RELEASE_TARGET=""
+    STRIP_TARGET=""
   fi
 
   echo "Building release: ${RELEASE_TARGET}"
@@ -88,7 +94,7 @@ if [ "$COMMAND" == "release" ]; then
   echo "Creating distributable"
   cd electron-gn/src
   if [ "`uname`" != "Darwin" ]; then
-    ./electron/script/strip-binaries.py -d out/Release${RELEASE_TARGET}
+    ./electron/script/strip-binaries.py ${STRIP_TARGET} -d out/Release${RELEASE_TARGET}
   fi
   ninja -C out/Release${RELEASE_TARGET} electron:electron_dist_zip
   exit 0
