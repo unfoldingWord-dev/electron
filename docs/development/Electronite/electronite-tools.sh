@@ -51,11 +51,15 @@ if [ "$COMMAND" == "build" ]; then
   if [ $# -ge 2 ]; then
     TARGET=$2
     RELEASE_TARGET="-${TARGET}"
-    export GN_EXTRA_ARGS="${GN_EXTRA_ARGS} target_cpu=\"${TARGET}\""
+    export GN_EXTRA_ARGS="${GN_EXTRA_ARGS} target_cpu = \"${TARGET}\""
     echo "Building for ${TARGET}"
-     # "arm64"
+    if [ "$TARGET" == "arm64" ]; then
+      export GN_EXTRA_ARGS="${GN_EXTRA_ARGS} fatal_linker_warnings = false enable_linux_installer = false"
+    fi
+    echo "Building for \"${TARGET}\", extra args: \"${GN_EXTRA_ARGS}\""
   else
     RELEASE_TARGET=""
+    echo "Building for default \"x64\", extra args: \"${GN_EXTRA_ARGS}\""
   fi
 
   echo "Building target: ${RELEASE_TARGET}"
@@ -77,20 +81,21 @@ if [ "$COMMAND" == "release" ]; then
   if [ $# -ge 2 ]; then
     TARGET="$2"
     RELEASE_TARGET="-${TARGET}"
-    STRIP_TARGET=--target-cpu=$TARGET
+    STRIP_EXTRA_ARGS=--target-cpu=$TARGET
     export GN_EXTRA_ARGS="${GN_EXTRA_ARGS} target_cpu=\"${TARGET}\""
-    echo "Building for ${TARGET}"
+    echo "Releasing for \"${TARGET}\", extra args: \"${STRIP_EXTRA_ARGS}\""
   else
     RELEASE_TARGET=""
-    STRIP_TARGET=""
+    STRIP_EXTRA_ARGS=""
+    echo "Releasing for default \"x64\", extra args: \"${STRIP_EXTRA_ARGS}\""    
   fi
 
-  echo "Building release: ${RELEASE_TARGET}"
+  echo "Releasing: ${RELEASE_TARGET}"
 
   echo "Creating distributable"
   cd electron-gn/src
   if [ "`uname`" != "Darwin" ]; then
-    ./electron/script/strip-binaries.py ${STRIP_TARGET} -d out/Release${RELEASE_TARGET}
+    ./electron/script/strip-binaries.py ${STRIP_EXTRA_ARGS} -d out/Release${RELEASE_TARGET}
   fi
   ninja -C out/Release${RELEASE_TARGET} electron:electron_dist_zip
   exit 0
