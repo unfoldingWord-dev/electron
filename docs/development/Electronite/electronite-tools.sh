@@ -53,7 +53,7 @@ if [ "$COMMAND" == "build" ]; then
     RELEASE_TARGET="-${TARGET}"
     export GN_EXTRA_ARGS="${GN_EXTRA_ARGS} target_cpu = \"${TARGET}\""
     echo "Building for ${TARGET}"
-    if [ "$TARGET" == "arm64" ]; then
+    if [ "$TARGET" == "arm64" ] && [ "`uname`" == "Linux" ]; then
       export GN_EXTRA_ARGS="${GN_EXTRA_ARGS} fatal_linker_warnings = false enable_linux_installer = false"
     fi
     echo "Building for \"${TARGET}\", extra args: \"${GN_EXTRA_ARGS}\""
