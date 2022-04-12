@@ -10,17 +10,28 @@
 - set execute permission on script: `chmod +x ./electronite-tools.sh`
 - before build do: `export PATH=/path/to/depot_tools:$PATH`
 - get source files (this can take several hours the first time as the git cache is loaded): `./electronite-tools.sh get v17.3.1-graphite`
-- to create arm64 builds, you must have installed the arm64 dependencies mentioned in the Linux build instructions above.  Then run:
+- to create `arm64` builds, you must have installed the arm64 dependencies mentioned in the Linux build instructions above.  Then run:
 ```
 cd electron-gn/src
 build/linux/sysroot_scripts/install-sysroot.py --arch=arm64
 cd ../..
 ```
+- to create `arm` builds, you must have installed the arm dependencies mentioned in the Linux build instructions above.  Then run:
+```
+cd electron-gn/src
+build/linux/sysroot_scripts/install-sysroot.py --arch=arm
+cd ../..
+```
 - builds can take over 20 hours on a VM.
 - build Electronite for Intel 64-bit:
-    - build for 64-bit: `./electronite-tools.sh build x64`
-    - create release for 32-bit: `./electronite-tools.sh release x64`
+  - build for 64-bit: `./electronite-tools.sh build x64`
+  - create release for 32-bit: `./electronite-tools.sh release x64`
+
 - build Electronite for Arm 64-bit:
-    - build for arm 64-bit: `./electronite-tools.sh build arm64`
-    - create release for arm 64-bit: `./electronite-tools.sh release arm64`
-    
+  - build for arm 64-bit: `./electronite-tools.sh build arm64`
+  - create release for arm 64-bit: `./electronite-tools.sh release arm64`
+
+- build Electronite for Arm:
+    - build for arm: `./electronite-tools.sh build arm`
+    - create release for arm: `./electronite-tools.sh release arm`
+   

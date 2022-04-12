@@ -78,17 +78,17 @@ goto End
 rem ####################
 rem build release
 rem ####################
-set build_32bit=false
-if "%2" == "x86" set build_32bit=true
+set build_x64=false
+if "%2" == "" set build_x64=true
 
 echo Building release
 cd electron-gn\src
 set CHROMIUM_BUILDTOOLS_PATH=%cd%\buildtools
 
-if %build_32bit% == true (
-    echo Generating 32bit configuration...
-    call gn gen out/Release-x86 --args="target_cpu=\"x86\" import(\"//electron/build/args/release.gn\")"
-    call ninja -C out/Release-x86 electron
+if %build_x64% == false (
+    echo Generating %2 configuration...
+    call gn gen out/Release-%2 --args="target_cpu=\"%2\" import(\"//electron/build/args/release.gn\")"
+    call ninja -C out/Release-%2 electron
 ) else (
     echo Generating configuration...
     call gn gen out/Release --args="import(\"//electron/build/args/release.gn\")"
@@ -101,13 +101,16 @@ goto End
 rem ####################
 rem create distributable
 rem ####################
-set release_32bit=false
-if "%2" == "x86" set release_32bit=true
+set build_x64=false
+if "%2" == "" set build_x64=true
+
+echo Making release
 cd electron-gn\src
-if %release_32bit% == true (
-    echo Creating 32bit distributable
-    electron\script\strip-binaries.py -d out\Release-x86
-    call ninja -C out\Release-x86 electron:electron_dist_zip
+
+if %build_x64% == false (
+    echo Creating %2 distributable
+    electron\script\strip-binaries.py -d out\Release-%2
+    call ninja -C out\Release-%2 electron:electron_dist_zip
 ) else (
     echo Creating distributable
     electron\script\strip-binaries.py -d out\Release
