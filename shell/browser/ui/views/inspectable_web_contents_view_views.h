@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE-CHROMIUM file.
 
-#ifndef SHELL_BROWSER_UI_VIEWS_INSPECTABLE_WEB_CONTENTS_VIEW_VIEWS_H_
-#define SHELL_BROWSER_UI_VIEWS_INSPECTABLE_WEB_CONTENTS_VIEW_VIEWS_H_
+#ifndef ELECTRON_SHELL_BROWSER_UI_VIEWS_INSPECTABLE_WEB_CONTENTS_VIEW_VIEWS_H_
+#define ELECTRON_SHELL_BROWSER_UI_VIEWS_INSPECTABLE_WEB_CONTENTS_VIEW_VIEWS_H_
 
 #include <memory>
 
@@ -20,13 +20,13 @@ class WidgetDelegate;
 
 namespace electron {
 
-class InspectableWebContentsImpl;
+class InspectableWebContents;
 
 class InspectableWebContentsViewViews : public InspectableWebContentsView,
                                         public views::View {
  public:
   explicit InspectableWebContentsViewViews(
-      InspectableWebContentsImpl* inspectable_web_contents_impl);
+      InspectableWebContents* inspectable_web_contents);
   ~InspectableWebContentsViewViews() override;
 
   // InspectableWebContentsView:
@@ -39,34 +39,32 @@ class InspectableWebContentsViewViews : public InspectableWebContentsView,
   void SetIsDocked(bool docked, bool activate) override;
   void SetContentsResizingStrategy(
       const DevToolsContentsResizingStrategy& strategy) override;
-  void SetTitle(const base::string16& title) override;
+  void SetTitle(const std::u16string& title) override;
 
-  InspectableWebContentsImpl* inspectable_web_contents() {
-    return inspectable_web_contents_;
-  }
-
-  const base::string16& GetTitle() const { return title_; }
-
- private:
   // views::View:
   void Layout() override;
 
+  InspectableWebContents* inspectable_web_contents() {
+    return inspectable_web_contents_;
+  }
+
+  const std::u16string& GetTitle() const { return title_; }
+
+ private:
   // Owns us.
-  InspectableWebContentsImpl* inspectable_web_contents_;
+  InspectableWebContents* inspectable_web_contents_;
 
   std::unique_ptr<views::Widget> devtools_window_;
-  views::WebView* devtools_window_web_view_;
-  views::View* contents_web_view_;
-  views::WebView* devtools_web_view_;
+  views::WebView* devtools_window_web_view_ = nullptr;
+  views::View* contents_web_view_ = nullptr;
+  views::WebView* devtools_web_view_ = nullptr;
 
   DevToolsContentsResizingStrategy strategy_;
-  bool devtools_visible_;
-  views::WidgetDelegate* devtools_window_delegate_;
-  base::string16 title_;
-
-  DISALLOW_COPY_AND_ASSIGN(InspectableWebContentsViewViews);
+  bool devtools_visible_ = false;
+  views::WidgetDelegate* devtools_window_delegate_ = nullptr;
+  std::u16string title_;
 };
 
 }  // namespace electron
 
-#endif  // SHELL_BROWSER_UI_VIEWS_INSPECTABLE_WEB_CONTENTS_VIEW_VIEWS_H_
+#endif  // ELECTRON_SHELL_BROWSER_UI_VIEWS_INSPECTABLE_WEB_CONTENTS_VIEW_VIEWS_H_

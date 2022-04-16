@@ -1,23 +1,28 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Jeremy Apthorp <nornagon@nornagon.net>
 Date: Thu, 20 Sep 2018 17:49:20 -0700
-Subject: mas-cfisobjc.patch
+Subject: mas: avoid usage of _CFIsObjC
 
 Removes usage of the _CFIsObjC private API.
 
 diff --git a/base/mac/foundation_util.mm b/base/mac/foundation_util.mm
-index 8b20ebc678c39b722bd5b03930ce89847e8cc73a..dca8c939e757003aafc1528ec7bbb739bf971fa6 100644
+index 6e5d76dc70e472f599385d967e8941200730fd9d..73d7f162a465d2e50d3ea3e6d14b6c0ed37775d1 100644
 --- a/base/mac/foundation_util.mm
 +++ b/base/mac/foundation_util.mm
-@@ -26,7 +26,6 @@ CFTypeID SecKeyGetTypeID();
+@@ -31,12 +31,6 @@
  #if !defined(OS_IOS)
  CFTypeID SecACLGetTypeID();
  CFTypeID SecTrustedApplicationGetTypeID();
+-// The NSFont/CTFont toll-free bridging is broken before 10.15.
+-// http://www.openradar.me/15341349 rdar://15341349
+-//
+-// TODO(https://crbug.com/1076527): This is fixed in 10.15. When 10.15 is the
+-// minimum OS for Chromium, remove this SPI declaration.
 -Boolean _CFIsObjC(CFTypeID typeID, CFTypeRef obj);
  #endif
  }  // extern "C"
  
-@@ -315,8 +314,7 @@ NSFont* CFToNSCast(CTFontRef cf_val) {
+@@ -329,8 +323,7 @@ void SetBaseBundleID(const char* new_base_bundle_id) {
        const_cast<NSFont*>(reinterpret_cast<const NSFont*>(cf_val));
    DCHECK(!cf_val ||
           CTFontGetTypeID() == CFGetTypeID(cf_val) ||
@@ -27,7 +32,7 @@ index 8b20ebc678c39b722bd5b03930ce89847e8cc73a..dca8c939e757003aafc1528ec7bbb739
    return ns_val;
  }
  
-@@ -384,9 +382,6 @@ CFCast<CTFontRef>(const CFTypeRef& cf_val) {
+@@ -401,9 +394,6 @@ CTFontRef NSToCFCast(NSFont* ns_val) {
      return (CTFontRef)(cf_val);
    }
  

@@ -2,8 +2,8 @@
 // Use of this source code is governed by the MIT license that can be
 // found in the LICENSE file.
 
-#ifndef SHELL_BROWSER_API_GPU_INFO_ENUMERATOR_H_
-#define SHELL_BROWSER_API_GPU_INFO_ENUMERATOR_H_
+#ifndef ELECTRON_SHELL_BROWSER_API_GPU_INFO_ENUMERATOR_H_
+#define ELECTRON_SHELL_BROWSER_API_GPU_INFO_ENUMERATOR_H_
 
 #include <memory>
 #include <stack>
@@ -17,15 +17,15 @@ namespace electron {
 // This class implements the enumerator for reading all the attributes in
 // GPUInfo into a dictionary.
 class GPUInfoEnumerator final : public gpu::GPUInfo::Enumerator {
-  const char* kGPUDeviceKey = "gpuDevice";
-  const char* kVideoDecodeAcceleratorSupportedProfileKey =
+  const char* const kGPUDeviceKey = "gpuDevice";
+  const char* const kVideoDecodeAcceleratorSupportedProfileKey =
       "videoDecodeAcceleratorSupportedProfile";
-  const char* kVideoEncodeAcceleratorSupportedProfileKey =
+  const char* const kVideoEncodeAcceleratorSupportedProfileKey =
       "videoEncodeAcceleratorSupportedProfile";
-  const char* kImageDecodeAcceleratorSupportedProfileKey =
+  const char* const kImageDecodeAcceleratorSupportedProfileKey =
       "imageDecodeAcceleratorSupportedProfile";
-  const char* kAuxAttributesKey = "auxAttributes";
-  const char* kDx12VulkanVersionInfoKey = "dx12VulkanVersionInfo";
+  const char* const kAuxAttributesKey = "auxAttributes";
+  const char* const kOverlayInfo = "overlayInfo";
 
  public:
   GPUInfoEnumerator();
@@ -36,6 +36,8 @@ class GPUInfoEnumerator final : public gpu::GPUInfo::Enumerator {
   void AddBool(const char* name, bool value) override;
   void AddTimeDeltaInSecondsF(const char* name,
                               const base::TimeDelta& value) override;
+  void AddBinary(const char* name,
+                 const base::span<const uint8_t>& value) override;
   void BeginGPUDevice() override;
   void EndGPUDevice() override;
   void BeginVideoDecodeAcceleratorSupportedProfile() override;
@@ -46,8 +48,8 @@ class GPUInfoEnumerator final : public gpu::GPUInfo::Enumerator {
   void EndImageDecodeAcceleratorSupportedProfile() override;
   void BeginAuxAttributes() override;
   void EndAuxAttributes() override;
-  void BeginDx12VulkanVersionInfo() override;
-  void EndDx12VulkanVersionInfo() override;
+  void BeginOverlayInfo() override;
+  void EndOverlayInfo() override;
   std::unique_ptr<base::DictionaryValue> GetDictionary();
 
  private:
@@ -57,4 +59,4 @@ class GPUInfoEnumerator final : public gpu::GPUInfo::Enumerator {
 };
 
 }  // namespace electron
-#endif  // SHELL_BROWSER_API_GPU_INFO_ENUMERATOR_H_
+#endif  // ELECTRON_SHELL_BROWSER_API_GPU_INFO_ENUMERATOR_H_

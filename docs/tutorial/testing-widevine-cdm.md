@@ -49,7 +49,7 @@ The library file `widevinecdm.dll` will be under
 `Program Files(x86)/Google/Chrome/Application/CHROME_VERSION/WidevineCdm/_platform_specific/win_(x86|x64)/`
 directory.
 
-### On MacOS
+### On macOS
 
 The library file `libwidevinecdm.dylib` will be under
 `/Applications/Google Chrome.app/Contents/Versions/CHROME_VERSION/Google Chrome Framework.framework/Versions/A/Libraries/WidevineCdm/_platform_specific/mac_(x86|x64)/`
@@ -79,7 +79,7 @@ app.commandLine.appendSwitch('widevine-cdm-path', '/path/to/widevine_library')
 app.commandLine.appendSwitch('widevine-cdm-version', '1.4.8.866')
 
 let win = null
-app.on('ready', () => {
+app.whenReady().then(() => {
   win = new BrowserWindow()
   win.show()
 })

@@ -6,18 +6,19 @@
 
 #include <string>
 
-#import <ReactiveCocoa/NSObject+RACPropertySubscribing.h>
-#import <ReactiveCocoa/RACCommand.h>
-#import <ReactiveCocoa/RACSignal.h>
+#import <ReactiveObjC/NSObject+RACPropertySubscribing.h>
+#import <ReactiveObjC/RACCommand.h>
+#import <ReactiveObjC/RACSignal.h>
 #import <Squirrel/Squirrel.h>
 
 #include "base/bind.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/time/time.h"
-#include "native_mate/dictionary.h"
+#include "gin/arguments.h"
 #include "shell/browser/browser.h"
-#include "shell/common/native_mate_converters/map_converter.h"
-#include "shell/common/native_mate_converters/value_converter.h"
+#include "shell/common/gin_converters/value_converter.h"
+#include "shell/common/gin_helper/dictionary.h"
+#include "shell/common/gin_helper/error_thrower.h"
 
 namespace auto_updater {
 
@@ -40,14 +41,21 @@ std::string AutoUpdater::GetFeedURL() {
 }
 
 // static
-void AutoUpdater::SetFeedURL(mate::Arguments* args) {
-  mate::Dictionary opts;
+void AutoUpdater::SetFeedURL(gin::Arguments* args) {
+  gin_helper::ErrorThrower thrower(args->isolate());
+  gin_helper::Dictionary opts;
+
   std::string feed;
   HeaderMap requestHeaders;
   std::string serverType = "default";
-  if (args->GetNext(&opts)) {
+  v8::Local<v8::Value> first_arg = args->PeekNext();
+  if (!first_arg.IsEmpty() && first_arg->IsString()) {
+    if (args->GetNext(&feed)) {
+      args->GetNext(&requestHeaders);
+    }
+  } else if (args->GetNext(&opts)) {
     if (!opts.Get("url", &feed)) {
-      args->ThrowError(
+      thrower.ThrowError(
           "Expected options object to contain a 'url' string property in "
           "setFeedUrl call");
       return;
@@ -55,13 +63,11 @@ void AutoUpdater::SetFeedURL(mate::Arguments* args) {
     opts.Get("headers", &requestHeaders);
     opts.Get("serverType", &serverType);
     if (serverType != "default" && serverType != "json") {
-      args->ThrowError("Expected serverType to be 'default' or 'json'");
+      thrower.ThrowError("Expected serverType to be 'default' or 'json'");
       return;
     }
-  } else if (args->GetNext(&feed)) {
-    args->GetNext(&requestHeaders);
   } else {
-    args->ThrowError(
+    thrower.ThrowError(
         "Expected an options object with a 'url' property to be provided");
     return;
   }

@@ -2,14 +2,14 @@
 // Use of this source code is governed by the MIT license that can be
 // found in the LICENSE file.
 
-#ifndef SHELL_BROWSER_NOTIFICATIONS_WIN_WIN32_DESKTOP_NOTIFICATIONS_TOAST_H_
-#define SHELL_BROWSER_NOTIFICATIONS_WIN_WIN32_DESKTOP_NOTIFICATIONS_TOAST_H_
+#ifndef ELECTRON_SHELL_BROWSER_NOTIFICATIONS_WIN_WIN32_DESKTOP_NOTIFICATIONS_TOAST_H_
+#define ELECTRON_SHELL_BROWSER_NOTIFICATIONS_WIN_WIN32_DESKTOP_NOTIFICATIONS_TOAST_H_
 
 #include <memory>
 
 #include "shell/browser/notifications/win/win32_desktop_notifications/desktop_notification_controller.h"
 
-#include "base/logging.h"
+#include "base/check.h"
 
 namespace electron {
 
@@ -104,4 +104,4 @@ class DesktopNotificationController::Toast {
 
 }  // namespace electron
 
-#endif  // SHELL_BROWSER_NOTIFICATIONS_WIN_WIN32_DESKTOP_NOTIFICATIONS_TOAST_H_
+#endif  // ELECTRON_SHELL_BROWSER_NOTIFICATIONS_WIN_WIN32_DESKTOP_NOTIFICATIONS_TOAST_H_

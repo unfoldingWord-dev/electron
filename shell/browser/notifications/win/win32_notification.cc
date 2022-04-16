@@ -9,10 +9,9 @@
 #include "shell/browser/notifications/win/win32_notification.h"
 
 #include <windows.h>
-#include <string>
 #include <utility>
-#include <vector>
 
+#include "base/strings/utf_string_conversions.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 
 namespace electron {

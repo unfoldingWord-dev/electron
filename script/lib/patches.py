@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import codecs
 import os
 
 
@@ -7,10 +8,14 @@ def read_patch(patch_dir, patch_filename):
   """Read a patch from |patch_dir/filename| and amend the commit message with
   metadata about the patch file it came from."""
   ret = []
-  with open(os.path.join(patch_dir, patch_filename)) as f:
+  added_filename_line = False
+  patch_path = os.path.join(patch_dir, patch_filename)
+  with codecs.open(patch_path, encoding='utf-8') as f:
     for l in f.readlines():
-      if l.startswith('diff -'):
+      line_has_correct_start = l.startswith('diff -') or l.startswith('---')
+      if not added_filename_line and line_has_correct_start:
         ret.append('Patch-Filename: {}\n'.format(patch_filename))
+        added_filename_line = True
       ret.append(l)
   return ''.join(ret)
 

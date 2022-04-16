@@ -3,60 +3,65 @@ From: Samuel Attard <sattard@slack-corp.com>
 Date: Mon, 22 Apr 2019 13:23:37 -0700
 Subject: refactor: allow embedder overriding of internal FS calls
 
+We use this to allow node's 'fs' module to read from ASAR files as if they were
+a real filesystem.
 
 diff --git a/lib/internal/bootstrap/node.js b/lib/internal/bootstrap/node.js
-index 86b2164bb0d74a531acd0f01da5269642ea574cf..48a38a6b5054c6bf14df82a8cb3c41d4bfb7bf68 100644
+index 58f7396990dddb7dd4cf3d23fcdcc1d48f52623e..ef06d0563fa7452348754418867a56c9b8c6f4e1 100644
 --- a/lib/internal/bootstrap/node.js
 +++ b/lib/internal/bootstrap/node.js
-@@ -65,6 +65,10 @@ if (ownsProcessState) {
-   );
- }
+@@ -62,6 +62,10 @@ setupBuffer();
+ process.domain = null;
+ process._exiting = false;
  
 +// NOTE: Electron deletes this references before user code runs so that
 +// internalBinding is not leaked to user code
 +process.internalBinding = internalBinding;
 +
  // process.config is serialized config.gypi
- process.config = JSON.parse(internalBinding('native_module').config);
+ const nativeModule = internalBinding('native_module');
  
 diff --git a/lib/internal/modules/cjs/loader.js b/lib/internal/modules/cjs/loader.js
-index ffc7fb6fd5857b807198d4d26b7b899e63cde4a1..2a7ffbff213f23536b94664c3ecffa18eb812849 100644
+index 67eb7717f13379312721fc4da2e760bc08d8ed3a..05a62bb3c3852536001912cb0b69fe5578ace125 100644
 --- a/lib/internal/modules/cjs/loader.js
 +++ b/lib/internal/modules/cjs/loader.js
-@@ -37,10 +37,7 @@ const assert = require('internal/assert');
- const fs = require('fs');
+@@ -86,7 +86,7 @@ const fs = require('fs');
  const internalFS = require('internal/fs/utils');
  const path = require('path');
--const {
--  internalModuleReadJSON,
--  internalModuleStat
--} = internalBinding('fs');
+ const { sep } = path;
+-const { internalModuleStat } = internalBinding('fs');
 +const internalFsBinding = internalBinding('fs');
+ const packageJsonReader = require('internal/modules/package_json_reader');
  const { safeGetenv } = internalBinding('credentials');
  const {
-   makeRequireFunction,
-@@ -93,14 +90,12 @@ const relativeResolveCache = Object.create(null);
- let requireDepth = 0;
- let statCache = null;
- function stat(filename) {
--  // FIXME(codebytere): determine why this needs to be done and remove
--  const internalModuleStat = process.binding('fs').internalModuleStat;
-   filename = path.toNamespacedPath(filename);
-   if (statCache !== null) {
+@@ -161,7 +161,7 @@ function stat(filename) {
      const result = statCache.get(filename);
      if (result !== undefined) return result;
    }
 -  const result = internalModuleStat(filename);
 +  const result = internalFsBinding.internalModuleStat(filename);
-   if (statCache !== null) statCache.set(filename, result);
-   return result;
- }
-@@ -205,7 +200,7 @@ const packageExportsCache = new SafeMap();
+   if (statCache !== null && result >= 0) {
+     // Only set cache when `internalModuleStat(filename)` succeeds.
+     statCache.set(filename, result);
+diff --git a/lib/internal/modules/package_json_reader.js b/lib/internal/modules/package_json_reader.js
+index 09eb12bd1533bfed44d9cb62c068e2c880df8ba2..11a6e4b2edc0930049d7acecf2a6e94e51abeb1c 100644
+--- a/lib/internal/modules/package_json_reader.js
++++ b/lib/internal/modules/package_json_reader.js
+@@ -1,7 +1,7 @@
+ 'use strict';
  
- function readPackageRaw(requestPath) {
-   const jsonPath = path.resolve(requestPath, 'package.json');
--  const json = internalModuleReadJSON(path.toNamespacedPath(jsonPath));
-+  const json = internalFsBinding.internalModuleReadJSON(path.toNamespacedPath(jsonPath));
+ const { SafeMap } = primordials;
+-const { internalModuleReadJSON } = internalBinding('fs');
++const internalFsBinding = internalBinding('fs');
+ const { pathToFileURL } = require('url');
+ const { toNamespacedPath } = require('path');
  
-   if (json === undefined) {
-     return false;
+@@ -18,7 +18,7 @@ function read(jsonPath) {
+     return cache.get(jsonPath);
+   }
+ 
+-  const { 0: string, 1: containsKeys } = internalModuleReadJSON(
++  const { 0: string, 1: containsKeys } = internalFsBinding.internalModuleReadJSON(
+     toNamespacedPath(jsonPath)
+   );
+   const result = { string, containsKeys };

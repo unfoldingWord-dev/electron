@@ -7,60 +7,46 @@ https://chromium-review.googlesource.com/c/chromium/src/+/1652925 removed colors
 needed in chromium but our autofill implementation uses them.  This patch can be removed if we refactor
 our autofill implementation to work like Chromium's.
 
-diff --git a/chrome/browser/ui/libgtkui/native_theme_gtk.cc b/chrome/browser/ui/libgtkui/native_theme_gtk.cc
-index 80542c2cab345f991079453b66f58439d0f214eb..d460eb8d2432df1209412a28cecc22f2db9af99b 100644
---- a/chrome/browser/ui/libgtkui/native_theme_gtk.cc
-+++ b/chrome/browser/ui/libgtkui/native_theme_gtk.cc
-@@ -279,6 +279,27 @@ SkColor SkColorFromColorId(ui::NativeTheme::ColorId color_id) {
-     case ui::NativeTheme::kColorId_TableHeaderSeparator:
-       return GetBorderColor("GtkTreeView#treeview.view GtkButton#button");
- 
-+    // Results Table  
-+    case ui::NativeTheme::kColorId_ResultsTableNormalBackground:
-+      return SkColorFromColorId(
-+          ui::NativeTheme::kColorId_TextfieldDefaultBackground);
-+    case ui::NativeTheme::kColorId_ResultsTableHoveredBackground:
-+      return color_utils::AlphaBlend(
-+          SkColorFromColorId(
-+              ui::NativeTheme::kColorId_TextfieldDefaultBackground),
-+          SkColorFromColorId(
-+              ui::NativeTheme::kColorId_TextfieldSelectionBackgroundFocused),
-+          0.5f);
-+    case ui::NativeTheme::kColorId_ResultsTableNormalText:
-+      return SkColorFromColorId(
-+          ui::NativeTheme::kColorId_TextfieldDefaultColor);
-+    case ui::NativeTheme::kColorId_ResultsTableDimmedText:
-+      return color_utils::AlphaBlend(
-+          SkColorFromColorId(ui::NativeTheme::kColorId_TextfieldDefaultColor),
-+          SkColorFromColorId(
-+              ui::NativeTheme::kColorId_TextfieldDefaultBackground),
-+          0.5f);
-+
-     // Throbber
-     // TODO(thomasanderson): Render GtkSpinner directly.
-     case ui::NativeTheme::kColorId_ThrobberSpinningColor:
 diff --git a/ui/native_theme/common_theme.cc b/ui/native_theme/common_theme.cc
-index 7fd49a2e26968daaa16ed3322b516f53ff60fb56..f902910ecc8e5b4945187e836655362ebba49204 100644
+index a8d95abb69da8d42aed26d3b215cc05d79ba676b..74fc4d9bb7f183765b05e94b7133599ccf714042 100644
 --- a/ui/native_theme/common_theme.cc
 +++ b/ui/native_theme/common_theme.cc
-@@ -56,6 +56,14 @@ SkColor GetAuraColor(NativeTheme::ColorId color_id,
-       case NativeTheme::kColorId_BubbleFooterBackground:
-         return SkColorSetRGB(0x32, 0x36, 0x39);
- 
-+      // Results Tables
-+      case NativeTheme::kColorId_ResultsTableNormalBackground:
-+        return SkColorSetRGB(0x28, 0x28, 0x28);
-+      case NativeTheme::kColorId_ResultsTableNormalText:
-+        return SK_ColorWHITE;
-+      case NativeTheme::kColorId_ResultsTableDimmedText:
-+        return SkColorSetA(base_theme->GetSystemColor(NativeTheme::kColorId_ResultsTableNormalText), 0x80);
+@@ -32,6 +32,7 @@ absl::optional<SkColor> GetHighContrastColor(
+     NativeTheme::ColorScheme color_scheme) {
+   switch (color_id) {
+     case NativeTheme::kColorId_MenuSeparatorColor:
++    case NativeTheme::kColorId_UnfocusedBorderColor:
+       return color_scheme == NativeTheme::ColorScheme::kDark ? SK_ColorWHITE
+                                                              : SK_ColorBLACK;
+     case NativeTheme::kColorId_FocusedBorderColor:
+@@ -53,6 +54,15 @@ absl::optional<SkColor> GetDarkSchemeColor(NativeTheme::ColorId color_id,
+       return gfx::kGoogleBlue400;
+     case NativeTheme::kColorId_MenuSeparatorColor:
+       return gfx::kGoogleGrey800;
 +
-       // FocusableBorder
-       case NativeTheme::kColorId_FocusedBorderColor:
-         return SkColorSetA(gfx::kGoogleBlue300, 0x66);
-@@ -359,6 +367,18 @@ SkColor GetAuraColor(NativeTheme::ColorId color_id,
-     case NativeTheme::kColorId_UnfocusedBorderColor:
-       return SkColorSetA(SK_ColorBLACK, 0x66);
++    // Results Tables
++    case NativeTheme::kColorId_ResultsTableNormalBackground:
++      return SkColorSetRGB(0x28, 0x28, 0x28);
++    case NativeTheme::kColorId_ResultsTableNormalText:
++      return SK_ColorWHITE;
++    case NativeTheme::kColorId_ResultsTableDimmedText:
++      return SkColorSetA(base_theme->GetSystemColor(NativeTheme::kColorId_ResultsTableNormalText), 0x80);
++
+     case NativeTheme::kColorId_ProminentButtonColor:
+       return gfx::kGoogleBlue300;
+     case NativeTheme::kColorId_WindowBackground:
+@@ -67,6 +77,8 @@ SkColor GetDefaultColor(NativeTheme::ColorId color_id,
+                         NativeTheme::ColorScheme color_scheme) {
+   switch (color_id) {
+     // Border
++    case NativeTheme::kColorId_UnfocusedBorderColor:
++      return gfx::kGoogleGrey300;
+     case NativeTheme::kColorId_FocusedBorderColor:
+       return gfx::kGoogleBlue500;
+ 
+@@ -136,6 +148,18 @@ SkColor GetDefaultColor(NativeTheme::ColorId color_id,
+     case NativeTheme::kColorId_WindowBackground:
+       return SK_ColorWHITE;
  
 +    // Results Tables
 +    case NativeTheme::kColorId_ResultsTableNormalBackground:
@@ -74,31 +60,39 @@ index 7fd49a2e26968daaa16ed3322b516f53ff60fb56..f902910ecc8e5b4945187e836655362e
 +    case NativeTheme::kColorId_ResultsTableDimmedText:
 +      return SkColorSetRGB(0x64, 0x64, 0x64);
 +
-     // Material spinner/throbber
-     case NativeTheme::kColorId_ThrobberSpinningColor:
-       return gfx::kGoogleBlue600;
-diff --git a/ui/native_theme/native_theme.h b/ui/native_theme/native_theme.h
-index 3604105e43ee1866a8517c52ed05205b3ed10b56..70389e0245993faa2c17e9deefeb000280ef2368 100644
---- a/ui/native_theme/native_theme.h
-+++ b/ui/native_theme/native_theme.h
-@@ -389,6 +389,11 @@ class NATIVE_THEME_EXPORT NativeTheme {
-     kColorId_TableHeaderText,
-     kColorId_TableHeaderBackground,
-     kColorId_TableHeaderSeparator,
-+    // Results Tables, such as the omnibox
-+    kColorId_ResultsTableNormalBackground,
-+    kColorId_ResultsTableHoveredBackground,
-+    kColorId_ResultsTableNormalText,
-+    kColorId_ResultsTableDimmedText,
-     // Colors for the material spinner (aka throbber).
-     kColorId_ThrobberSpinningColor,
-     kColorId_ThrobberWaitingColor,
+     case NativeTheme::kColorId_NumColors:
+       // Keeping the kColorId_NumColors case instead of using the default case
+       // allows ColorId additions to trigger compile error for an incomplete
+diff --git a/ui/native_theme/native_theme_color_id.h b/ui/native_theme/native_theme_color_id.h
+index a1b39a03776c287bc2b1f9a0a6ce11d0d9efde79..9132ff83b672b51c5f2f7ed95da877be7114c691 100644
+--- a/ui/native_theme/native_theme_color_id.h
++++ b/ui/native_theme/native_theme_color_id.h
+@@ -10,6 +10,7 @@
+ #define NATIVE_THEME_CROSS_PLATFORM_COLOR_IDS                                  \
+   OP(kColorId_DefaultIconColor),                                               \
+   OP(kColorId_FocusedBorderColor),                                             \
++  OP(kColorId_UnfocusedBorderColor),                                           \
+   OP(kColorId_FocusedMenuItemBackgroundColor),                                 \
+   OP(kColorId_MenuBackgroundColor),                                            \
+   OP(kColorId_MenuIconColor),                                                  \
+@@ -20,6 +21,11 @@
+   OP(kColorId_OverlayScrollbarThumbStroke),                                    \
+   OP(kColorId_ProminentButtonColor),                                           \
+   OP(kColorId_TextOnProminentButtonColor),                                     \
++  /* Results Tables, such as the omnibox */                                    \
++  OP(kColorId_ResultsTableNormalBackground),                                   \
++  OP(kColorId_ResultsTableHoveredBackground),                                  \
++  OP(kColorId_ResultsTableNormalText),                                         \
++  OP(kColorId_ResultsTableDimmedText),                                         \
+   OP(kColorId_ThrobberSpinningColor),                                          \
+   OP(kColorId_ThrobberWaitingColor),                                           \
+   OP(kColorId_WindowBackground)
 diff --git a/ui/native_theme/native_theme_win.cc b/ui/native_theme/native_theme_win.cc
-index 257206023976b889590bc225f6542881e8a5d463..3003643bfb78cec2f5e84fc9e1471e1ef54aae41 100644
+index 99256ffaf918e9d12a7c21b89d66cd41a0d29ac2..07852493fd23b8c1f057dc7ad830b6884db50a88 100644
 --- a/ui/native_theme/native_theme_win.cc
 +++ b/ui/native_theme/native_theme_win.cc
-@@ -559,6 +559,17 @@ SkColor NativeThemeWin::GetSystemColor(ColorId color_id,
-     case kColorId_TableGroupingIndicatorColor:
+@@ -623,10 +623,23 @@ absl::optional<SkColor> NativeThemeWin::GetPlatformHighContrastColor(
+     case kColorId_ThrobberWaitingColor:
        return system_colors_[SystemThemeColor::kGrayText];
  
 +    // Results Tables
@@ -112,6 +106,12 @@ index 257206023976b889590bc225f6542881e8a5d463..3003643bfb78cec2f5e84fc9e1471e1e
 +    case kColorId_ResultsTableDimmedText:
 +      return color_utils::AlphaBlend(system_colors_[SystemThemeColor::kWindowText],
 +                                     system_colors_[SystemThemeColor::kWindow], 0.5f);
-     default:
-       break;
-   }
++
+     case kColorId_MenuBackgroundColor:
+       return system_colors_[SystemThemeColor::kButtonFace];
+ 
+     case kColorId_MenuSeparatorColor:
++    case kColorId_UnfocusedBorderColor:
+     case kColorId_FocusedBorderColor:
+       return system_colors_[SystemThemeColor::kButtonText];
+ 

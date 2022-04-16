@@ -1,15 +1,20 @@
-import { shell, Menu } from 'electron';
-
-const v8Util = process.electronBinding('v8_util');
+import { app, Menu } from 'electron/main';
+import { shell } from 'electron/common';
 
 const isMac = process.platform === 'darwin';
 
+let applicationMenuWasSet = false;
+
+export const setApplicationMenuWasSet = () => {
+  applicationMenuWasSet = true;
+};
+
 export const setDefaultApplicationMenu = () => {
-  if (v8Util.getHiddenValue<boolean>(global, 'applicationMenuSet')) return;
+  if (applicationMenuWasSet) return;
 
   const helpMenu: Electron.MenuItemConstructorOptions = {
     role: 'help',
-    submenu: [
+    submenu: app.isPackaged ? [] : [
       {
         label: 'Learn More',
         click: async () => {
@@ -26,7 +31,7 @@ export const setDefaultApplicationMenu = () => {
       {
         label: 'Community Discussions',
         click: async () => {
-          await shell.openExternal('https://discuss.atom.io/c/electron');
+          await shell.openExternal('https://discord.gg/electron');
         }
       },
       {

@@ -6,8 +6,8 @@
 // this code
 // and released it as MIT to the world.
 
-#ifndef SHELL_BROWSER_NOTIFICATIONS_WIN_WINDOWS_TOAST_NOTIFICATION_H_
-#define SHELL_BROWSER_NOTIFICATIONS_WIN_WINDOWS_TOAST_NOTIFICATION_H_
+#ifndef ELECTRON_SHELL_BROWSER_NOTIFICATIONS_WIN_WINDOWS_TOAST_NOTIFICATION_H_
+#define ELECTRON_SHELL_BROWSER_NOTIFICATIONS_WIN_WINDOWS_TOAST_NOTIFICATION_H_
 
 #include <windows.h>
 #include <windows.ui.notifications.h>
@@ -57,30 +57,38 @@ class WindowsToastNotification : public Notification {
  private:
   friend class ToastEventHandler;
 
-  bool GetToastXml(
+  HRESULT ShowInternal(const NotificationOptions& options);
+  HRESULT GetToastXml(
       ABI::Windows::UI::Notifications::IToastNotificationManagerStatics*
           toastManager,
-      const std::wstring& title,
-      const std::wstring& msg,
+      const std::u16string& title,
+      const std::u16string& msg,
       const std::wstring& icon_path,
+      const std::u16string& timeout_type,
       const bool silent,
-      ABI::Windows::Data::Xml::Dom::IXmlDocument** toastXml);
-  bool SetXmlAudioSilent(ABI::Windows::Data::Xml::Dom::IXmlDocument* doc);
-  bool SetXmlText(ABI::Windows::Data::Xml::Dom::IXmlDocument* doc,
-                  const std::wstring& text);
-  bool SetXmlText(ABI::Windows::Data::Xml::Dom::IXmlDocument* doc,
-                  const std::wstring& title,
-                  const std::wstring& body);
-  bool SetXmlImage(ABI::Windows::Data::Xml::Dom::IXmlDocument* doc,
-                   const std::wstring& icon_path);
-  bool GetTextNodeList(ScopedHString* tag,
-                       ABI::Windows::Data::Xml::Dom::IXmlDocument* doc,
-                       ABI::Windows::Data::Xml::Dom::IXmlNodeList** nodeList,
-                       uint32_t reqLength);
-  bool AppendTextToXml(ABI::Windows::Data::Xml::Dom::IXmlDocument* doc,
-                       ABI::Windows::Data::Xml::Dom::IXmlNode* node,
-                       const std::wstring& text);
-  bool SetupCallbacks(
+      ABI::Windows::Data::Xml::Dom::IXmlDocument** toast_xml);
+  HRESULT SetXmlAudioSilent(ABI::Windows::Data::Xml::Dom::IXmlDocument* doc);
+  HRESULT SetXmlScenarioReminder(
+      ABI::Windows::Data::Xml::Dom::IXmlDocument* doc);
+  HRESULT SetXmlText(ABI::Windows::Data::Xml::Dom::IXmlDocument* doc,
+                     const std::u16string& text);
+  HRESULT SetXmlText(ABI::Windows::Data::Xml::Dom::IXmlDocument* doc,
+                     const std::u16string& title,
+                     const std::u16string& body);
+  HRESULT SetXmlImage(ABI::Windows::Data::Xml::Dom::IXmlDocument* doc,
+                      const std::wstring& icon_path);
+  HRESULT GetTextNodeList(
+      ScopedHString* tag,
+      ABI::Windows::Data::Xml::Dom::IXmlDocument* doc,
+      ABI::Windows::Data::Xml::Dom::IXmlNodeList** node_list,
+      uint32_t req_length);
+  HRESULT AppendTextToXml(ABI::Windows::Data::Xml::Dom::IXmlDocument* doc,
+                          ABI::Windows::Data::Xml::Dom::IXmlNode* node,
+                          const std::u16string& text);
+  HRESULT XmlDocumentFromString(
+      const wchar_t* xmlString,
+      ABI::Windows::Data::Xml::Dom::IXmlDocument** doc);
+  HRESULT SetupCallbacks(
       ABI::Windows::UI::Notifications::IToastNotification* toast);
   bool RemoveCallbacks(
       ABI::Windows::UI::Notifications::IToastNotification* toast);
@@ -98,8 +106,6 @@ class WindowsToastNotification : public Notification {
   ComPtr<ToastEventHandler> event_handler_;
   ComPtr<ABI::Windows::UI::Notifications::IToastNotification>
       toast_notification_;
-
-  DISALLOW_COPY_AND_ASSIGN(WindowsToastNotification);
 };
 
 class ToastEventHandler : public RuntimeClass<RuntimeClassFlags<ClassicCom>,
@@ -109,6 +115,10 @@ class ToastEventHandler : public RuntimeClass<RuntimeClassFlags<ClassicCom>,
  public:
   explicit ToastEventHandler(Notification* notification);
   ~ToastEventHandler() override;
+
+  // disable copy
+  ToastEventHandler(const ToastEventHandler&) = delete;
+  ToastEventHandler& operator=(const ToastEventHandler&) = delete;
 
   IFACEMETHODIMP Invoke(
       ABI::Windows::UI::Notifications::IToastNotification* sender,
@@ -122,10 +132,8 @@ class ToastEventHandler : public RuntimeClass<RuntimeClassFlags<ClassicCom>,
 
  private:
   base::WeakPtr<Notification> notification_;  // weak ref.
-
-  DISALLOW_COPY_AND_ASSIGN(ToastEventHandler);
 };
 
 }  // namespace electron
 
-#endif  // SHELL_BROWSER_NOTIFICATIONS_WIN_WINDOWS_TOAST_NOTIFICATION_H_
+#endif  // ELECTRON_SHELL_BROWSER_NOTIFICATIONS_WIN_WINDOWS_TOAST_NOTIFICATION_H_

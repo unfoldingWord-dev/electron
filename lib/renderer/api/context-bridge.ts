@@ -1,20 +1,32 @@
-const { hasSwitch } = process.electronBinding('command_line');
-const binding = process.electronBinding('context_bridge');
-
-const contextIsolationEnabled = hasSwitch('context-isolation');
+const binding = process._linkedBinding('electron_renderer_context_bridge');
 
 const checkContextIsolationEnabled = () => {
-  if (!contextIsolationEnabled) throw new Error('contextBridge API can only be used when contextIsolation is enabled');
+  if (!process.contextIsolated) throw new Error('contextBridge API can only be used when contextIsolation is enabled');
 };
 
-const contextBridge = {
-  exposeInMainWorld: (key: string, api: Record<string, any>) => {
+const contextBridge: Electron.ContextBridge = {
+  exposeInMainWorld: (key: string, api: any) => {
     checkContextIsolationEnabled();
     return binding.exposeAPIInMainWorld(key, api);
-  },
-  debugGC: () => binding._debugGCMaps({})
+  }
 };
 
-if (!binding._debugGCMaps) delete contextBridge.debugGC;
-
 export default contextBridge;
+
+export const internalContextBridge = {
+  contextIsolationEnabled: process.contextIsolated,
+  overrideGlobalValueFromIsolatedWorld: (keys: string[], value: any) => {
+    return binding._overrideGlobalValueFromIsolatedWorld(keys, value, false);
+  },
+  overrideGlobalValueWithDynamicPropsFromIsolatedWorld: (keys: string[], value: any) => {
+    return binding._overrideGlobalValueFromIsolatedWorld(keys, value, true);
+  },
+  overrideGlobalPropertyFromIsolatedWorld: (keys: string[], getter: Function, setter?: Function) => {
+    return binding._overrideGlobalPropertyFromIsolatedWorld(keys, getter, setter || null);
+  },
+  isInMainWorld: () => binding._isCalledFromMainWorld() as boolean
+};
+
+if (binding._isDebug) {
+  contextBridge.internalContextBridge = internalContextBridge;
+}

@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef SHELL_BROWSER_SPECIAL_STORAGE_POLICY_H_
-#define SHELL_BROWSER_SPECIAL_STORAGE_POLICY_H_
+#ifndef ELECTRON_SHELL_BROWSER_SPECIAL_STORAGE_POLICY_H_
+#define ELECTRON_SHELL_BROWSER_SPECIAL_STORAGE_POLICY_H_
 
 #include "storage/browser/quota/special_storage_policy.h"
 
@@ -20,8 +20,7 @@ class SpecialStoragePolicy : public storage::SpecialStoragePolicy {
   bool HasIsolatedStorage(const GURL& origin) override;
   bool IsStorageSessionOnly(const GURL& origin) override;
   bool HasSessionOnlyOrigins() override;
-  network::SessionCleanupCookieStore::DeleteCookiePredicate
-  CreateDeleteCookieOnExitPredicate() override;
+  network::DeleteCookiePredicate CreateDeleteCookieOnExitPredicate() override;
 
  protected:
   ~SpecialStoragePolicy() override;
@@ -29,4 +28,4 @@ class SpecialStoragePolicy : public storage::SpecialStoragePolicy {
 
 }  // namespace electron
 
-#endif  // SHELL_BROWSER_SPECIAL_STORAGE_POLICY_H_
+#endif  // ELECTRON_SHELL_BROWSER_SPECIAL_STORAGE_POLICY_H_

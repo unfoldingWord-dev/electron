@@ -12,7 +12,7 @@
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/grit/platform_locale_settings.h"
-#include "content/public/common/web_preferences.h"
+#include "third_party/blink/public/common/web_preferences/web_preferences.h"
 #include "ui/base/l10n/l10n_util.h"
 
 namespace {
@@ -41,8 +41,7 @@ const FontDefault kFontDefaults[] = {
     {prefs::kWebKitSansSerifFontFamily, IDS_SANS_SERIF_FONT_FAMILY},
     {prefs::kWebKitCursiveFontFamily, IDS_CURSIVE_FONT_FAMILY},
     {prefs::kWebKitFantasyFontFamily, IDS_FANTASY_FONT_FAMILY},
-    {prefs::kWebKitPictographFontFamily, IDS_PICTOGRAPH_FONT_FAMILY},
-#if defined(OS_CHROMEOS) || defined(OS_MACOSX) || defined(OS_WIN)
+#if defined(OS_CHROMEOS) || defined(OS_MAC) || defined(OS_WIN)
     {prefs::kWebKitStandardFontFamilyJapanese,
      IDS_STANDARD_FONT_FAMILY_JAPANESE},
     {prefs::kWebKitFixedFontFamilyJapanese, IDS_FIXED_FONT_FAMILY_JAPANESE},
@@ -66,7 +65,7 @@ const FontDefault kFontDefaults[] = {
     {prefs::kWebKitSansSerifFontFamilyTraditionalHan,
      IDS_SANS_SERIF_FONT_FAMILY_TRADITIONAL_HAN},
 #endif
-#if defined(OS_MACOSX) || defined(OS_WIN)
+#if defined(OS_MAC) || defined(OS_WIN)
     {prefs::kWebKitCursiveFontFamilySimplifiedHan,
      IDS_CURSIVE_FONT_FAMILY_SIMPLIFIED_HAN},
     {prefs::kWebKitCursiveFontFamilyTraditionalHan,
@@ -120,7 +119,7 @@ std::string GetDefaultFontForPref(const char* pref_name) {
 
 // Map from script to font.
 // Key comparison uses pointer equality.
-using ScriptFontMap = std::unordered_map<const char*, base::string16>;
+using ScriptFontMap = std::unordered_map<const char*, std::u16string>;
 
 // Map from font family to ScriptFontMap.
 // Key comparison uses pointer equality.
@@ -130,7 +129,7 @@ using FontFamilyMap = std::unordered_map<const char*, ScriptFontMap>;
 // e.g. ("sans-serif", "Zyyy") -> "Arial"
 FontFamilyMap g_font_cache;
 
-base::string16 FetchFont(const char* script, const char* map_name) {
+std::u16string FetchFont(const char* script, const char* map_name) {
   FontFamilyMap::const_iterator it = g_font_cache.find(map_name);
   if (it != g_font_cache.end()) {
     ScriptFontMap::const_iterator it2 = it->second.find(script);
@@ -140,7 +139,7 @@ base::string16 FetchFont(const char* script, const char* map_name) {
 
   std::string pref_name = base::StringPrintf("%s.%s", map_name, script);
   std::string font = GetDefaultFontForPref(pref_name.c_str());
-  base::string16 font16 = base::UTF8ToUTF16(font);
+  std::u16string font16 = base::UTF8ToUTF16(font);
 
   ScriptFontMap& map = g_font_cache[map_name];
   map[script] = font16;
@@ -148,10 +147,10 @@ base::string16 FetchFont(const char* script, const char* map_name) {
 }
 
 void FillFontFamilyMap(const char* map_name,
-                       content::ScriptFontFamilyMap* map) {
+                       blink::web_pref::ScriptFontFamilyMap* map) {
   for (size_t i = 0; i < prefs::kWebKitScriptsForFontFamilyMapsLength; ++i) {
     const char* script = prefs::kWebKitScriptsForFontFamilyMaps[i];
-    base::string16 result = FetchFont(script, map_name);
+    std::u16string result = FetchFont(script, map_name);
     if (!result.empty()) {
       (*map)[script] = result;
     }
@@ -162,7 +161,7 @@ void FillFontFamilyMap(const char* map_name,
 
 namespace electron {
 
-void SetFontDefaults(content::WebPreferences* prefs) {
+void SetFontDefaults(blink::web_pref::WebPreferences* prefs) {
   FillFontFamilyMap(prefs::kWebKitStandardFontFamilyMap,
                     &prefs->standard_font_family_map);
   FillFontFamilyMap(prefs::kWebKitFixedFontFamilyMap,
@@ -173,10 +172,6 @@ void SetFontDefaults(content::WebPreferences* prefs) {
                     &prefs->sans_serif_font_family_map);
   FillFontFamilyMap(prefs::kWebKitCursiveFontFamilyMap,
                     &prefs->cursive_font_family_map);
-  FillFontFamilyMap(prefs::kWebKitFantasyFontFamilyMap,
-                    &prefs->fantasy_font_family_map);
-  FillFontFamilyMap(prefs::kWebKitPictographFontFamilyMap,
-                    &prefs->pictograph_font_family_map);
 }
 
 }  // namespace electron

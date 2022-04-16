@@ -13,15 +13,11 @@
 #include "shell/browser/notifications/win/win32_desktop_notifications/desktop_notification_controller.h"
 
 #include <windowsx.h>
-#include <algorithm>
 #include <utility>
-#include <vector>
 
+#include "base/check.h"
 #include "shell/browser/notifications/win/win32_desktop_notifications/common.h"
 #include "shell/browser/notifications/win/win32_desktop_notifications/toast.h"
-
-using std::make_shared;
-using std::shared_ptr;
 
 namespace electron {
 
@@ -278,11 +274,11 @@ void DesktopNotificationController::AnimateAll() {
 }
 
 DesktopNotificationController::Notification
-DesktopNotificationController::AddNotification(std::wstring caption,
-                                               std::wstring body_text,
+DesktopNotificationController::AddNotification(std::u16string caption,
+                                               std::u16string body_text,
                                                HBITMAP image) {
-  NotificationLink data(this);
-
+  auto data = std::make_shared<NotificationData>();
+  data->controller = this;
   data->caption = move(caption);
   data->body_text = move(body_text);
   data->image = CopyBitmap(image);
@@ -298,6 +294,7 @@ void DesktopNotificationController::CloseNotification(
   // Remove it from the queue
   auto it = find(queue_.begin(), queue_.end(), notification.data_);
   if (it != queue_.end()) {
+    (*it)->controller = nullptr;
     queue_.erase(it);
     this->OnNotificationClosed(notification);
     return;
@@ -318,7 +315,8 @@ void DesktopNotificationController::CheckQueue() {
   }
 }
 
-void DesktopNotificationController::CreateToast(NotificationLink&& data) {
+void DesktopNotificationController::CreateToast(
+    std::shared_ptr<NotificationData>&& data) {
   auto* hinstance = RegisterWndClasses();
   auto* hwnd = Toast::Create(hinstance, data);
   if (hwnd) {
@@ -333,7 +331,7 @@ void DesktopNotificationController::CreateToast(NotificationLink&& data) {
                   scr.Y(toast_margin_);
     }
 
-    instances_.push_back({hwnd, move(data)});
+    instances_.push_back({hwnd, std::move(data)});
 
     if (!hwnd_controller_) {
       // NOTE: We cannot use a message-only window because we need to
@@ -377,7 +375,7 @@ DesktopNotificationController::Notification::Notification(
     const DesktopNotificationController::Notification&) = default;
 
 DesktopNotificationController::Notification::Notification(
-    const shared_ptr<NotificationData>& data)
+    const std::shared_ptr<NotificationData>& data)
     : data_(data) {
   DCHECK(data != nullptr);
 }
@@ -397,8 +395,8 @@ void DesktopNotificationController::Notification::Close() {
     data_->controller->CloseNotification(*this);
 }
 
-void DesktopNotificationController::Notification::Set(std::wstring caption,
-                                                      std::wstring body_text,
+void DesktopNotificationController::Notification::Set(std::u16string caption,
+                                                      std::u16string body_text,
                                                       HBITMAP image) {
   // No business calling this when not pointing to a valid instance
   DCHECK(data_);
@@ -424,16 +422,14 @@ void DesktopNotificationController::Notification::Set(std::wstring caption,
   data_->controller->StartAnimation();
 }
 
-DesktopNotificationController::NotificationLink::NotificationLink(
-    DesktopNotificationController* controller)
-    : shared_ptr(make_shared<NotificationData>()) {
-  get()->controller = controller;
+DesktopNotificationController::ToastInstance::ToastInstance(
+    HWND hwnd,
+    std::shared_ptr<NotificationData> data) {
+  this->hwnd = hwnd;
+  this->data = std::move(data);
 }
-
-DesktopNotificationController::NotificationLink::~NotificationLink() {
-  auto* p = get();
-  if (p)
-    p->controller = nullptr;
-}
+DesktopNotificationController::ToastInstance::~ToastInstance() = default;
+DesktopNotificationController::ToastInstance::ToastInstance(ToastInstance&&) =
+    default;
 
 }  // namespace electron

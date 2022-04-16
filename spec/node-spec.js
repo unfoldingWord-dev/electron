@@ -1,17 +1,13 @@
 const ChildProcess = require('child_process');
-const chai = require('chai');
-const { expect } = chai;
-const dirtyChai = require('dirty-chai');
+const { expect } = require('chai');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { ipcRenderer, remote } = require('electron');
-const features = process.electronBinding('features');
+const { ipcRenderer } = require('electron');
+const features = process._linkedBinding('electron_common_features');
 
 const { emittedOnce } = require('./events-helpers');
-
-const isCI = remote.getGlobal('isCi');
-chai.use(dirtyChai);
+const { ifit } = require('./spec-helpers');
 
 describe('node feature', () => {
   const fixtures = path.join(__dirname, 'fixtures');
@@ -24,106 +20,85 @@ describe('node feature', () => {
     });
 
     describe('child_process.fork', () => {
-      it('works in current process', (done) => {
+      it('works in current process', async () => {
         const child = ChildProcess.fork(path.join(fixtures, 'module', 'ping.js'));
-        child.on('message', msg => {
-          expect(msg).to.equal('message');
-          done();
-        });
+        const message = emittedOnce(child, 'message');
         child.send('message');
+        const [msg] = await message;
+        expect(msg).to.equal('message');
       });
 
-      it('preserves args', (done) => {
+      it('preserves args', async () => {
         const args = ['--expose_gc', '-test', '1'];
         const child = ChildProcess.fork(path.join(fixtures, 'module', 'process_args.js'), args);
-        child.on('message', (msg) => {
-          expect(args).to.deep.equal(msg.slice(2));
-          done();
-        });
+        const message = emittedOnce(child, 'message');
         child.send('message');
+        const [msg] = await message;
+        expect(args).to.deep.equal(msg.slice(2));
       });
 
-      it('works in forked process', (done) => {
+      it('works in forked process', async () => {
         const child = ChildProcess.fork(path.join(fixtures, 'module', 'fork_ping.js'));
-        child.on('message', (msg) => {
-          expect(msg).to.equal('message');
-          done();
-        });
+        const message = emittedOnce(child, 'message');
         child.send('message');
+        const [msg] = await message;
+        expect(msg).to.equal('message');
       });
 
-      it('works in forked process when options.env is specifed', (done) => {
+      it('works in forked process when options.env is specifed', async () => {
         const child = ChildProcess.fork(path.join(fixtures, 'module', 'fork_ping.js'), [], {
-          path: process.env['PATH']
+          path: process.env.PATH
         });
-        child.on('message', (msg) => {
-          expect(msg).to.equal('message');
-          done();
-        });
+        const message = emittedOnce(child, 'message');
         child.send('message');
+        const [msg] = await message;
+        expect(msg).to.equal('message');
       });
 
-      it('works in browser process', (done) => {
-        const fork = remote.require('child_process').fork;
-        const child = fork(path.join(fixtures, 'module', 'ping.js'));
-        child.on('message', (msg) => {
-          expect(msg).to.equal('message');
-          done();
-        });
-        child.send('message');
-      });
-
-      it('has String::localeCompare working in script', (done) => {
+      it('has String::localeCompare working in script', async () => {
         const child = ChildProcess.fork(path.join(fixtures, 'module', 'locale-compare.js'));
-        child.on('message', (msg) => {
-          expect(msg).to.deep.equal([0, -1, 1]);
-          done();
-        });
+        const message = emittedOnce(child, 'message');
         child.send('message');
+        const [msg] = await message;
+        expect(msg).to.deep.equal([0, -1, 1]);
       });
 
-      it('has setImmediate working in script', (done) => {
+      it('has setImmediate working in script', async () => {
         const child = ChildProcess.fork(path.join(fixtures, 'module', 'set-immediate.js'));
-        child.on('message', (msg) => {
-          expect(msg).to.equal('ok');
-          done();
-        });
+        const message = emittedOnce(child, 'message');
         child.send('message');
+        const [msg] = await message;
+        expect(msg).to.equal('ok');
       });
 
-      it('pipes stdio', (done) => {
+      it('pipes stdio', async () => {
         const child = ChildProcess.fork(path.join(fixtures, 'module', 'process-stdout.js'), { silent: true });
         let data = '';
         child.stdout.on('data', (chunk) => {
           data += String(chunk);
         });
-        child.on('close', (code) => {
-          expect(code).to.equal(0);
-          expect(data).to.equal('pipes stdio');
-          done();
-        });
+        const [code] = await emittedOnce(child, 'close');
+        expect(code).to.equal(0);
+        expect(data).to.equal('pipes stdio');
       });
 
-      it('works when sending a message to a process forked with the --eval argument', (done) => {
+      it('works when sending a message to a process forked with the --eval argument', async () => {
         const source = "process.on('message', (message) => { process.send(message) })";
         const forked = ChildProcess.fork('--eval', [source]);
-        forked.once('message', (message) => {
-          expect(message).to.equal('hello');
-          done();
-        });
+        const message = emittedOnce(forked, 'message');
         forked.send('hello');
+        const [msg] = await message;
+        expect(msg).to.equal('hello');
       });
 
-      it('has the electron version in process.versions', (done) => {
+      it('has the electron version in process.versions', async () => {
         const source = 'process.send(process.versions)';
         const forked = ChildProcess.fork('--eval', [source]);
-        forked.on('message', (message) => {
-          expect(message)
-            .to.have.own.property('electron')
-            .that.is.a('string')
-            .and.matches(/^\d+\.\d+\.\d+(\S*)?$/);
-          done();
-        });
+        const [message] = await emittedOnce(forked, 'message');
+        expect(message)
+          .to.have.own.property('electron')
+          .that.is.a('string')
+          .and.matches(/^\d+\.\d+\.\d+(\S*)?$/);
       });
     });
 
@@ -134,7 +109,7 @@ describe('node feature', () => {
         if (child != null) child.kill();
       });
 
-      it('supports spawning Electron as a node process via the ELECTRON_RUN_AS_NODE env var', (done) => {
+      it('supports spawning Electron as a node process via the ELECTRON_RUN_AS_NODE env var', async () => {
         child = ChildProcess.spawn(process.execPath, [path.join(__dirname, 'fixtures', 'module', 'run-as-node.js')], {
           env: {
             ELECTRON_RUN_AS_NODE: true
@@ -145,49 +120,11 @@ describe('node feature', () => {
         child.stdout.on('data', data => {
           output += data;
         });
-        child.stdout.on('close', () => {
-          expect(JSON.parse(output)).to.deep.equal({
-            processLog: process.platform === 'win32' ? 'function' : 'undefined',
-            processType: 'undefined',
-            window: 'undefined'
-          });
-          done();
-        });
-      });
-
-      it('doesnt crash for locale that has missing resource from icu', (done) => {
-        child = ChildProcess.spawn(process.execPath, [path.join(__dirname, 'fixtures', 'module', 'icu.js')], {
-          env: {
-            ELECTRON_RUN_AS_NODE: true,
-            LC_ALL: 'ja'
-          }
-        });
-
-        let output = '';
-        child.stdout.on('data', data => {
-          output += data;
-        });
-        child.stdout.on('close', () => {
-          expect(output).to.not.be.null();
-          done();
-        });
-      });
-
-      it('doesnt crash for locale of the format aa@BB', (done) => {
-        child = ChildProcess.spawn(process.execPath, [path.join(__dirname, 'fixtures', 'module', 'icu.js')], {
-          env: {
-            ELECTRON_RUN_AS_NODE: true,
-            LC_ALL: 'fr@EURO'
-          }
-        });
-
-        let output = '';
-        child.stdout.on('data', data => {
-          output += data;
-        });
-        child.stdout.on('close', () => {
-          expect(output).to.not.be.null();
-          done();
+        await emittedOnce(child.stdout, 'close');
+        expect(JSON.parse(output)).to.deep.equal({
+          stdoutType: 'pipe',
+          processType: 'undefined',
+          window: 'undefined'
         });
       });
     });
@@ -196,7 +133,7 @@ describe('node feature', () => {
       (process.platform === 'linux' ? it : it.skip)('allows executing a setuid binary from non-sandboxed renderer', () => {
         // Chrome uses prctl(2) to set the NO_NEW_PRIVILEGES flag on Linux (see
         // https://github.com/torvalds/linux/blob/40fde647cc/Documentation/userspace-api/no_new_privs.rst).
-        // We disable this for unsandboxed processes, which the remote tests
+        // We disable this for unsandboxed processes, which the renderer tests
         // are running in. If this test fails with an error like 'effective uid
         // is not 0', then it's likely that our patch to prevent the flag from
         // being set has become ineffective.
@@ -237,6 +174,15 @@ describe('node feature', () => {
       });
     });
 
+    describe('URL handling in the renderer process', () => {
+      it('can successfully handle WHATWG URLs constructed by Blink', () => {
+        const url = new URL('file://' + path.resolve(fixtures, 'pages', 'base-page.html'));
+        expect(() => {
+          fs.createReadStream(url);
+        }).to.not.throw();
+      });
+    });
+
     describe('error thrown in main process node context', () => {
       it('gets emitted as a process uncaughtException event', () => {
         const error = ipcRenderer.sendSync('handle-uncaught-exception', 'hello');
@@ -251,16 +197,6 @@ describe('node feature', () => {
       });
     });
 
-    describe('setTimeout called under Chromium event loop in browser process', () => {
-      it('can be scheduled in time', (done) => {
-        remote.getGlobal('setTimeout')(done, 0);
-      });
-
-      it('can be promisified', (done) => {
-        remote.getGlobal('setTimeoutPromisified')(0).then(done);
-      });
-    });
-
     describe('setTimeout called under blink env in renderer process', () => {
       it('can be scheduled in time', (done) => {
         setTimeout(done, 10);
@@ -271,199 +207,20 @@ describe('node feature', () => {
       });
     });
 
-    describe('setInterval called under Chromium event loop in browser process', () => {
-      it('can be scheduled in time', (done) => {
-        let interval = null;
-        let clearing = false;
-        const clear = () => {
-          if (interval === null || clearing) return;
-
-          // interval might trigger while clearing (remote is slow sometimes)
-          clearing = true;
-          remote.getGlobal('clearInterval')(interval);
-          clearing = false;
-          interval = null;
-          done();
-        };
-        interval = remote.getGlobal('setInterval')(clear, 10);
-      });
-    });
-
     describe('setInterval called under blink env in renderer process', () => {
       it('can be scheduled in time', (done) => {
-        let interval = null;
-        let clearing = false;
-        const clear = () => {
-          if (interval === null || clearing) return;
-
-          // interval might trigger while clearing (remote is slow sometimes)
-          clearing = true;
-          clearInterval(interval);
-          clearing = false;
-          interval = null;
+        const id = setInterval(() => {
+          clearInterval(id);
           done();
-        };
-        interval = setInterval(clear, 10);
+        }, 10);
       });
 
       it('can be scheduled in time from timers module', (done) => {
-        let interval = null;
-        let clearing = false;
-        const clear = () => {
-          if (interval === null || clearing) return;
-
-          // interval might trigger while clearing (remote is slow sometimes)
-          clearing = true;
-          require('timers').clearInterval(interval);
-          clearing = false;
-          interval = null;
+        const { setInterval, clearInterval } = require('timers');
+        const id = setInterval(() => {
+          clearInterval(id);
           done();
-        };
-        interval = require('timers').setInterval(clear, 10);
-      });
-    });
-  });
-
-  describe('inspector', () => {
-    let child = null;
-    let exitPromise = null;
-
-    beforeEach(function () {
-      if (!features.isRunAsNodeEnabled()) {
-        this.skip();
-      }
-    });
-
-    afterEach(async () => {
-      if (child && exitPromise) {
-        const [code, signal] = await exitPromise;
-        expect(signal).to.equal(null);
-        expect(code).to.equal(0);
-      } else if (child) {
-        child.kill();
-      }
-    });
-
-    it('supports starting the v8 inspector with --inspect/--inspect-brk', (done) => {
-      child = ChildProcess.spawn(process.execPath, ['--inspect-brk', path.join(__dirname, 'fixtures', 'module', 'run-as-node.js')], {
-        env: {
-          ELECTRON_RUN_AS_NODE: true
-        }
-      });
-
-      let output = '';
-      function cleanup () {
-        child.stderr.removeListener('data', errorDataListener);
-        child.stdout.removeListener('data', outDataHandler);
-      }
-      function errorDataListener (data) {
-        output += data;
-        if (output.trim().startsWith('Debugger listening on ws://')) {
-          cleanup();
-          done();
-        }
-      }
-      function outDataHandler (data) {
-        cleanup();
-        done(new Error(`Unexpected output: ${data.toString()}`));
-      }
-      child.stderr.on('data', errorDataListener);
-      child.stdout.on('data', outDataHandler);
-    });
-
-    it('supports starting the v8 inspector with --inspect and a provided port', (done) => {
-      child = ChildProcess.spawn(process.execPath, ['--inspect=17364', path.join(__dirname, 'fixtures', 'module', 'run-as-node.js')], {
-        env: {
-          ELECTRON_RUN_AS_NODE: true
-        }
-      });
-      exitPromise = emittedOnce(child, 'exit');
-
-      let output = '';
-      function cleanup () {
-        child.stderr.removeListener('data', errorDataListener);
-        child.stdout.removeListener('data', outDataHandler);
-      }
-      function errorDataListener (data) {
-        output += data;
-        if (output.trim().startsWith('Debugger listening on ws://')) {
-          expect(output.trim()).to.contain(':17364', 'should be listening on port 17364');
-          cleanup();
-          done();
-        }
-      }
-      function outDataHandler (data) {
-        cleanup();
-        done(new Error(`Unexpected output: ${data.toString()}`));
-      }
-      child.stderr.on('data', errorDataListener);
-      child.stdout.on('data', outDataHandler);
-    });
-
-    it('does not start the v8 inspector when --inspect is after a -- argument', (done) => {
-      child = ChildProcess.spawn(remote.process.execPath, [path.join(__dirname, 'fixtures', 'module', 'noop.js'), '--', '--inspect']);
-      exitPromise = emittedOnce(child, 'exit');
-
-      let output = '';
-      function dataListener (data) {
-        output += data;
-      }
-      child.stderr.on('data', dataListener);
-      child.stdout.on('data', dataListener);
-      child.on('exit', () => {
-        if (output.trim().startsWith('Debugger listening on ws://')) {
-          done(new Error('Inspector was started when it should not have been'));
-        } else {
-          done();
-        }
-      });
-    });
-
-    it('does does not crash when quitting with the inspector connected', function (done) {
-      // IPC Electron child process not supported on Windows
-      if (process.platform === 'win32') return this.skip();
-      child = ChildProcess.spawn(remote.process.execPath, [path.join(__dirname, 'fixtures', 'module', 'delay-exit'), '--inspect=0'], {
-        stdio: ['ipc']
-      });
-      exitPromise = emittedOnce(child, 'exit');
-
-      let output = '';
-      function dataListener (data) {
-        output += data;
-
-        if (output.trim().indexOf('Debugger listening on ws://') > -1 && output.indexOf('\n') > -1) {
-          const socketMatch = output.trim().match(/(ws:\/\/.+:[0-9]+\/.+?)\n/gm);
-          if (socketMatch && socketMatch[0]) {
-            child.stderr.removeListener('data', dataListener);
-            child.stdout.removeListener('data', dataListener);
-            const connection = new WebSocket(socketMatch[0]);
-            connection.onopen = () => {
-              child.send('plz-quit');
-              connection.close();
-              done();
-            };
-          }
-        }
-      }
-      child.stderr.on('data', dataListener);
-      child.stdout.on('data', dataListener);
-    });
-
-    it('supports js binding', (done) => {
-      child = ChildProcess.spawn(process.execPath, ['--inspect', path.join(__dirname, 'fixtures', 'module', 'inspector-binding.js')], {
-        env: {
-          ELECTRON_RUN_AS_NODE: true
-        },
-        stdio: ['ipc']
-      });
-      exitPromise = emittedOnce(child, 'exit');
-
-      child.on('message', ({ cmd, debuggerEnabled, success }) => {
-        if (cmd === 'assert') {
-          expect(debuggerEnabled).to.be.true();
-          expect(success).to.be.true();
-          done();
-        }
+        }, 10);
       });
     });
   });
@@ -497,18 +254,15 @@ describe('node feature', () => {
       }
     });
 
-    it('emit error when connect to a socket path without listeners', (done) => {
+    it('emit error when connect to a socket path without listeners', async () => {
       const socketPath = path.join(os.tmpdir(), 'atom-shell-test.sock');
       const script = path.join(fixtures, 'module', 'create_socket.js');
       const child = ChildProcess.fork(script, [socketPath]);
-      child.on('exit', (code) => {
-        expect(code).to.equal(0);
-        const client = require('net').connect(socketPath);
-        client.on('error', (error) => {
-          expect(error.code).to.equal('ECONNREFUSED');
-          done();
-        });
-      });
+      const [code] = await emittedOnce(child, 'exit');
+      expect(code).to.equal(0);
+      const client = require('net').connect(socketPath);
+      const [error] = await emittedOnce(client, 'error');
+      expect(error.code).to.equal('ECONNREFUSED');
     });
   });
 
@@ -549,6 +303,35 @@ describe('node feature', () => {
         expect(cipherText).to.equal(result);
       }
     });
+
+    it('does not crash when using crypto.diffieHellman() constructors', () => {
+      const crypto = require('crypto');
+
+      crypto.createDiffieHellman('abc');
+      crypto.createDiffieHellman('abc', 2);
+
+      // Needed to test specific DiffieHellman ctors.
+
+      // eslint-disable-next-line no-octal
+      crypto.createDiffieHellman('abc', Buffer.from([02]));
+      // eslint-disable-next-line no-octal
+      crypto.createDiffieHellman('abc', '123');
+    });
+
+    it('does not crash when calling crypto.createPrivateKey() with an unsupported algorithm', () => {
+      const crypto = require('crypto');
+
+      const ed448 = {
+        crv: 'Ed448',
+        x: 'KYWcaDwgH77xdAwcbzOgvCVcGMy9I6prRQBhQTTdKXUcr-VquTz7Fd5adJO0wT2VHysF3bk3kBoA',
+        d: 'UhC3-vN5vp_g9PnTknXZgfXUez7Xvw-OfuJ0pYkuwzpYkcTvacqoFkV_O05WMHpyXkzH9q2wzx5n',
+        kty: 'OKP'
+      };
+
+      expect(() => {
+        crypto.createPrivateKey({ key: ed448, format: 'jwk' });
+      }).to.throw(/Invalid JWK data/);
+    });
   });
 
   describe('process.stdout', () => {
@@ -562,21 +345,8 @@ describe('node feature', () => {
       }).to.not.throw();
     });
 
-    it('should have isTTY defined on Mac and Linux', function () {
-      if (isCI || process.platform === 'win32') {
-        this.skip();
-        return;
-      }
-
-      expect(process.stdout.isTTY).to.be.a('boolean');
-    });
-
-    it('should have isTTY undefined on Windows', function () {
-      if (isCI || process.platform !== 'win32') {
-        this.skip();
-        return;
-      }
-
+    // TODO: figure out why process.stdout.isTTY is true on Darwin but not Linux/Win.
+    ifit(process.platform !== 'darwin')('isTTY should be undefined in the renderer process', function () {
       expect(process.stdout.isTTY).to.be.undefined();
     });
   });
@@ -626,6 +396,12 @@ describe('node feature', () => {
       require('crypto').createCipheriv('aes-256-cfb', '0123456789abcdef0123456789abcdef', '0123456789abcdef');
     });
 
+    it('should be able to create a bf-{cbc,cfb,ecb} ciphers', () => {
+      require('crypto').createCipheriv('bf-cbc', Buffer.from('0123456789abcdef'), Buffer.from('01234567'));
+      require('crypto').createCipheriv('bf-cfb', Buffer.from('0123456789abcdef'), Buffer.from('01234567'));
+      require('crypto').createCipheriv('bf-ecb', Buffer.from('0123456789abcdef'), Buffer.from('01234567'));
+    });
+
     it('should list des-ede-cbc in getCiphers', () => {
       expect(require('crypto').getCiphers()).to.include('des-ede-cbc');
     });
@@ -659,19 +435,6 @@ describe('node feature', () => {
     });
   });
 
-  describe('fs.mkdir/mkdirSync', () => {
-    it('does not hang with {recursive: true} on invalid names', function (done) {
-      if (process.platform !== 'win32') {
-        return this.skip();
-      }
-      expect(() => fs.mkdirSync('invalid2:', { recursive: true })).to.throw();
-      fs.mkdir('invalid1:', { recursive: true }, (err) => {
-        expect(err).to.not.be.null();
-        done();
-      });
-    });
-  });
-
   it('includes the electron version in process.versions', () => {
     expect(process.versions)
       .to.have.own.property('electron')
@@ -684,10 +447,5 @@ describe('node feature', () => {
       .to.have.own.property('chrome')
       .that.is.a('string')
       .and.matches(/^\d+\.\d+\.\d+\.\d+$/);
-  });
-
-  it('can find a module using a package.json main field', () => {
-    const result = ChildProcess.spawnSync(remote.process.execPath, [path.resolve(fixtures, 'api', 'electron-main-module', 'app.asar')]);
-    expect(result.status).to.equal(0);
   });
 });

@@ -6,22 +6,22 @@
 
 #include <utility>
 
+#include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/system/string_data_source.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
+#include "services/network/public/mojom/url_response_head.mojom.h"
 
 namespace electron {
 
 URLPipeLoader::URLPipeLoader(
     scoped_refptr<network::SharedURLLoaderFactory> factory,
     std::unique_ptr<network::ResourceRequest> request,
-    network::mojom::URLLoaderRequest loader,
-    network::mojom::URLLoaderClientPtr client,
+    mojo::PendingReceiver<network::mojom::URLLoader> loader,
+    mojo::PendingRemote<network::mojom::URLLoaderClient> client,
     const net::NetworkTrafficAnnotationTag& annotation,
     base::DictionaryValue upload_data)
-    : binding_(this, std::move(loader)),
-      client_(std::move(client)),
-      weak_factory_(this) {
-  binding_.set_connection_error_handler(base::BindOnce(
+    : url_loader_(this, std::move(loader)), client_(std::move(client)) {
+  url_loader_.set_disconnect_handler(base::BindOnce(
       &URLPipeLoader::NotifyComplete, base::Unretained(this), net::ERR_FAILED));
 
   // PostTask since it might destruct.
@@ -39,7 +39,7 @@ void URLPipeLoader::Start(
     const net::NetworkTrafficAnnotationTag& annotation,
     base::DictionaryValue upload_data) {
   loader_ = network::SimpleURLLoader::Create(std::move(request), annotation);
-  loader_->SetOnResponseStartedCallback(base::Bind(
+  loader_->SetOnResponseStartedCallback(base::BindOnce(
       &URLPipeLoader::OnResponseStarted, weak_factory_.GetWeakPtr()));
 
   // TODO(zcbenz): The old protocol API only supports string as upload data,
@@ -59,10 +59,10 @@ void URLPipeLoader::NotifyComplete(int result) {
 
 void URLPipeLoader::OnResponseStarted(
     const GURL& final_url,
-    const network::ResourceResponseHead& response_head) {
+    const network::mojom::URLResponseHead& response_head) {
   mojo::ScopedDataPipeProducerHandle producer;
   mojo::ScopedDataPipeConsumerHandle consumer;
-  MojoResult rv = mojo::CreateDataPipe(nullptr, &producer, &consumer);
+  MojoResult rv = mojo::CreateDataPipe(nullptr, producer, consumer);
   if (rv != MOJO_RESULT_OK) {
     NotifyComplete(net::ERR_INSUFFICIENT_RESOURCES);
     return;
@@ -70,7 +70,7 @@ void URLPipeLoader::OnResponseStarted(
 
   producer_ = std::make_unique<mojo::DataPipeProducer>(std::move(producer));
 
-  client_->OnReceiveResponse(response_head);
+  client_->OnReceiveResponse(response_head.Clone());
   client_->OnStartLoadingResponseBody(std::move(consumer));
 }
 
@@ -86,7 +86,7 @@ void URLPipeLoader::OnDataReceived(base::StringPiece string_piece,
   producer_->Write(
       std::make_unique<mojo::StringDataSource>(
           string_piece, mojo::StringDataSource::AsyncWritingMode::
-                            STRING_STAYS_VALID_UNTIL_COMPLETION),
+                            STRING_MAY_BE_INVALIDATED_BEFORE_COMPLETION),
       base::BindOnce(&URLPipeLoader::OnWrite, weak_factory_.GetWeakPtr(),
                      std::move(resume)));
 }

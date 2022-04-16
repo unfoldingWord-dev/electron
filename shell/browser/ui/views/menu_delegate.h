@@ -2,13 +2,13 @@
 // Use of this source code is governed by the MIT license that can be
 // found in the LICENSE file.
 
-#ifndef SHELL_BROWSER_UI_VIEWS_MENU_DELEGATE_H_
-#define SHELL_BROWSER_UI_VIEWS_MENU_DELEGATE_H_
+#ifndef ELECTRON_SHELL_BROWSER_UI_VIEWS_MENU_DELEGATE_H_
+#define ELECTRON_SHELL_BROWSER_UI_VIEWS_MENU_DELEGATE_H_
 
 #include <memory>
 
 #include "base/observer_list.h"
-#include "shell/browser/ui/atom_menu_model.h"
+#include "shell/browser/ui/electron_menu_model.h"
 #include "ui/views/controls/menu/menu_delegate.h"
 
 namespace views {
@@ -25,7 +25,11 @@ class MenuDelegate : public views::MenuDelegate {
   explicit MenuDelegate(MenuBar* menu_bar);
   ~MenuDelegate() override;
 
-  void RunMenu(AtomMenuModel* model,
+  // disable copy
+  MenuDelegate(const MenuDelegate&) = delete;
+  MenuDelegate& operator=(const MenuDelegate&) = delete;
+
+  void RunMenu(ElectronMenuModel* model,
                views::Button* button,
                ui::MenuSourceType source_type);
 
@@ -46,8 +50,9 @@ class MenuDelegate : public views::MenuDelegate {
   bool IsTriggerableEvent(views::MenuItemView* source,
                           const ui::Event& e) override;
   bool GetAccelerator(int id, ui::Accelerator* accelerator) const override;
-  base::string16 GetLabel(int id) const override;
-  void GetLabelStyle(int id, LabelStyle* style) const override;
+  std::u16string GetLabel(int id) const override;
+  const gfx::FontList* GetLabelFontList(int id) const override;
+  absl::optional<SkColor> GetLabelColor(int id) const override;
   bool IsCommandEnabled(int id) const override;
   bool IsCommandVisible(int id) const override;
   bool IsItemChecked(int id) const override;
@@ -62,19 +67,17 @@ class MenuDelegate : public views::MenuDelegate {
 
  private:
   MenuBar* menu_bar_;
-  int id_;
+  int id_ = -1;
   std::unique_ptr<views::MenuDelegate> adapter_;
   std::unique_ptr<views::MenuRunner> menu_runner_;
 
   // The menu button to switch to.
   views::MenuButton* button_to_open_ = nullptr;
-  bool hold_first_switch_;
+  bool hold_first_switch_ = false;
 
   base::ObserverList<Observer>::Unchecked observers_;
-
-  DISALLOW_COPY_AND_ASSIGN(MenuDelegate);
 };
 
 }  // namespace electron
 
-#endif  // SHELL_BROWSER_UI_VIEWS_MENU_DELEGATE_H_
+#endif  // ELECTRON_SHELL_BROWSER_UI_VIEWS_MENU_DELEGATE_H_

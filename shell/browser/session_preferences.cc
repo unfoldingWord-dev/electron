@@ -4,7 +4,9 @@
 
 #include "shell/browser/session_preferences.h"
 
+#include "base/logging.h"
 #include "base/memory/ptr_util.h"
+#include "content/public/browser/browser_context.h"
 
 namespace electron {
 
@@ -15,7 +17,7 @@ SessionPreferences::SessionPreferences(content::BrowserContext* context) {
   context->SetUserData(&kLocatorKey, base::WrapUnique(this));
 }
 
-SessionPreferences::~SessionPreferences() {}
+SessionPreferences::~SessionPreferences() = default;
 
 // static
 SessionPreferences* SessionPreferences::FromBrowserContext(
@@ -24,13 +26,13 @@ SessionPreferences* SessionPreferences::FromBrowserContext(
 }
 
 // static
-std::vector<base::FilePath::StringType> SessionPreferences::GetValidPreloads(
+std::vector<base::FilePath> SessionPreferences::GetValidPreloads(
     content::BrowserContext* context) {
-  std::vector<base::FilePath::StringType> result;
+  std::vector<base::FilePath> result;
 
   if (auto* self = FromBrowserContext(context)) {
     for (const auto& preload : self->preloads()) {
-      if (base::FilePath(preload).IsAbsolute()) {
+      if (preload.IsAbsolute()) {
         result.emplace_back(preload);
       } else {
         LOG(ERROR) << "preload script must have absolute path: " << preload;

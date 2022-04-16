@@ -2,8 +2,8 @@
 // Use of this source code is governed by the MIT license that can be
 // found in the LICENSE file.
 
-#ifndef SHELL_BROWSER_NATIVE_BROWSER_VIEW_MAC_H_
-#define SHELL_BROWSER_NATIVE_BROWSER_VIEW_MAC_H_
+#ifndef ELECTRON_SHELL_BROWSER_NATIVE_BROWSER_VIEW_MAC_H_
+#define ELECTRON_SHELL_BROWSER_NATIVE_BROWSER_VIEW_MAC_H_
 
 #import <Cocoa/Cocoa.h>
 #include <vector>
@@ -25,12 +25,12 @@ class NativeBrowserViewMac : public NativeBrowserView {
   void SetBackgroundColor(SkColor color) override;
 
   void UpdateDraggableRegions(
-      const std::vector<gfx::Rect>& system_drag_exclude_areas) override;
+      const std::vector<mojom::DraggableRegionPtr>& regions) override;
 
- private:
-  DISALLOW_COPY_AND_ASSIGN(NativeBrowserViewMac);
+  void UpdateDraggableRegions(
+      const std::vector<gfx::Rect>& drag_exclude_rects) override;
 };
 
 }  // namespace electron
 
-#endif  // SHELL_BROWSER_NATIVE_BROWSER_VIEW_MAC_H_
+#endif  // ELECTRON_SHELL_BROWSER_NATIVE_BROWSER_VIEW_MAC_H_

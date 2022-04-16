@@ -7,17 +7,16 @@ process.on('uncaughtException', () => {
   app.exit(1);
 });
 
-app.once('ready', () => {
+app.whenReady().then(() => {
   const lastArg = process.argv[process.argv.length - 1];
   const client = net.connect(socketPath);
   client.once('connect', () => {
     client.end(String(lastArg === '--second'));
   });
   client.once('end', () => {
+    if (lastArg !== '--second') {
+      app.relaunch({ args: process.argv.slice(1).concat('--second') });
+    }
     app.exit(0);
   });
-
-  if (lastArg !== '--second') {
-    app.relaunch({ args: process.argv.slice(1).concat('--second') });
-  }
 });

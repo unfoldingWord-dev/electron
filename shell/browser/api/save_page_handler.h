@@ -2,15 +2,13 @@
 // Use of this source code is governed by the MIT license that can be
 // found in the LICENSE file.
 
-#ifndef SHELL_BROWSER_API_SAVE_PAGE_HANDLER_H_
-#define SHELL_BROWSER_API_SAVE_PAGE_HANDLER_H_
-
-#include <string>
+#ifndef ELECTRON_SHELL_BROWSER_API_SAVE_PAGE_HANDLER_H_
+#define ELECTRON_SHELL_BROWSER_API_SAVE_PAGE_HANDLER_H_
 
 #include "components/download/public/common/download_item.h"
 #include "content/public/browser/download_manager.h"
 #include "content/public/browser/save_page_type.h"
-#include "shell/common/promise_util.h"
+#include "shell/common/gin_helper/promise.h"
 #include "v8/include/v8.h"
 
 namespace base {
@@ -30,7 +28,7 @@ class SavePageHandler : public content::DownloadManager::Observer,
                         public download::DownloadItem::Observer {
  public:
   SavePageHandler(content::WebContents* web_contents,
-                  electron::util::Promise promise);
+                  gin_helper::Promise<void> promise);
   ~SavePageHandler() override;
 
   bool Handle(const base::FilePath& full_path,
@@ -47,11 +45,11 @@ class SavePageHandler : public content::DownloadManager::Observer,
   void OnDownloadUpdated(download::DownloadItem* item) override;
 
   content::WebContents* web_contents_;  // weak
-  electron::util::Promise promise_;
+  gin_helper::Promise<void> promise_;
 };
 
 }  // namespace api
 
 }  // namespace electron
 
-#endif  // SHELL_BROWSER_API_SAVE_PAGE_HANDLER_H_
+#endif  // ELECTRON_SHELL_BROWSER_API_SAVE_PAGE_HANDLER_H_

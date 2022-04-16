@@ -1,0 +1,37 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: deepak1556 <hop2deep@gmail.com>
+Date: Fri, 3 Sep 2021 18:28:51 -0700
+Subject: fix: expose DecrementCapturerCount in web_contents_impl
+
+This was made private in https://chromium-review.googlesource.com/c/chromium/src/+/2807829 but
+we invoke it in order to expose contents.decrementCapturerCount([stayHidden, stayAwake])
+to users. We should try to upstream this.
+
+diff --git a/content/browser/web_contents/web_contents_impl.h b/content/browser/web_contents/web_contents_impl.h
+index 7695f9082b9b1f00893fcdccbf2420e5faf7f541..68a875c2c011e5bc329cb6855148bd2884ca161d 100644
+--- a/content/browser/web_contents/web_contents_impl.h
++++ b/content/browser/web_contents/web_contents_impl.h
+@@ -1814,7 +1814,7 @@ class CONTENT_EXPORT WebContentsImpl : public WebContents,
+   // IncrementCapturerCount() is destructed.
+   void DecrementCapturerCount(bool stay_hidden,
+                               bool stay_awake,
+-                              bool is_activity = true);
++                              bool is_activity = true) override;
+ 
+   // Calculates the PageVisibilityState for |visibility|, taking the capturing
+   // state into account.
+diff --git a/content/public/browser/web_contents.h b/content/public/browser/web_contents.h
+index 06e310cf74770385ba3317cf7a5ab3256fb2662e..aa10ae9a2154fe28c3df749c9f6c493f9101a567 100644
+--- a/content/public/browser/web_contents.h
++++ b/content/public/browser/web_contents.h
+@@ -673,6 +673,10 @@ class WebContents : public PageNavigator,
+       bool stay_awake,
+       bool is_activity = true) WARN_UNUSED_RESULT = 0;
+ 
++  virtual void DecrementCapturerCount(bool stay_hidden,
++                                      bool stay_awake,
++                                      bool is_activity = true) = 0;
++
+   // Getter for the capture handle, which allows a captured application to
+   // opt-in to exposing information to its capturer(s).
+   virtual const blink::mojom::CaptureHandleConfig& GetCaptureHandleConfig() = 0;

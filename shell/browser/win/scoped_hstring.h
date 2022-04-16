@@ -2,15 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE-CHROMIUM file.
 
-#ifndef SHELL_BROWSER_WIN_SCOPED_HSTRING_H_
-#define SHELL_BROWSER_WIN_SCOPED_HSTRING_H_
+#ifndef ELECTRON_SHELL_BROWSER_WIN_SCOPED_HSTRING_H_
+#define ELECTRON_SHELL_BROWSER_WIN_SCOPED_HSTRING_H_
 
 #include <hstring.h>
 #include <windows.h>
 
 #include <string>
-
-#include "base/macros.h"
 
 namespace electron {
 
@@ -22,6 +20,10 @@ class ScopedHString {
   // Create empty string.
   ScopedHString();
   ~ScopedHString();
+
+  // disable copy
+  ScopedHString(const ScopedHString&) = delete;
+  ScopedHString& operator=(const ScopedHString&) = delete;
 
   // Sets to |source|.
   void Reset();
@@ -35,11 +37,9 @@ class ScopedHString {
   bool success() const { return str_; }
 
  private:
-  HSTRING str_;
-
-  DISALLOW_COPY_AND_ASSIGN(ScopedHString);
+  HSTRING str_ = nullptr;
 };
 
 }  // namespace electron
 
-#endif  // SHELL_BROWSER_WIN_SCOPED_HSTRING_H_
+#endif  // ELECTRON_SHELL_BROWSER_WIN_SCOPED_HSTRING_H_

@@ -7,35 +7,71 @@ According to electron/electron#3699, it is unreliable to use |unload|
 event for process.exit('exit'), so we have to do that in
 willReleaseScriptContext.
 
-However Chromium then disallowed scripting in willReleaseScriptContext
-in https://codereview.chromium.org/1657583002, and crash will happen
-when there is code doing that.
+Refs changes in:
+* https://codereview.chromium.org/1657583002
+* https://chromium-review.googlesource.com/c/chromium/src/+/2596880
+* https://chromium-review.googlesource.com/c/chromium/src/+/2597169
 
-This patch reverts the change to fix the crash in Electron.
+This patch reverts the changes to fix associated crashes in Electron.
 
+diff --git a/third_party/blink/renderer/core/frame/frame.cc b/third_party/blink/renderer/core/frame/frame.cc
+index 1b022bf6b37982e6321120951de5d8dcc10ecf6a..5cd7cf680244383e466106801103871b3bba8796 100644
+--- a/third_party/blink/renderer/core/frame/frame.cc
++++ b/third_party/blink/renderer/core/frame/frame.cc
+@@ -122,14 +122,6 @@ bool Frame::Detach(FrameDetachType type) {
+ 
+   DCHECK(!IsDetached());
+ 
+-  // TODO(dcheng): FocusController::FrameDetached() *should* fire JS events,
+-  // hence the above check for `client_` being null. However, when this was
+-  // previously placed before the `FrameDetached()` call, nothing crashes, which
+-  // is suspicious. Investigate if we really don't need to fire JS events--and
+-  // if we don't, move `forbid_scripts` up to be instantiated sooner and
+-  // simplify this code.
+-  ScriptForbiddenScope forbid_scripts;
+-
+   if (type == FrameDetachType::kRemove) {
+     if (provisional_frame_) {
+       provisional_frame_->Detach(FrameDetachType::kRemove);
+@@ -152,6 +144,14 @@ bool Frame::Detach(FrameDetachType type) {
+     GetWindowProxyManager()->ClearForSwap();
+   }
+ 
++  // TODO(dcheng): FocusController::FrameDetached() *should* fire JS events,
++  // hence the above check for `client_` being null. However, when this was
++  // previously placed before the `FrameDetached()` call, nothing crashes, which
++  // is suspicious. Investigate if we really don't need to fire JS events--and
++  // if we don't, move `forbid_scripts` up to be instantiated sooner and
++  // simplify this code.
++  ScriptForbiddenScope forbid_scripts;
++
+   // After this, we must no longer talk to the client since this clears
+   // its owning reference back to our owning LocalFrame.
+   client_->Detached(type);
 diff --git a/third_party/blink/renderer/core/frame/local_frame.cc b/third_party/blink/renderer/core/frame/local_frame.cc
-index 6e2fc4a7dd2f272aabd94e96702d99f6c703f3a8..385334801d26fb41469b2e5b66cb305193033a70 100644
+index e4fa7685539aa22e6bf55bf768aa1f055e1dbdf3..96334220264cdf0afb2014500aeb90001b6fae72 100644
 --- a/third_party/blink/renderer/core/frame/local_frame.cc
 +++ b/third_party/blink/renderer/core/frame/local_frame.cc
-@@ -338,10 +338,6 @@ void LocalFrame::DetachImpl(FrameDetachType type) {
+@@ -533,10 +533,6 @@ bool LocalFrame::DetachImpl(FrameDetachType type) {
    }
-   CHECK(!view_ || !view_->IsAttached());
+   DCHECK(!view_ || !view_->IsAttached());
  
 -  // This is the earliest that scripting can be disabled:
 -  // - FrameLoader::Detach() can fire XHR abort events
 -  // - Document::Shutdown() can dispose plugins which can run script.
 -  ScriptForbiddenScope forbid_script;
    if (!Client())
-     return;
+     return false;
  
-@@ -359,6 +355,10 @@ void LocalFrame::DetachImpl(FrameDetachType type) {
-   // Notify ScriptController that the frame is closing, since its cleanup ends
-   // up calling back to LocalFrameClient via WindowProxy.
-   GetScriptController().ClearForClose();
+@@ -582,6 +578,11 @@ bool LocalFrame::DetachImpl(FrameDetachType type) {
+   DCHECK(!view_->IsAttached());
+   Client()->WillBeDetached();
+ 
 +  // This is the earliest that scripting can be disabled:
 +  // - FrameLoader::Detach() can fire XHR abort events
 +  // - Document::Shutdown() can dispose plugins which can run script.
 +  ScriptForbiddenScope forbid_script;
- 
++
    // TODO(crbug.com/729196): Trace why LocalFrameView::DetachFromLayout crashes.
    CHECK(!view_->IsAttached());
+   SetView(nullptr);

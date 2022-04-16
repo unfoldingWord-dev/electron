@@ -4,23 +4,22 @@
 
 #include "shell/browser/api/save_page_handler.h"
 
-#include <string>
 #include <utility>
 
 #include "base/callback.h"
 #include "base/files/file_path.h"
 #include "content/public/browser/web_contents.h"
-#include "shell/browser/atom_browser_context.h"
+#include "shell/browser/electron_browser_context.h"
 
 namespace electron {
 
 namespace api {
 
 SavePageHandler::SavePageHandler(content::WebContents* web_contents,
-                                 util::Promise promise)
+                                 gin_helper::Promise<void> promise)
     : web_contents_(web_contents), promise_(std::move(promise)) {}
 
-SavePageHandler::~SavePageHandler() {}
+SavePageHandler::~SavePageHandler() = default;
 
 void SavePageHandler::OnDownloadCreated(content::DownloadManager* manager,
                                         download::DownloadItem* item) {
@@ -31,8 +30,8 @@ void SavePageHandler::OnDownloadCreated(content::DownloadManager* manager,
 
 bool SavePageHandler::Handle(const base::FilePath& full_path,
                              const content::SavePageType& save_type) {
-  auto* download_manager = content::BrowserContext::GetDownloadManager(
-      web_contents_->GetBrowserContext());
+  auto* download_manager =
+      web_contents_->GetBrowserContext()->GetDownloadManager();
   download_manager->AddObserver(this);
   // Chromium will create a 'foo_files' directory under the directory of saving
   // page 'foo.html' for holding other resource files of 'foo.html'.

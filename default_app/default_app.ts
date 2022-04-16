@@ -1,5 +1,6 @@
 import { app, dialog, BrowserWindow, shell, ipcMain } from 'electron';
 import * as path from 'path';
+import * as url from 'url';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -29,31 +30,29 @@ function isTrustedSender (webContents: Electron.WebContents) {
     return false;
   }
 
-  const parsedUrl = new URL(webContents.getURL());
-  const urlPath = process.platform === 'win32'
-    // Strip the prefixed "/" that occurs on windows
-    ? path.resolve(parsedUrl.pathname.substr(1))
-    : parsedUrl.pathname;
-  return parsedUrl.protocol === 'file:' && urlPath === indexPath;
+  try {
+    return url.fileURLToPath(webContents.getURL()) === indexPath;
+  } catch {
+    return false;
+  }
 }
 
 ipcMain.handle('bootstrap', (event) => {
   return isTrustedSender(event.sender) ? electronPath : null;
 });
 
-async function createWindow () {
+async function createWindow (backgroundColor?: string) {
   await app.whenReady();
 
   const options: Electron.BrowserWindowConstructorOptions = {
-    width: 900,
-    height: 600,
+    width: 960,
+    height: 620,
     autoHideMenuBar: true,
-    backgroundColor: '#FFFFFF',
+    backgroundColor,
     webPreferences: {
       preload: path.resolve(__dirname, 'preload.js'),
       contextIsolation: true,
-      sandbox: true,
-      enableRemoteModule: false
+      sandbox: true
     },
     useContentSize: true,
     show: false
@@ -96,7 +95,7 @@ export const loadURL = async (appUrl: string) => {
 };
 
 export const loadFile = async (appPath: string) => {
-  mainWindow = await createWindow();
+  mainWindow = await createWindow(appPath === 'index.html' ? '#2f3241' : undefined);
   mainWindow.loadFile(appPath);
   mainWindow.focus();
 };

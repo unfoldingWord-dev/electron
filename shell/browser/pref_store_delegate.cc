@@ -6,13 +6,15 @@
 
 #include <utility>
 
+#include "components/prefs/persistent_pref_store.h"
+#include "components/prefs/pref_store.h"
 #include "components/prefs/value_map_pref_store.h"
-#include "shell/browser/atom_browser_context.h"
+#include "shell/browser/electron_browser_context.h"
 
 namespace electron {
 
 PrefStoreDelegate::PrefStoreDelegate(
-    base::WeakPtr<AtomBrowserContext> browser_context)
+    base::WeakPtr<ElectronBrowserContext> browser_context)
     : browser_context_(std::move(browser_context)) {}
 
 PrefStoreDelegate::~PrefStoreDelegate() {

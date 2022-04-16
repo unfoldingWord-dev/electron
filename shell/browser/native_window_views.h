@@ -2,21 +2,30 @@
 // Use of this source code is governed by the MIT license that can be
 // found in the LICENSE file.
 
-#ifndef SHELL_BROWSER_NATIVE_WINDOW_VIEWS_H_
-#define SHELL_BROWSER_NATIVE_WINDOW_VIEWS_H_
+#ifndef ELECTRON_SHELL_BROWSER_NATIVE_WINDOW_VIEWS_H_
+#define ELECTRON_SHELL_BROWSER_NATIVE_WINDOW_VIEWS_H_
 
 #include "shell/browser/native_window.h"
 
 #include <memory>
 #include <set>
 #include <string>
-#include <tuple>
+#include <vector>
 
+#include "shell/common/api/api.mojom.h"
 #include "ui/views/widget/widget_observer.h"
+
+#if defined(USE_OZONE)
+#include "ui/ozone/buildflags.h"
+#if BUILDFLAG(OZONE_PLATFORM_X11)
+#define USE_OZONE_PLATFORM_X11
+#endif
+#endif
 
 #if defined(OS_WIN)
 #include "base/win/scoped_gdi_object.h"
 #include "shell/browser/ui/win/taskbar_host.h"
+
 #endif
 
 namespace views {
@@ -29,15 +38,20 @@ class GlobalMenuBarX11;
 class RootView;
 class WindowStateWatcher;
 
-#if defined(USE_X11)
+#if defined(USE_OZONE_PLATFORM_X11)
 class EventDisabler;
+#endif
+
+#if defined(OS_WIN)
+gfx::Rect ScreenToDIPRect(HWND hwnd, const gfx::Rect& pixel_bounds);
 #endif
 
 class NativeWindowViews : public NativeWindow,
                           public views::WidgetObserver,
                           public ui::EventHandler {
  public:
-  NativeWindowViews(const mate::Dictionary& options, NativeWindow* parent);
+  NativeWindowViews(const gin_helper::Dictionary& options,
+                    NativeWindow* parent);
   ~NativeWindowViews() override;
 
   // NativeWindow:
@@ -65,11 +79,15 @@ class NativeWindowViews : public NativeWindow,
   gfx::Rect GetContentBounds() override;
   gfx::Size GetContentSize() override;
   gfx::Rect GetNormalBounds() override;
+  SkColor GetBackgroundColor() override;
   void SetContentSizeConstraints(
       const extensions::SizeConstraints& size_constraints) override;
   void SetResizable(bool resizable) override;
+  bool MoveAbove(const std::string& sourceId) override;
   void MoveTop() override;
   bool IsResizable() override;
+  void SetAspectRatio(double aspect_ratio,
+                      const gfx::Size& extra_size) override;
   void SetMovable(bool movable) override;
   bool IsMovable() override;
   void SetMinimizable(bool minimizable) override;
@@ -82,8 +100,7 @@ class NativeWindowViews : public NativeWindow,
   bool IsClosable() override;
   void SetAlwaysOnTop(ui::ZOrderLevel z_order,
                       const std::string& level,
-                      int relativeLevel,
-                      std::string* error) override;
+                      int relativeLevel) override;
   ui::ZOrderLevel GetZOrderLevel() override;
   void Center() override;
   void Invalidate() override;
@@ -97,6 +114,7 @@ class NativeWindowViews : public NativeWindow,
   bool IsSimpleFullScreen() override;
   void SetKiosk(bool kiosk) override;
   bool IsKiosk() override;
+  bool IsTabletMode() const override;
   void SetBackgroundColor(SkColor color) override;
   void SetHasShadow(bool has_shadow) override;
   bool HasShadow() override;
@@ -105,9 +123,11 @@ class NativeWindowViews : public NativeWindow,
   void SetIgnoreMouseEvents(bool ignore, bool forward) override;
   void SetContentProtection(bool enable) override;
   void SetFocusable(bool focusable) override;
-  void SetMenu(AtomMenuModel* menu_model) override;
+  bool IsFocusable() override;
+  void SetMenu(ElectronMenuModel* menu_model) override;
   void AddBrowserView(NativeBrowserView* browser_view) override;
   void RemoveBrowserView(NativeBrowserView* browser_view) override;
+  void SetTopBrowserView(NativeBrowserView* browser_view) override;
   void SetParentWindow(NativeWindow* parent) override;
   gfx::NativeView GetNativeView() const override;
   gfx::NativeWindow GetNativeWindow() const override;
@@ -120,19 +140,22 @@ class NativeWindowViews : public NativeWindow,
   bool IsMenuBarVisible() override;
 
   void SetVisibleOnAllWorkspaces(bool visible,
-                                 bool visibleOnFullScreen) override;
+                                 bool visibleOnFullScreen,
+                                 bool skipTransformProcessType) override;
 
   bool IsVisibleOnAllWorkspaces() override;
 
   void SetGTKDarkThemeEnabled(bool use_dark_theme) override;
 
+  content::DesktopMediaID GetDesktopMediaID() const override;
   gfx::AcceleratedWidget GetAcceleratedWidget() const override;
   NativeWindowHandle GetNativeWindowHandle() const override;
 
   gfx::Rect ContentBoundsToWindowBounds(const gfx::Rect& bounds) const override;
   gfx::Rect WindowBoundsToContentBounds(const gfx::Rect& bounds) const override;
 
-  void UpdateDraggableRegions(std::unique_ptr<SkRegion> region);
+  void UpdateDraggableRegions(
+      const std::vector<mojom::DraggableRegionPtr>& regions);
 
   void IncrementChildModals();
   void DecrementChildModals();
@@ -149,7 +172,7 @@ class NativeWindowViews : public NativeWindow,
                     LPARAM l_param,
                     LRESULT* result);
   void SetIcon(HICON small_icon, HICON app_icon);
-#elif defined(USE_X11)
+#elif defined(OS_LINUX)
   void SetIcon(const gfx::ImageSkia& icon);
 #endif
 
@@ -159,26 +182,34 @@ class NativeWindowViews : public NativeWindow,
   TaskbarHost& taskbar_host() { return taskbar_host_; }
 #endif
 
+#if defined(OS_WIN)
+  bool IsWindowControlsOverlayEnabled() const {
+    return (title_bar_style_ == NativeWindowViews::TitleBarStyle::kHidden) &&
+           titlebar_overlay_;
+  }
+  SkColor overlay_button_color() const { return overlay_button_color_; }
+  SkColor overlay_symbol_color() const { return overlay_symbol_color_; }
+#endif
+
  private:
   // views::WidgetObserver:
   void OnWidgetActivationChanged(views::Widget* widget, bool active) override;
   void OnWidgetBoundsChanged(views::Widget* widget,
                              const gfx::Rect& bounds) override;
   void OnWidgetDestroying(views::Widget* widget) override;
+  void OnWidgetDestroyed(views::Widget* widget) override;
 
   // views::WidgetDelegate:
-  void DeleteDelegate() override;
   views::View* GetInitiallyFocusedView() override;
-  bool CanResize() const override;
   bool CanMaximize() const override;
   bool CanMinimize() const override;
-  base::string16 GetWindowTitle() const override;
+  std::u16string GetWindowTitle() const override;
   views::View* GetContentsView() override;
   bool ShouldDescendIntoChildForEventHandling(
       gfx::NativeView child,
       const gfx::Point& location) override;
   views::ClientView* CreateClientView(views::Widget* widget) override;
-  views::NonClientFrameView* CreateNonClientFrameView(
+  std::unique_ptr<views::NonClientFrameView> CreateNonClientFrameView(
       views::Widget* widget) override;
   void OnWidgetMove() override;
 #if defined(OS_WIN)
@@ -208,10 +239,8 @@ class NativeWindowViews : public NativeWindow,
       content::WebContents*,
       const content::NativeWebKeyboardEvent& event) override;
 
-#if defined(OS_LINUX)
   // ui::EventHandler:
   void OnMouseEvent(ui::MouseEvent* event) override;
-#endif
 
   // Returns the restore state for the window.
   ui::WindowShowState GetRestoredState();
@@ -230,12 +259,12 @@ class NativeWindowViews : public NativeWindow,
   // events from resizing the window.
   extensions::SizeConstraints old_size_constraints_;
 
-#if defined(USE_X11)
+#if defined(USE_OZONE)
   std::unique_ptr<GlobalMenuBarX11> global_menu_bar_;
 
-  // Handles window state events.
-  std::unique_ptr<WindowStateWatcher> window_state_watcher_;
+#endif
 
+#if defined(USE_OZONE_PLATFORM_X11)
   // To disable the mouse events.
   std::unique_ptr<EventDisabler> event_disabler_;
 #endif
@@ -272,8 +301,19 @@ class NativeWindowViews : public NativeWindow,
   // Set to true if the window is always on top and behind the task bar.
   bool behind_task_bar_ = false;
 
-  // Whether to block Chromium from handling window messages.
-  bool block_chromium_message_handler_ = false;
+  // Whether we want to set window placement without side effect.
+  bool is_setting_window_placement_ = false;
+
+  // Whether the window is currently being resized.
+  bool is_resizing_ = false;
+
+  // Whether the window is currently being moved.
+  bool is_moving_ = false;
+
+  // The color to use as the theme and symbol colors respectively for Window
+  // Controls Overlay if enabled on Windows.
+  SkColor overlay_button_color_;
+  SkColor overlay_symbol_color_;
 #endif
 
   // Handles unhandled keyboard messages coming back from the renderer process.
@@ -298,10 +338,9 @@ class NativeWindowViews : public NativeWindow,
   std::string title_;
   gfx::Size widget_size_;
   double opacity_ = 1.0;
-
-  DISALLOW_COPY_AND_ASSIGN(NativeWindowViews);
+  bool widget_destroyed_ = false;
 };
 
 }  // namespace electron
 
-#endif  // SHELL_BROWSER_NATIVE_WINDOW_VIEWS_H_
+#endif  // ELECTRON_SHELL_BROWSER_NATIVE_WINDOW_VIEWS_H_

@@ -2,10 +2,14 @@
 // Use of this source code is governed by the MIT license that can be
 // found in the LICENSE file.
 
-#ifndef SHELL_BROWSER_NATIVE_BROWSER_VIEW_VIEWS_H_
-#define SHELL_BROWSER_NATIVE_BROWSER_VIEW_VIEWS_H_
+#ifndef ELECTRON_SHELL_BROWSER_NATIVE_BROWSER_VIEW_VIEWS_H_
+#define ELECTRON_SHELL_BROWSER_NATIVE_BROWSER_VIEW_VIEWS_H_
+
+#include <memory>
+#include <vector>
 
 #include "shell/browser/native_browser_view.h"
+#include "third_party/skia/include/core/SkRegion.h"
 
 namespace electron {
 
@@ -26,6 +30,13 @@ class NativeBrowserViewViews : public NativeBrowserView {
   void SetBounds(const gfx::Rect& bounds) override;
   gfx::Rect GetBounds() override;
   void SetBackgroundColor(SkColor color) override;
+  void UpdateDraggableRegions(
+      const std::vector<mojom::DraggableRegionPtr>& regions) override;
+
+  // WebContentsObserver:
+  void RenderViewReady() override;
+
+  SkRegion* draggable_region() const { return draggable_region_.get(); }
 
  private:
   void ResetAutoResizeProportions();
@@ -40,9 +51,9 @@ class NativeBrowserViewViews : public NativeBrowserView {
   float auto_vertical_proportion_height_ = 0.;
   float auto_vertical_proportion_top_ = 0.;
 
-  DISALLOW_COPY_AND_ASSIGN(NativeBrowserViewViews);
+  std::unique_ptr<SkRegion> draggable_region_;
 };
 
 }  // namespace electron
 
-#endif  // SHELL_BROWSER_NATIVE_BROWSER_VIEW_VIEWS_H_
+#endif  // ELECTRON_SHELL_BROWSER_NATIVE_BROWSER_VIEW_VIEWS_H_

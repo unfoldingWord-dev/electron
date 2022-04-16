@@ -4,6 +4,8 @@
 
 #include "shell/browser/ui/views/root_view.h"
 
+#include <memory>
+
 #include "content/public/browser/native_web_keyboard_event.h"
 #include "shell/browser/native_window.h"
 #include "shell/browser/ui/views/menu_bar.h"
@@ -41,9 +43,9 @@ RootView::RootView(NativeWindow* window)
   set_owned_by_client();
 }
 
-RootView::~RootView() {}
+RootView::~RootView() = default;
 
-void RootView::SetMenu(AtomMenuModel* menu_model) {
+void RootView::SetMenu(ElectronMenuModel* menu_model) {
   if (menu_model == nullptr) {
     // Remove accelerators
     UnregisterAcceleratorsWithFocusManager();
@@ -60,7 +62,7 @@ void RootView::SetMenu(AtomMenuModel* menu_model) {
     return;
 
   if (!menu_bar_) {
-    menu_bar_.reset(new MenuBar(this));
+    menu_bar_ = std::make_unique<MenuBar>(window_, this);
     menu_bar_->set_owned_by_client();
     if (!menu_bar_autohide_)
       SetMenuBarVisibility(true);
@@ -112,31 +114,32 @@ void RootView::HandleKeyEvent(const content::NativeWebKeyboardEvent& event) {
 
   // Show accelerator when "Alt" is pressed.
   if (menu_bar_visible_ && IsAltKey(event))
-    menu_bar_->SetAcceleratorVisibility(event.GetType() ==
-                                        blink::WebInputEvent::kRawKeyDown);
+    menu_bar_->SetAcceleratorVisibility(
+        event.GetType() == blink::WebInputEvent::Type::kRawKeyDown);
 
   // Show the submenu when "Alt+Key" is pressed.
-  if (event.GetType() == blink::WebInputEvent::kRawKeyDown &&
-      !IsAltKey(event) && IsAltModifier(event)) {
-    if (menu_bar_->HasAccelerator(event.windows_key_code)) {
-      if (!menu_bar_visible_) {
-        SetMenuBarVisibility(true);
+  if (event.GetType() == blink::WebInputEvent::Type::kRawKeyDown &&
+      event.windows_key_code >= ui::VKEY_A &&
+      event.windows_key_code <= ui::VKEY_Z && IsAltModifier(event) &&
+      menu_bar_->HasAccelerator(event.windows_key_code)) {
+    if (!menu_bar_visible_) {
+      SetMenuBarVisibility(true);
 
-        View* focused_view = GetFocusManager()->GetFocusedView();
-        last_focused_view_tracker_->SetView(focused_view);
-        menu_bar_->RequestFocus();
-      }
-
-      menu_bar_->ActivateAccelerator(event.windows_key_code);
+      View* focused_view = GetFocusManager()->GetFocusedView();
+      last_focused_view_tracker_->SetView(focused_view);
+      menu_bar_->RequestFocus();
     }
+
+    menu_bar_->ActivateAccelerator(event.windows_key_code);
     return;
   }
 
   // Toggle the menu bar only when a single Alt is released.
-  if (event.GetType() == blink::WebInputEvent::kRawKeyDown && IsAltKey(event)) {
+  if (event.GetType() == blink::WebInputEvent::Type::kRawKeyDown &&
+      IsAltKey(event)) {
     // When a single Alt is pressed:
     menu_bar_alt_pressed_ = true;
-  } else if (event.GetType() == blink::WebInputEvent::kKeyUp &&
+  } else if (event.GetType() == blink::WebInputEvent::Type::kKeyUp &&
              IsAltKey(event) && menu_bar_alt_pressed_) {
     // When a single Alt is released right after a Alt is pressed:
     menu_bar_alt_pressed_ = false;
@@ -199,7 +202,8 @@ bool RootView::AcceleratorPressed(const ui::Accelerator& accelerator) {
                                                           accelerator);
 }
 
-void RootView::RegisterAcceleratorsWithFocusManager(AtomMenuModel* menu_model) {
+void RootView::RegisterAcceleratorsWithFocusManager(
+    ElectronMenuModel* menu_model) {
   if (!menu_model)
     return;
   // Clear previous accelerators.

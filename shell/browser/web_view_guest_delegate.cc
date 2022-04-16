@@ -13,8 +13,8 @@
 #include "content/public/browser/render_view_host.h"
 #include "content/public/browser/render_widget_host.h"
 #include "content/public/browser/render_widget_host_view.h"
-#include "shell/browser/api/atom_api_web_contents.h"
-#include "shell/common/native_mate_converters/gurl_converter.h"
+#include "shell/browser/api/electron_api_web_contents.h"
+#include "third_party/blink/public/common/page/page_zoom.h"
 
 namespace electron {
 
@@ -39,12 +39,17 @@ void WebViewGuestDelegate::AttachToIframe(
             content::WebContents::FromRenderFrameHost(embedder_frame));
 
   content::WebContents* guest_web_contents = api_web_contents_->web_contents();
+
+  // Force a refresh of the webPreferences so that OverrideWebkitPrefs runs on
+  // the new web contents before the renderer process initializes.
+  // guest_web_contents->NotifyPreferencesChanged();
+
   // Attach this inner WebContents |guest_web_contents| to the outer
   // WebContents |embedder_web_contents|. The outer WebContents's
   // frame |embedder_frame| hosts the inner WebContents.
   embedder_web_contents_->AttachInnerWebContents(
       base::WrapUnique<content::WebContents>(guest_web_contents),
-      embedder_frame);
+      embedder_frame, false);
 
   ResetZoomController();
 
@@ -57,7 +62,7 @@ void WebViewGuestDelegate::AttachToIframe(
   api_web_contents_->Emit("did-attach");
 }
 
-void WebViewGuestDelegate::DidDetach() {
+void WebViewGuestDelegate::WillDestroy() {
   ResetZoomController();
 }
 
@@ -76,7 +81,7 @@ void WebViewGuestDelegate::OnZoomLevelChanged(
       api_web_contents_->GetZoomController()->SetZoomLevel(level);
     }
     // Change the default zoom factor to match the embedders' new zoom level.
-    double zoom_factor = content::ZoomLevelToZoomFactor(level);
+    double zoom_factor = blink::PageZoomLevelToZoomFactor(level);
     api_web_contents_->GetZoomController()->SetDefaultZoomFactor(zoom_factor);
   }
 }
@@ -92,32 +97,26 @@ void WebViewGuestDelegate::ResetZoomController() {
   }
 }
 
-content::RenderWidgetHost* WebViewGuestDelegate::GetOwnerRenderWidgetHost() {
-  return embedder_web_contents_->GetRenderViewHost()->GetWidget();
-}
-
-content::SiteInstance* WebViewGuestDelegate::GetOwnerSiteInstance() {
-  return embedder_web_contents_->GetSiteInstance();
-}
-
 content::WebContents* WebViewGuestDelegate::CreateNewGuestWindow(
     const content::WebContents::CreateParams& create_params) {
   // Code below mirrors what content::WebContentsImpl::CreateNewWindow
   // does for non-guest sources
   content::WebContents::CreateParams guest_params(create_params);
-  guest_params.initial_size =
-      embedder_web_contents_->GetContainerBounds().size();
   guest_params.context = embedder_web_contents_->GetNativeView();
   std::unique_ptr<content::WebContents> guest_contents =
       content::WebContents::Create(guest_params);
-  content::RenderWidgetHost* render_widget_host =
-      guest_contents->GetRenderViewHost()->GetWidget();
-  auto* guest_contents_impl =
-      static_cast<content::WebContentsImpl*>(guest_contents.release());
-  guest_contents_impl->GetView()->CreateViewForWidget(render_widget_host,
-                                                      false);
-
-  return guest_contents_impl;
+  if (!create_params.opener_suppressed) {
+    auto* guest_contents_impl =
+        static_cast<content::WebContentsImpl*>(guest_contents.release());
+    auto* new_guest_view = guest_contents_impl->GetView();
+    content::RenderWidgetHostView* widget_view =
+        new_guest_view->CreateViewForWidget(
+            guest_contents_impl->GetRenderViewHost()->GetWidget());
+    if (!create_params.initially_hidden)
+      widget_view->Show();
+    return guest_contents_impl;
+  }
+  return guest_contents.release();
 }
 
 }  // namespace electron

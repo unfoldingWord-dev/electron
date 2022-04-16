@@ -2,30 +2,19 @@
 // Use of this source code is governed by the MIT license that can be
 // found in the LICENSE file.
 
-#ifndef SHELL_BROWSER_NET_SYSTEM_NETWORK_CONTEXT_MANAGER_H_
-#define SHELL_BROWSER_NET_SYSTEM_NETWORK_CONTEXT_MANAGER_H_
+#ifndef ELECTRON_SHELL_BROWSER_NET_SYSTEM_NETWORK_CONTEXT_MANAGER_H_
+#define ELECTRON_SHELL_BROWSER_NET_SYSTEM_NETWORK_CONTEXT_MANAGER_H_
 
-#include <memory>
-#include <string>
-#include <vector>
-
-#include "base/macros.h"
 #include "base/memory/ref_counted.h"
-#include "base/optional.h"
 #include "chrome/browser/net/proxy_config_monitor.h"
+#include "mojo/public/cpp/bindings/remote.h"
+#include "sandbox/policy/features.h"
+#include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "services/network/public/mojom/network_context.mojom.h"
 #include "services/network/public/mojom/network_service.mojom.h"
-
-namespace network {
-namespace mojom {
-class URLLoaderFactory;
-}
-class SharedURLLoaderFactory;
-}  // namespace network
-
-namespace net_log {
-class NetExportFileWriter;
-}
+#include "services/network/public/mojom/url_loader.mojom.h"
+#include "services/network/public/mojom/url_loader_factory.mojom.h"
+#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace electron {
 network::mojom::HttpAuthDynamicParamsPtr CreateHttpAuthDynamicParams();
@@ -46,6 +35,11 @@ class SystemNetworkContextManager {
  public:
   ~SystemNetworkContextManager();
 
+  // disable copy
+  SystemNetworkContextManager(const SystemNetworkContextManager&) = delete;
+  SystemNetworkContextManager& operator=(const SystemNetworkContextManager&) =
+      delete;
+
   // Creates the global instance of SystemNetworkContextManager. If an
   // instance already exists, this will cause a DCHECK failure.
   static SystemNetworkContextManager* CreateInstance(PrefService* pref_service);
@@ -56,7 +50,20 @@ class SystemNetworkContextManager {
   // Destroys the global SystemNetworkContextManager instance.
   static void DeleteInstance();
 
-  // Returns default set of parameters for configuring the network service.
+  // c.f.
+  // https://source.chromium.org/chromium/chromium/src/+/main:chrome/browser/net/system_network_context_manager.cc;l=730-740;drc=15a616c8043551a7cb22c4f73a88e83afb94631c;bpv=1;bpt=1
+  // Returns whether the network sandbox is enabled. This depends on  policy but
+  // also feature status from sandbox. Called before there is an instance of
+  // SystemNetworkContextManager.
+  static bool IsNetworkSandboxEnabled();
+
+  // Configures default set of parameters for configuring the network context.
+  void ConfigureDefaultNetworkContextParams(
+      network::mojom::NetworkContextParams* network_context_params);
+
+  // Same as ConfigureDefaultNetworkContextParams() but returns a newly
+  // allocated network::mojom::NetworkContextParams with the
+  // CertVerifierCreationParams already placed into the NetworkContextParams.
   network::mojom::NetworkContextParamsPtr CreateDefaultNetworkContextParams();
 
   // Returns the System NetworkContext. May only be called after SetUp(). Does
@@ -91,14 +98,12 @@ class SystemNetworkContextManager {
 
   // NetworkContext using the network service, if the network service is
   // enabled. nullptr, otherwise.
-  network::mojom::NetworkContextPtr network_context_;
+  mojo::Remote<network::mojom::NetworkContext> network_context_;
 
   // URLLoaderFactory backed by the NetworkContext returned by GetContext(), so
   // consumers don't all need to create their own factory.
   scoped_refptr<URLLoaderFactoryForSystem> shared_url_loader_factory_;
-  network::mojom::URLLoaderFactoryPtr url_loader_factory_;
-
-  DISALLOW_COPY_AND_ASSIGN(SystemNetworkContextManager);
+  mojo::Remote<network::mojom::URLLoaderFactory> url_loader_factory_;
 };
 
-#endif  // SHELL_BROWSER_NET_SYSTEM_NETWORK_CONTEXT_MANAGER_H_
+#endif  // ELECTRON_SHELL_BROWSER_NET_SYSTEM_NETWORK_CONTEXT_MANAGER_H_

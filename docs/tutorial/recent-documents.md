@@ -1,4 +1,13 @@
-# Recent Documents (Windows & macOS)
+---
+title: Recent Documents
+description: Provide a list of recent documents via Windows JumpList or macOS Dock
+slug: recent-documents
+hide_title: true
+---
+
+# Recent Documents
+
+## Overview
 
 Windows and macOS provide access to a list of recent documents opened by
 the application via JumpList or dock menu, respectively.
@@ -11,33 +20,116 @@ __Application dock menu:__
 
 ![macOS Dock Menu][dock-menu-image]
 
-To add a file to recent documents, you can use the
-[app.addRecentDocument][addrecentdocument] API:
+## Example
 
-```javascript
-const { app } = require('electron')
-app.addRecentDocument('/Users/USERNAME/Desktop/work.type')
+### Managing recent documents
+
+```javascript fiddle='docs/fiddles/features/recent-documents'
+const { app, BrowserWindow } = require('electron')
+const fs = require('fs')
+const path = require('path')
+
+const createWindow = () => {
+  const win = new BrowserWindow({
+    width: 800,
+    height: 600
+  })
+
+  win.loadFile('index.html')
+}
+
+const fileName = 'recently-used.md'
+fs.writeFile(fileName, 'Lorem Ipsum', () => {
+  app.addRecentDocument(path.join(__dirname, fileName))
+})
+
+app.whenReady().then(createWindow)
+
+app.on('window-all-closed', () => {
+  app.clearRecentDocuments()
+  if (process.platform !== 'darwin') {
+    app.quit()
+  }
+})
+
+app.on('activate', () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow()
+  }
+})
 ```
 
-And you can use [app.clearRecentDocuments][clearrecentdocuments] API to empty
-the recent documents list:
+#### Adding a recent document
 
-```javascript
-const { app } = require('electron')
-app.clearRecentDocuments()
-```
+To add a file to recent documents, use the
+[app.addRecentDocument][addrecentdocument] API.
 
-## Windows Notes
+After launching the Electron application, right click the application icon.
+In this guide, the item is a Markdown file located in the root of the project.
+You should see `recently-used.md` added to the list of recent files:
 
-In order to be able to use this feature on Windows, your application has to be
-registered as a handler of the file type of the document, otherwise the file
-won't appear in JumpList even after you have added it. You can find everything
+![Recent document](../images/recent-documents.png)
+
+#### Clearing the list of recent documents
+
+To clear the list of recent documents, use the
+[app.clearRecentDocuments][clearrecentdocuments] API.
+In this guide, the list of documents is cleared once all windows have been
+closed.
+
+## Additional information
+
+### Windows Notes
+
+To use this feature on Windows, your application has to be registered as
+a handler of the file type of the document, otherwise the file won't appear
+in JumpList even after you have added it. You can find everything
 on registering your application in [Application Registration][app-registration].
 
 When a user clicks a file from the JumpList, a new instance of your application
 will be started with the path of the file added as a command line argument.
 
-## macOS Notes
+### macOS Notes
+
+#### Add the Recent Documents list to the application menu
+
+You can add menu items to access and clear recent documents by adding the
+following code snippet to your menu template:
+
+```json
+{
+  "submenu":[
+    {
+      "label":"Open Recent",
+      "role":"recentdocuments",
+      "submenu":[
+        {
+          "label":"Clear Recent",
+          "role":"clearrecentdocuments"
+        }
+      ]
+    }
+  ]
+}
+```
+
+Make sure the application menu is added after the [`'ready'`](../api/app.md#event-ready)
+event and not before, or the menu item will be disabled:
+
+```javascript
+const { app, Menu } = require('electron')
+
+const template = [
+  // Menu template here
+]
+const menu = Menu.buildFromTemplate(template)
+
+app.whenReady().then(() => {
+  Menu.setApplicationMenu(menu)
+})
+```
+
+![macOS Recent Documents menu item][menu-item-image]
 
 When a file is requested from the recent documents menu, the `open-file` event
 of `app` module will be emitted for it.
@@ -47,3 +139,4 @@ of `app` module will be emitted for it.
 [addrecentdocument]: ../api/app.md#appaddrecentdocumentpath-macos-windows
 [clearrecentdocuments]: ../api/app.md#appclearrecentdocuments-macos-windows
 [app-registration]: https://msdn.microsoft.com/en-us/library/cc144104(VS.85).aspx
+[menu-item-image]: https://user-images.githubusercontent.com/3168941/33003655-ea601c3a-cd70-11e7-97fa-7c062149cfb1.png

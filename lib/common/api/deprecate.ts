@@ -43,7 +43,7 @@ const deprecate: ElectronInternal.DeprecationUtil = {
     return function (this: any) {
       warn();
       fn.apply(this, arguments);
-    };
+    } as unknown as typeof fn;
   },
 
   // change the name of a function
@@ -52,15 +52,15 @@ const deprecate: ElectronInternal.DeprecationUtil = {
     return function (this: any) {
       warn();
       return fn.apply(this, arguments);
-    };
+    } as unknown as typeof fn;
   },
 
-  moveAPI: (fn: Function, oldUsage: string, newUsage: string) => {
+  moveAPI<T extends Function> (fn: T, oldUsage: string, newUsage: string): T {
     const warn = warnOnce(oldUsage, newUsage);
     return function (this: any) {
       warn();
       return fn.apply(this, arguments);
-    };
+    } as unknown as typeof fn;
   },
 
   // change the name of an event
@@ -76,102 +76,34 @@ const deprecate: ElectronInternal.DeprecationUtil = {
     });
   },
 
-  // deprecate a getter/setter function pair in favor of a property
-  fnToProperty: (prototype: any, prop: string, getter: string, setter?: string) => {
-    const withWarnOnce = function (obj: any, key: any, oldName: string, newName: string) {
-      const warn = warnOnce(oldName, newName);
-      const method = obj[key];
-      return function (this: any, ...args: any) {
-        warn();
-        return method.apply(this, args);
-      };
-    };
-
-    prototype[getter.substr(1)] = withWarnOnce(prototype, getter, `${getter.substr(1)} function`, `${prop} property`);
-    if (setter) {
-      prototype[setter.substr(1)] = withWarnOnce(prototype, setter, `${setter.substr(1)} function`, `${prop} property`);
-    }
-  },
-
   // remove a property with no replacement
-  removeProperty: (o, removedName) => {
+  removeProperty: (o, removedName, onlyForValues) => {
     // if the property's already been removed, warn about it
-    if (!(removedName in o)) {
+    const info = Object.getOwnPropertyDescriptor((o as any).__proto__, removedName) // eslint-disable-line
+    if (!info) {
       deprecate.log(`Unable to remove property '${removedName}' from an object that lacks it.`);
+      return o;
+    }
+    if (!info.get || !info.set) {
+      deprecate.log(`Unable to remove property '${removedName}' from an object does not have a getter / setter`);
+      return o;
     }
 
     // wrap the deprecated property in an accessor to warn
     const warn = warnOnce(removedName);
-    let val = o[removedName];
     return Object.defineProperty(o, removedName, {
       configurable: true,
       get: () => {
         warn();
-        return val;
+        return info.get!.call(o);
       },
       set: newVal => {
-        warn();
-        val = newVal;
+        if (!onlyForValues || onlyForValues.includes(newVal)) {
+          warn();
+        }
+        return info.set!.call(o, newVal);
       }
     });
-  },
-
-  // deprecate a callback-based function in favor of one returning a Promise
-  promisify: <T extends (...args: any[]) => any>(fn: T): T => {
-    const fnName = fn.name || 'function';
-    const oldName = `${fnName} with callbacks`;
-    const newName = `${fnName} with Promises`;
-    const warn = warnOnce(oldName, newName);
-
-    return function (this: any, ...params: any[]) {
-      let cb: Function | undefined;
-      if (params.length > 0 && typeof params[params.length - 1] === 'function') {
-        cb = params.pop();
-      }
-      const promise = fn.apply(this, params);
-      if (!cb) return promise;
-      if (process.enablePromiseAPIs) warn();
-      return promise
-        .then((res: any) => {
-          process.nextTick(() => {
-            cb!.length === 2 ? cb!(null, res) : cb!(res);
-          });
-          return res;
-        }, (err: Error) => {
-          process.nextTick(() => {
-            cb!.length === 2 ? cb!(err) : cb!();
-          });
-          throw err;
-        });
-    } as T;
-  },
-
-  // convertPromiseValue: Temporarily disabled until it's used
-  // deprecate a callback-based function in favor of one returning a Promise
-  promisifyMultiArg: <T extends (...args: any[]) => any>(fn: T /* convertPromiseValue: (v: any) => any */): T => {
-    const fnName = fn.name || 'function';
-    const oldName = `${fnName} with callbacks`;
-    const newName = `${fnName} with Promises`;
-    const warn = warnOnce(oldName, newName);
-
-    return function (this: any, ...params) {
-      let cb: Function | undefined;
-      if (params.length > 0 && typeof params[params.length - 1] === 'function') {
-        cb = params.pop();
-      }
-      const promise = fn.apply(this, params);
-      if (!cb) return promise;
-      if (process.enablePromiseAPIs) warn();
-      return promise
-        .then((res: any) => {
-          process.nextTick(() => {
-            // eslint-disable-next-line standard/no-callback-literal
-            cb!.length > 2 ? cb!(null, ...res) : cb!(...res);
-          });
-        }, (err: Error) => {
-          process.nextTick(() => cb!(err));
-        });
-    } as T;
   },
 
   // change the name of a property

@@ -4,6 +4,7 @@
 
 #include <string>
 
+#include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/strings/pattern.h"
 #include "base/strings/string_util.h"
@@ -128,7 +129,7 @@ bool AddImageSkiaRepFromPath(gfx::ImageSkia* image,
       return false;
   }
 
-  const unsigned char* data =
+  const auto* data =
       reinterpret_cast<const unsigned char*>(file_contents.data());
   size_t size = file_contents.size();
 

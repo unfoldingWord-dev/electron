@@ -4,6 +4,7 @@
 
 #include "shell/browser/ui/views/frameless_view.h"
 
+#include "shell/browser/native_browser_view_views.h"
 #include "shell/browser/native_window_views.h"
 #include "ui/aura/window.h"
 #include "ui/base/hit_test.h"
@@ -22,9 +23,9 @@ const int kResizeAreaCornerSize = 16;
 // static
 const char FramelessView::kViewClassName[] = "FramelessView";
 
-FramelessView::FramelessView() {}
+FramelessView::FramelessView() = default;
 
-FramelessView::~FramelessView() {}
+FramelessView::~FramelessView() = default;
 
 void FramelessView::Init(NativeWindowViews* window, views::Widget* frame) {
   window_ = window;
@@ -32,19 +33,29 @@ void FramelessView::Init(NativeWindowViews* window, views::Widget* frame) {
 }
 
 int FramelessView::ResizingBorderHitTest(const gfx::Point& point) {
-  // Check the frame first, as we allow a small area overlapping the contents
+  return ResizingBorderHitTestImpl(point, gfx::Insets(kResizeInsideBoundsSize));
+}
+
+int FramelessView::ResizingBorderHitTestImpl(const gfx::Point& point,
+                                             const gfx::Insets& resize_border) {
   // to be used for resize handles.
   bool can_ever_resize = frame_->widget_delegate()
                              ? frame_->widget_delegate()->CanResize()
                              : false;
+
+  // https://github.com/electron/electron/issues/611
+  // If window isn't resizable, we should always return HTNOWHERE, otherwise the
+  // hover state of DOM will not be cleared probably.
+  if (!can_ever_resize)
+    return HTNOWHERE;
+
   // Don't allow overlapping resize handles when the window is maximized or
   // fullscreen, as it can't be resized in those states.
-  int resize_border = frame_->IsMaximized() || frame_->IsFullscreen()
-                          ? 0
-                          : kResizeInsideBoundsSize;
-  return GetHTComponentForFrame(point, resize_border, resize_border,
-                                kResizeAreaCornerSize, kResizeAreaCornerSize,
-                                can_ever_resize);
+  bool allow_overlapping_handles =
+      !frame_->IsMaximized() && !frame_->IsFullscreen();
+  return GetHTComponentForFrame(
+      point, allow_overlapping_handles ? resize_border : gfx::Insets(),
+      kResizeAreaCornerSize, kResizeAreaCornerSize, can_ever_resize);
 }
 
 gfx::Rect FramelessView::GetBoundsForClientView() const {
@@ -68,16 +79,25 @@ int FramelessView::NonClientHitTest(const gfx::Point& cursor) {
   if (frame_->IsFullscreen())
     return HTCLIENT;
 
-  // Check for possible draggable region in the client area for the frameless
-  // window.
-  SkRegion* draggable_region = window_->draggable_region();
-  if (draggable_region && draggable_region->contains(cursor.x(), cursor.y()))
-    return HTCAPTION;
+  // Check attached BrowserViews for potential draggable areas.
+  for (auto* view : window_->browser_views()) {
+    auto* native_view = static_cast<NativeBrowserViewViews*>(view);
+    auto* view_draggable_region = native_view->draggable_region();
+    if (view_draggable_region &&
+        view_draggable_region->contains(cursor.x(), cursor.y()))
+      return HTCAPTION;
+  }
 
   // Support resizing frameless window by dragging the border.
   int frame_component = ResizingBorderHitTest(cursor);
   if (frame_component != HTNOWHERE)
     return frame_component;
+
+  // Check for possible draggable region in the client area for the frameless
+  // window.
+  SkRegion* draggable_region = window_->draggable_region();
+  if (draggable_region && draggable_region->contains(cursor.x(), cursor.y()))
+    return HTCAPTION;
 
   return HTCLIENT;
 }
@@ -104,7 +124,10 @@ gfx::Size FramelessView::GetMinimumSize() const {
 }
 
 gfx::Size FramelessView::GetMaximumSize() const {
-  return window_->GetContentMaximumSize();
+  gfx::Size size = window_->GetContentMaximumSize();
+  // Electron public APIs returns (0, 0) when maximum size is not set, but it
+  // would break internal window APIs like HWNDMessageHandler::SetAspectRatio.
+  return size.IsEmpty() ? gfx::Size(INT_MAX, INT_MAX) : size;
 }
 
 const char* FramelessView::GetClassName() const {

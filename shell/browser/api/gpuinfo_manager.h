@@ -2,18 +2,16 @@
 // Use of this source code is governed by the MIT license that can be
 // found in the LICENSE file.
 
-#ifndef SHELL_BROWSER_API_GPUINFO_MANAGER_H_
-#define SHELL_BROWSER_API_GPUINFO_MANAGER_H_
+#ifndef ELECTRON_SHELL_BROWSER_API_GPUINFO_MANAGER_H_
+#define ELECTRON_SHELL_BROWSER_API_GPUINFO_MANAGER_H_
 
 #include <memory>
-#include <unordered_set>
 #include <vector>
 
 #include "content/browser/gpu/gpu_data_manager_impl.h"  // nogncheck
 #include "content/public/browser/gpu_data_manager.h"
 #include "content/public/browser/gpu_data_manager_observer.h"
-#include "shell/common/native_mate_converters/value_converter.h"
-#include "shell/common/promise_util.h"
+#include "shell/common/gin_helper/promise.h"
 
 namespace electron {
 
@@ -24,9 +22,14 @@ class GPUInfoManager : public content::GpuDataManagerObserver {
 
   GPUInfoManager();
   ~GPUInfoManager() override;
+
+  // disable copy
+  GPUInfoManager(const GPUInfoManager&) = delete;
+  GPUInfoManager& operator=(const GPUInfoManager&) = delete;
+
   bool NeedsCompleteGpuInfoCollection() const;
-  void FetchCompleteInfo(util::Promise promise);
-  void FetchBasicInfo(util::Promise promise);
+  void FetchCompleteInfo(gin_helper::Promise<base::DictionaryValue> promise);
+  void FetchBasicInfo(gin_helper::Promise<base::DictionaryValue> promise);
   void OnGpuInfoUpdate() override;
 
  private:
@@ -34,16 +37,15 @@ class GPUInfoManager : public content::GpuDataManagerObserver {
       gpu::GPUInfo gpu_info) const;
 
   // These should be posted to the task queue
-  void CompleteInfoFetcher(util::Promise promise);
+  void CompleteInfoFetcher(gin_helper::Promise<base::DictionaryValue> promise);
   void ProcessCompleteInfo();
 
   // This set maintains all the promises that should be fulfilled
   // once we have the complete information data
-  std::vector<util::Promise> complete_info_promise_set_;
-  content::GpuDataManager* gpu_data_manager_;
-
-  DISALLOW_COPY_AND_ASSIGN(GPUInfoManager);
+  std::vector<gin_helper::Promise<base::DictionaryValue>>
+      complete_info_promise_set_;
+  content::GpuDataManagerImpl* gpu_data_manager_;
 };
 
 }  // namespace electron
-#endif  // SHELL_BROWSER_API_GPUINFO_MANAGER_H_
+#endif  // ELECTRON_SHELL_BROWSER_API_GPUINFO_MANAGER_H_

@@ -7,49 +7,52 @@
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "shell/browser/browser.h"
+#include "shell/browser/ui/gtk/status_icon.h"
 #include "shell/common/application_info.h"
 #include "ui/gfx/image/image.h"
-#include "ui/views/linux_ui/linux_ui.h"
+#include "ui/gfx/image/image_skia_operations.h"
 
 namespace electron {
 
-TrayIconGtk::TrayIconGtk() {}
+TrayIconGtk::TrayIconGtk() = default;
 
-TrayIconGtk::~TrayIconGtk() {}
+TrayIconGtk::~TrayIconGtk() = default;
 
 void TrayIconGtk::SetImage(const gfx::Image& image) {
+  image_ = image.AsImageSkia();
+
   if (icon_) {
-    icon_->SetIcon(image.AsImageSkia());
+    icon_->SetIcon(image_);
     return;
   }
 
-  const auto toolTip = base::UTF8ToUTF16(GetApplicationName());
-  icon_ = views::LinuxUI::instance()->CreateLinuxStatusIcon(
-      image.AsImageSkia(), toolTip, Browser::Get()->GetName().c_str());
+  tool_tip_ = base::UTF8ToUTF16(GetApplicationName());
+
+  icon_ = gtkui::CreateLinuxStatusIcon(image_, tool_tip_,
+                                       Browser::Get()->GetName().c_str());
   icon_->SetDelegate(this);
 }
 
 void TrayIconGtk::SetToolTip(const std::string& tool_tip) {
-  icon_->SetToolTip(base::UTF8ToUTF16(tool_tip));
+  tool_tip_ = base::UTF8ToUTF16(tool_tip);
+  icon_->SetToolTip(tool_tip_);
 }
 
-void TrayIconGtk::SetContextMenu(AtomMenuModel* menu_model) {
-  icon_->UpdatePlatformContextMenu(menu_model);
+void TrayIconGtk::SetContextMenu(ElectronMenuModel* menu_model) {
+  menu_model_ = menu_model;
+  icon_->UpdatePlatformContextMenu(menu_model_);
 }
 
 const gfx::ImageSkia& TrayIconGtk::GetImage() const {
-  NOTREACHED();
-  return dummy_image_;
+  return image_;
 }
 
-const base::string16& TrayIconGtk::GetToolTip() const {
-  NOTREACHED();
-  return dummy_string_;
+const std::u16string& TrayIconGtk::GetToolTip() const {
+  return tool_tip_;
 }
 
 ui::MenuModel* TrayIconGtk::GetMenuModel() const {
-  NOTREACHED();
-  return nullptr;
+  return menu_model_;
 }
 
 void TrayIconGtk::OnImplInitializationFailed() {}
@@ -63,7 +66,7 @@ bool TrayIconGtk::HasClickAction() {
 }
 
 // static
-TrayIcon* TrayIcon::Create() {
+TrayIcon* TrayIcon::Create(absl::optional<UUID> guid) {
   return new TrayIconGtk;
 }
 

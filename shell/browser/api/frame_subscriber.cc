@@ -9,8 +9,10 @@
 #include "content/public/browser/render_view_host.h"
 #include "content/public/browser/render_widget_host.h"
 #include "content/public/browser/render_widget_host_view.h"
+#include "media/capture/mojom/video_capture_buffer.mojom.h"
 #include "media/capture/mojom/video_capture_types.mojom.h"
-#include "shell/common/native_mate_converters/gfx_converter.h"
+#include "mojo/public/cpp/bindings/remote.h"
+#include "services/viz/privileged/mojom/compositing/frame_sink_video_capture.mojom-shared.h"
 #include "ui/gfx/geometry/size_conversions.h"
 #include "ui/gfx/image/image.h"
 #include "ui/gfx/skbitmap_operations.h"
@@ -26,8 +28,7 @@ FrameSubscriber::FrameSubscriber(content::WebContents* web_contents,
                                  bool only_dirty)
     : content::WebContentsObserver(web_contents),
       callback_(callback),
-      only_dirty_(only_dirty),
-      weak_ptr_factory_(this) {
+      only_dirty_(only_dirty) {
   content::RenderViewHost* rvh = web_contents->GetRenderViewHost();
   if (rvh)
     AttachToHost(rvh->GetWidget());
@@ -49,11 +50,9 @@ void FrameSubscriber::AttachToHost(content::RenderWidgetHost* host) {
   video_capturer_->SetResolutionConstraints(size, size, true);
   video_capturer_->SetAutoThrottlingEnabled(false);
   video_capturer_->SetMinSizeChangePeriod(base::TimeDelta());
-  video_capturer_->SetFormat(media::PIXEL_FORMAT_ARGB,
-                             gfx::ColorSpace::CreateREC709());
-  video_capturer_->SetMinCapturePeriod(base::TimeDelta::FromSeconds(1) /
-                                       kMaxFrameRate);
-  video_capturer_->Start(this);
+  video_capturer_->SetFormat(media::PIXEL_FORMAT_ARGB);
+  video_capturer_->SetMinCapturePeriod(base::Seconds(1) / kMaxFrameRate);
+  video_capturer_->Start(this, viz::mojom::BufferFormatPreference::kDefault);
 }
 
 void FrameSubscriber::DetachFromHost() {
@@ -63,9 +62,10 @@ void FrameSubscriber::DetachFromHost() {
   host_ = nullptr;
 }
 
-void FrameSubscriber::RenderViewCreated(content::RenderViewHost* host) {
+void FrameSubscriber::RenderFrameCreated(
+    content::RenderFrameHost* render_frame_host) {
   if (!host_)
-    AttachToHost(host->GetWidget());
+    AttachToHost(render_frame_host->GetRenderWidgetHost());
 }
 
 void FrameSubscriber::RenderViewDeleted(content::RenderViewHost* host) {
@@ -83,10 +83,13 @@ void FrameSubscriber::RenderViewHostChanged(content::RenderViewHost* old_host,
 }
 
 void FrameSubscriber::OnFrameCaptured(
-    base::ReadOnlySharedMemoryRegion data,
+    ::media::mojom::VideoBufferHandlePtr data,
     ::media::mojom::VideoFrameInfoPtr info,
     const gfx::Rect& content_rect,
-    viz::mojom::FrameSinkVideoConsumerFrameCallbacksPtr callbacks) {
+    mojo::PendingRemote<viz::mojom::FrameSinkVideoConsumerFrameCallbacks>
+        callbacks) {
+  auto& data_region = data->get_read_only_shmem_region();
+
   gfx::Size size = GetRenderViewSize();
   if (size != content_rect.size()) {
     video_capturer_->SetResolutionConstraints(size, size, true);
@@ -94,11 +97,13 @@ void FrameSubscriber::OnFrameCaptured(
     return;
   }
 
-  if (!data.IsValid()) {
-    callbacks->Done();
+  mojo::Remote<viz::mojom::FrameSinkVideoConsumerFrameCallbacks>
+      callbacks_remote(std::move(callbacks));
+  if (!data_region.IsValid()) {
+    callbacks_remote->Done();
     return;
   }
-  base::ReadOnlySharedMemoryMapping mapping = data.Map();
+  base::ReadOnlySharedMemoryMapping mapping = data_region.Map();
   if (!mapping.IsValid()) {
     DLOG(ERROR) << "Shared memory mapping failed.";
     return;
@@ -121,7 +126,7 @@ void FrameSubscriber::OnFrameCaptured(
     base::ReadOnlySharedMemoryMapping mapping;
     // Prevents FrameSinkVideoCapturer from recycling the shared memory that
     // backs |frame_|.
-    viz::mojom::FrameSinkVideoConsumerFrameCallbacksPtr releaser;
+    mojo::Remote<viz::mojom::FrameSinkVideoConsumerFrameCallbacks> releaser;
   };
 
   SkBitmap bitmap;
@@ -134,13 +139,15 @@ void FrameSubscriber::OnFrameCaptured(
       [](void* addr, void* context) {
         delete static_cast<FramePinner*>(context);
       },
-      new FramePinner{std::move(mapping), std::move(callbacks)});
+      new FramePinner{std::move(mapping), std::move(callbacks_remote)});
   bitmap.setImmutable();
 
   Done(content_rect, bitmap);
 }
 
 void FrameSubscriber::OnStopped() {}
+
+void FrameSubscriber::OnLog(const std::string& message) {}
 
 void FrameSubscriber::Done(const gfx::Rect& damage, const SkBitmap& frame) {
   if (frame.drawsNothing())
@@ -156,8 +163,7 @@ void FrameSubscriber::Done(const gfx::Rect& damage, const SkBitmap& frame) {
   // frame is modified.
   SkBitmap copy;
   copy.allocPixels(SkImageInfo::Make(bitmap.width(), bitmap.height(),
-                                     kRGBA_8888_SkColorType,
-                                     kPremul_SkAlphaType));
+                                     kN32_SkColorType, kPremul_SkAlphaType));
   SkPixmap pixmap;
   bool success = bitmap.peekPixels(&pixmap) && copy.writePixels(pixmap, 0, 0);
   CHECK(success);

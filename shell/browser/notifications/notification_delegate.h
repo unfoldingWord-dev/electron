@@ -2,8 +2,8 @@
 // Use of this source code is governed by the MIT license that can be
 // found in the LICENSE file.
 
-#ifndef SHELL_BROWSER_NOTIFICATIONS_NOTIFICATION_DELEGATE_H_
-#define SHELL_BROWSER_NOTIFICATIONS_NOTIFICATION_DELEGATE_H_
+#ifndef ELECTRON_SHELL_BROWSER_NOTIFICATIONS_NOTIFICATION_DELEGATE_H_
+#define ELECTRON_SHELL_BROWSER_NOTIFICATIONS_NOTIFICATION_DELEGATE_H_
 
 #include <string>
 
@@ -15,7 +15,7 @@ class NotificationDelegate {
   virtual void NotificationDestroyed() {}
 
   // Failed to send the notification.
-  virtual void NotificationFailed() {}
+  virtual void NotificationFailed(const std::string& error) {}
 
   // Notification was replied to
   virtual void NotificationReplied(const std::string& reply) {}
@@ -32,4 +32,4 @@ class NotificationDelegate {
 
 }  // namespace electron
 
-#endif  // SHELL_BROWSER_NOTIFICATIONS_NOTIFICATION_DELEGATE_H_
+#endif  // ELECTRON_SHELL_BROWSER_NOTIFICATIONS_NOTIFICATION_DELEGATE_H_

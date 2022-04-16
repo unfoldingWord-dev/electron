@@ -17,9 +17,27 @@ NodeBindingsLinux::NodeBindingsLinux(BrowserEnvironment browser_env)
   epoll_ctl(epoll_, EPOLL_CTL_ADD, backend_fd, &ev);
 }
 
-NodeBindingsLinux::~NodeBindingsLinux() {}
+NodeBindingsLinux::~NodeBindingsLinux() = default;
+
+void NodeBindingsLinux::PrepareMessageLoop() {
+  int handle = uv_backend_fd(uv_loop_);
+
+  // If the backend fd hasn't changed, don't proceed.
+  if (handle == handle_)
+    return;
+
+  NodeBindings::PrepareMessageLoop();
+}
 
 void NodeBindingsLinux::RunMessageLoop() {
+  int handle = uv_backend_fd(uv_loop_);
+
+  // If the backend fd hasn't changed, don't proceed.
+  if (handle == handle_)
+    return;
+
+  handle_ = handle;
+
   // Get notified when libuv's watcher queue changes.
   uv_loop_->data = this;
   uv_loop_->on_watcher_queue_updated = OnWatcherQueueChanged;

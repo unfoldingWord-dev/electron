@@ -2,8 +2,10 @@
 // Use of this source code is governed by the MIT license that can be
 // found in the LICENSE file.
 
-#ifndef SHELL_COMMON_OPTIONS_SWITCHES_H_
-#define SHELL_COMMON_OPTIONS_SWITCHES_H_
+#ifndef ELECTRON_SHELL_COMMON_OPTIONS_SWITCHES_H_
+#define ELECTRON_SHELL_COMMON_OPTIONS_SWITCHES_H_
+
+#include "electron/buildflags/buildflags.h"
 
 namespace electron {
 
@@ -52,15 +54,21 @@ extern const char kOpacity[];
 extern const char kFocusable[];
 extern const char kWebPreferences[];
 extern const char kVibrancyType[];
+extern const char kVisualEffectState[];
+extern const char kTrafficLightPosition[];
+extern const char kRoundedCorners[];
+extern const char ktitleBarOverlay[];
+extern const char kOverlayButtonColor[];
+extern const char kOverlaySymbolColor[];
+extern const char kOverlayHeight[];
 
 // WebPreferences.
 extern const char kZoomFactor[];
 extern const char kPreloadScript[];
+extern const char kPreloadScripts[];
 extern const char kPreloadURL[];
 extern const char kNodeIntegration[];
-extern const char kEnableRemoteModule[];
 extern const char kContextIsolation[];
-extern const char kGuestInstanceID[];
 extern const char kExperimentalFeatures[];
 extern const char kOpenerID[];
 extern const char kScrollBounce[];
@@ -79,9 +87,18 @@ extern const char kNodeIntegrationInSubFrames[];
 extern const char kDisableHtmlFullscreenWindowResize[];
 extern const char kJavaScript[];
 extern const char kImages[];
+extern const char kImageAnimationPolicy[];
 extern const char kTextAreasAreResizable[];
 extern const char kWebGL[];
 extern const char kNavigateOnDragDrop[];
+extern const char kEnableWebSQL[];
+extern const char kEnablePreferredSizeMode[];
+
+extern const char kHiddenPage[];
+
+#if BUILDFLAG(ENABLE_BUILTIN_SPELLCHECKER)
+extern const char kSpellcheck[];
+#endif
 
 }  // namespace options
 
@@ -90,7 +107,6 @@ extern const char kNavigateOnDragDrop[];
 namespace switches {
 
 extern const char kEnableSandbox[];
-extern const char kEnablePlugins[];
 extern const char kPpapiFlashPath[];
 extern const char kPpapiFlashVersion[];
 extern const char kDisableHttpCache[];
@@ -100,25 +116,12 @@ extern const char kSecureSchemes[];
 extern const char kBypassCSPSchemes[];
 extern const char kFetchSchemes[];
 extern const char kCORSSchemes[];
+extern const char kStreamingSchemes[];
 extern const char kAppUserModelId[];
 extern const char kAppPath[];
 
-extern const char kBackgroundColor[];
-extern const char kPreloadScript[];
-extern const char kPreloadScripts[];
-extern const char kNodeIntegration[];
-extern const char kDisableRemoteModule[];
-extern const char kContextIsolation[];
-extern const char kGuestInstanceID[];
-extern const char kOpenerID[];
 extern const char kScrollBounce[];
-extern const char kHiddenPage[];
-extern const char kNativeWindowOpen[];
 extern const char kNodeIntegrationInWorker[];
-extern const char kWebviewTag[];
-extern const char kNodeIntegrationInSubFrames[];
-extern const char kDisableElectronSiteInstanceOverrides[];
-extern const char kEnableNodeLeakageInRenderers[];
 
 extern const char kWidevineCdmPath[];
 extern const char kWidevineCdmVersion[];
@@ -128,9 +131,13 @@ extern const char kIgnoreConnectionsLimit[];
 extern const char kAuthServerWhitelist[];
 extern const char kAuthNegotiateDelegateWhitelist[];
 extern const char kEnableAuthNegotiatePort[];
+extern const char kDisableNTLMv2[];
 
+extern const char kGlobalCrashKeys[];
+
+extern const char kEnableWebSQL[];
 }  // namespace switches
 
 }  // namespace electron
 
-#endif  // SHELL_COMMON_OPTIONS_SWITCHES_H_
+#endif  // ELECTRON_SHELL_COMMON_OPTIONS_SWITCHES_H_

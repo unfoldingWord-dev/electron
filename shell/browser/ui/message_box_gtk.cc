@@ -3,20 +3,27 @@
 // found in the LICENSE file.
 
 #include "shell/browser/ui/message_box.h"
-#include "shell/browser/ui/util_gtk.h"
+
+#include <map>
 
 #include "base/callback.h"
+#include "base/containers/contains.h"
+#include "base/no_destructor.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
-#include "chrome/browser/ui/libgtkui/gtk_util.h"
-#include "chrome/browser/ui/libgtkui/skia_utils_gtk.h"
 #include "shell/browser/browser.h"
 #include "shell/browser/native_window_observer.h"
 #include "shell/browser/native_window_views.h"
+#include "shell/browser/ui/gtk_util.h"
 #include "shell/browser/unresponsive_suppressor.h"
 #include "ui/base/glib/glib_signal.h"
 #include "ui/gfx/image/image_skia.h"
-#include "ui/views/widget/desktop_aura/x11_desktop_handler.h"
+#include "ui/gtk/gtk_ui.h"
+#include "ui/gtk/gtk_util.h"
+
+#if defined(USE_OZONE)
+#include "ui/base/ui_base_features.h"
+#endif
 
 #define ANSI_FOREGROUND_RED "\x1b[31m"
 #define ANSI_FOREGROUND_BLACK "\x1b[30m"
@@ -32,10 +39,17 @@ MessageBoxSettings::~MessageBoxSettings() = default;
 
 namespace {
 
+// <ID, messageBox> map
+std::map<int, GtkWidget*>& GetDialogsMap() {
+  static base::NoDestructor<std::map<int, GtkWidget*>> dialogs;
+  return *dialogs;
+}
+
 class GtkMessageBox : public NativeWindowObserver {
  public:
   explicit GtkMessageBox(const MessageBoxSettings& settings)
-      : cancel_id_(settings.cancel_id),
+      : id_(settings.id),
+        cancel_id_(settings.cancel_id),
         parent_(static_cast<NativeWindow*>(settings.parent_window)) {
     // Create dialog.
     dialog_ =
@@ -44,6 +58,8 @@ class GtkMessageBox : public NativeWindowObserver {
                                GetMessageType(settings.type),   // type
                                GTK_BUTTONS_NONE,                // no buttons
                                "%s", settings.message.c_str());
+    if (id_)
+      GetDialogsMap()[*id_] = dialog_;
     if (!settings.detail.empty())
       gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(dialog_),
                                                "%s", settings.detail.c_str());
@@ -56,7 +72,7 @@ class GtkMessageBox : public NativeWindowObserver {
       static constexpr int pixel_width = 48;
       static constexpr int pixel_height = 48;
       GdkPixbuf* pixbuf =
-          libgtkui::GdkPixbufFromSkBitmap(*settings.icon.bitmap());
+          gtk_util::GdkPixbufFromSkBitmap(*settings.icon.bitmap());
       GdkPixbuf* scaled_pixbuf = gdk_pixbuf_scale_simple(
           pixbuf, pixel_width, pixel_height, GDK_INTERP_BILINEAR);
       GtkWidget* w = gtk_image_new_from_pixbuf(scaled_pixbuf);
@@ -81,9 +97,13 @@ class GtkMessageBox : public NativeWindowObserver {
 
     // Add buttons.
     GtkDialog* dialog = GTK_DIALOG(dialog_);
-    for (size_t i = 0; i < settings.buttons.size(); ++i) {
-      gtk_dialog_add_button(dialog, TranslateToStock(i, settings.buttons[i]),
-                            i);
+    if (settings.buttons.size() == 0) {
+      gtk_dialog_add_button(dialog, TranslateToStock(0, "OK"), 0);
+    } else {
+      for (size_t i = 0; i < settings.buttons.size(); ++i) {
+        gtk_dialog_add_button(dialog, TranslateToStock(i, settings.buttons[i]),
+                              i);
+      }
     }
     gtk_dialog_set_default_response(dialog, settings.default_id);
 
@@ -91,7 +111,7 @@ class GtkMessageBox : public NativeWindowObserver {
     if (parent_) {
       parent_->AddObserver(this);
       static_cast<NativeWindowViews*>(parent_)->SetEnabled(false);
-      libgtkui::SetGtkTransientForAura(dialog_, parent_->GetNativeWindow());
+      gtk::SetGtkTransientForAura(dialog_, parent_->GetNativeWindow());
       gtk_window_set_modal(GTK_WINDOW(dialog_), TRUE);
     }
   }
@@ -103,6 +123,10 @@ class GtkMessageBox : public NativeWindowObserver {
       static_cast<NativeWindowViews*>(parent_)->SetEnabled(true);
     }
   }
+
+  // disable copy
+  GtkMessageBox(const GtkMessageBox&) = delete;
+  GtkMessageBox& operator=(const GtkMessageBox&) = delete;
 
   GtkMessageType GetMessageType(MessageBoxType type) {
     switch (type) {
@@ -122,22 +146,19 @@ class GtkMessageBox : public NativeWindowObserver {
   const char* TranslateToStock(int id, const std::string& text) {
     const std::string lower = base::ToLowerASCII(text);
     if (lower == "cancel")
-      return gtk_util::kCancelLabel;
+      return gtk_util::GetCancelLabel();
     if (lower == "no")
-      return gtk_util::kNoLabel;
+      return gtk_util::GetNoLabel();
     if (lower == "ok")
-      return gtk_util::kOkLabel;
+      return gtk_util::GetOkLabel();
     if (lower == "yes")
-      return gtk_util::kYesLabel;
+      return gtk_util::GetYesLabel();
     return text.c_str();
   }
 
   void Show() {
     gtk_widget_show(dialog_);
-    // We need to call gtk_window_present after making the widgets visible to
-    // make sure window gets correctly raised and gets focus.
-    int time = ui::X11EventSource::GetInstance()->GetTimestamp();
-    gtk_window_present_with_time(GTK_WINDOW(dialog_), time);
+    gtk::GtkUi::GetPlatform()->ShowGtkWindow(GTK_WINDOW(dialog_));
   }
 
   int RunSynchronous() {
@@ -167,6 +188,9 @@ class GtkMessageBox : public NativeWindowObserver {
  private:
   electron::UnresponsiveSuppressor unresponsive_suppressor_;
 
+  // The id of the dialog.
+  absl::optional<int> id_;
+
   // The id to return when the dialog is closed without pressing buttons.
   int cancel_id_ = 0;
 
@@ -175,11 +199,11 @@ class GtkMessageBox : public NativeWindowObserver {
   NativeWindow* parent_;
   GtkWidget* dialog_;
   MessageBoxCallback callback_;
-
-  DISALLOW_COPY_AND_ASSIGN(GtkMessageBox);
 };
 
 void GtkMessageBox::OnResponseDialog(GtkWidget* widget, int response) {
+  if (id_)
+    GetDialogsMap().erase(*id_);
   gtk_widget_hide(dialog_);
 
   if (response < 0)
@@ -201,14 +225,25 @@ int ShowMessageBoxSync(const MessageBoxSettings& settings) {
 
 void ShowMessageBox(const MessageBoxSettings& settings,
                     MessageBoxCallback callback) {
+  if (settings.id && base::Contains(GetDialogsMap(), *settings.id))
+    CloseMessageBox(*settings.id);
   (new GtkMessageBox(settings))->RunAsynchronous(std::move(callback));
 }
 
-void ShowErrorBox(const base::string16& title, const base::string16& content) {
+void CloseMessageBox(int id) {
+  auto it = GetDialogsMap().find(id);
+  if (it == GetDialogsMap().end()) {
+    LOG(ERROR) << "CloseMessageBox called with nonexistent ID";
+    return;
+  }
+  gtk_window_close(GTK_WINDOW(it->second));
+}
+
+void ShowErrorBox(const std::u16string& title, const std::u16string& content) {
   if (Browser::Get()->is_ready()) {
     electron::MessageBoxSettings settings;
     settings.type = electron::MessageBoxType::kError;
-    settings.buttons = {"OK"};
+    settings.buttons = {};
     settings.title = "Error";
     settings.message = base::UTF16ToUTF8(title);
     settings.detail = base::UTF16ToUTF8(content);

@@ -9,9 +9,13 @@
 #include "base/base_switches.h"
 #include "base/command_line.h"
 #include "base/feature_list.h"
+#include "base/metrics/field_trial.h"
+#include "components/spellcheck/common/spellcheck_features.h"
 #include "content/public/common/content_features.h"
 #include "electron/buildflags/buildflags.h"
 #include "media/base/media_switches.h"
+#include "net/base/features.h"
+#include "services/network/public/cpp/features.h"
 
 namespace electron {
 
@@ -27,10 +31,32 @@ void InitializeFeatureList() {
   // when node integration is enabled.
   disable_features +=
       std::string(",") + features::kSpareRendererForSitePerProcess.name;
+
+  // PlzServiceWorker breaks fetching service worker scripts for custom
+  // protocols or chrome-extension protocols due to a change in the URL loader
+  // used to fetch the script.
+  // TODO(MarshallOfSound): Re-enable and fix?
+  disable_features += std::string(",") + features::kPlzServiceWorker.name;
+
 #if !BUILDFLAG(ENABLE_PICTURE_IN_PICTURE)
   disable_features += std::string(",") + media::kPictureInPicture.name;
 #endif
+
+#if defined(OS_WIN)
+  // Disable async spellchecker suggestions for Windows, which causes
+  // an empty suggestions list to be returned
+  disable_features +=
+      std::string(",") + spellcheck::kWinRetrieveSuggestionsOnlyOnDemand.name;
+#endif
   base::FeatureList::InitializeInstance(enable_features, disable_features);
+}
+
+void InitializeFieldTrials() {
+  auto* cmd_line = base::CommandLine::ForCurrentProcess();
+  auto force_fieldtrials =
+      cmd_line->GetSwitchValueASCII(::switches::kForceFieldTrials);
+
+  base::FieldTrialList::CreateTrialsFromString(force_fieldtrials);
 }
 
 }  // namespace electron

@@ -7,7 +7,9 @@
 #include <utility>
 
 #include "media/base/video_frame_metadata.h"
+#include "media/capture/mojom/video_capture_buffer.mojom.h"
 #include "media/capture/mojom/video_capture_types.mojom.h"
+#include "services/viz/privileged/mojom/compositing/frame_sink_video_capture.mojom-shared.h"
 #include "shell/browser/osr/osr_render_widget_host_view.h"
 #include "ui/gfx/skbitmap_operations.h"
 
@@ -18,14 +20,12 @@ OffScreenVideoConsumer::OffScreenVideoConsumer(
     OnPaintCallback callback)
     : callback_(callback),
       view_(view),
-      video_capturer_(view->CreateVideoCapturer()),
-      weak_ptr_factory_(this) {
+      video_capturer_(view->CreateVideoCapturer()) {
   video_capturer_->SetResolutionConstraints(view_->SizeInPixels(),
                                             view_->SizeInPixels(), true);
   video_capturer_->SetAutoThrottlingEnabled(false);
   video_capturer_->SetMinSizeChangePeriod(base::TimeDelta());
-  video_capturer_->SetFormat(media::PIXEL_FORMAT_ARGB,
-                             gfx::ColorSpace::CreateREC709());
+  video_capturer_->SetFormat(media::PIXEL_FORMAT_ARGB);
   SetFrameRate(view_->GetFrameRate());
 }
 
@@ -33,15 +33,14 @@ OffScreenVideoConsumer::~OffScreenVideoConsumer() = default;
 
 void OffScreenVideoConsumer::SetActive(bool active) {
   if (active) {
-    video_capturer_->Start(this);
+    video_capturer_->Start(this, viz::mojom::BufferFormatPreference::kDefault);
   } else {
     video_capturer_->Stop();
   }
 }
 
 void OffScreenVideoConsumer::SetFrameRate(int frame_rate) {
-  video_capturer_->SetMinCapturePeriod(base::TimeDelta::FromSeconds(1) /
-                                       frame_rate);
+  video_capturer_->SetMinCapturePeriod(base::Seconds(1) / frame_rate);
 }
 
 void OffScreenVideoConsumer::SizeChanged() {
@@ -51,10 +50,13 @@ void OffScreenVideoConsumer::SizeChanged() {
 }
 
 void OffScreenVideoConsumer::OnFrameCaptured(
-    base::ReadOnlySharedMemoryRegion data,
+    ::media::mojom::VideoBufferHandlePtr data,
     ::media::mojom::VideoFrameInfoPtr info,
     const gfx::Rect& content_rect,
-    viz::mojom::FrameSinkVideoConsumerFrameCallbacksPtr callbacks) {
+    mojo::PendingRemote<viz::mojom::FrameSinkVideoConsumerFrameCallbacks>
+        callbacks) {
+  auto& data_region = data->get_read_only_shmem_region();
+
   if (!CheckContentRect(content_rect)) {
     gfx::Size view_size = view_->SizeInPixels();
     video_capturer_->SetResolutionConstraints(view_size, view_size, true);
@@ -62,18 +64,23 @@ void OffScreenVideoConsumer::OnFrameCaptured(
     return;
   }
 
-  if (!data.IsValid()) {
-    callbacks->Done();
+  mojo::Remote<viz::mojom::FrameSinkVideoConsumerFrameCallbacks>
+      callbacks_remote(std::move(callbacks));
+
+  if (!data_region.IsValid()) {
+    callbacks_remote->Done();
     return;
   }
-  base::ReadOnlySharedMemoryMapping mapping = data.Map();
+  base::ReadOnlySharedMemoryMapping mapping = data_region.Map();
   if (!mapping.IsValid()) {
     DLOG(ERROR) << "Shared memory mapping failed.";
+    callbacks_remote->Done();
     return;
   }
   if (mapping.size() <
       media::VideoFrame::AllocationSize(info->pixel_format, info->coded_size)) {
     DLOG(ERROR) << "Shared memory size was less than expected.";
+    callbacks_remote->Done();
     return;
   }
 
@@ -89,7 +96,8 @@ void OffScreenVideoConsumer::OnFrameCaptured(
     base::ReadOnlySharedMemoryMapping mapping;
     // Prevents FrameSinkVideoCapturer from recycling the shared memory that
     // backs |frame_|.
-    viz::mojom::FrameSinkVideoConsumerFrameCallbacksPtr releaser;
+    mojo::PendingRemote<viz::mojom::FrameSinkVideoConsumerFrameCallbacks>
+        releaser;
   };
 
   SkBitmap bitmap;
@@ -102,22 +110,20 @@ void OffScreenVideoConsumer::OnFrameCaptured(
       [](void* addr, void* context) {
         delete static_cast<FramePinner*>(context);
       },
-      new FramePinner{std::move(mapping), std::move(callbacks)});
+      new FramePinner{std::move(mapping), callbacks_remote.Unbind()});
   bitmap.setImmutable();
 
-  media::VideoFrameMetadata metadata;
-  metadata.MergeInternalValuesFrom(info->metadata);
-  gfx::Rect damage_rect;
-
-  auto UPDATE_RECT = media::VideoFrameMetadata::CAPTURE_UPDATE_RECT;
-  if (!metadata.GetRect(UPDATE_RECT, &damage_rect)) {
-    damage_rect = content_rect;
+  absl::optional<gfx::Rect> update_rect = info->metadata.capture_update_rect;
+  if (!update_rect.has_value() || update_rect->IsEmpty()) {
+    update_rect = content_rect;
   }
 
-  callback_.Run(damage_rect, bitmap);
+  callback_.Run(*update_rect, bitmap);
 }
 
 void OffScreenVideoConsumer::OnStopped() {}
+
+void OffScreenVideoConsumer::OnLog(const std::string& message) {}
 
 bool OffScreenVideoConsumer::CheckContentRect(const gfx::Rect& content_rect) {
   gfx::Size view_size = view_->SizeInPixels();
