@@ -1,7 +1,7 @@
-import { app, session } from 'electron';
+import { app, session } from 'electron/main';
 
 // Global protocol APIs.
-const protocol = process.electronBinding('protocol');
+const protocol = process._linkedBinding('electron_browser_protocol');
 
 // Fallback protocol APIs of default session.
 Object.setPrototypeOf(protocol, new Proxy({}, {
@@ -9,7 +9,7 @@ Object.setPrototypeOf(protocol, new Proxy({}, {
     if (!app.isReady()) return;
 
     const protocol = session.defaultSession!.protocol;
-    if (!Object.getPrototypeOf(protocol).hasOwnProperty(property)) return;
+    if (!Object.prototype.hasOwnProperty.call(protocol, property)) return;
 
     // Returning a native function directly would throw error.
     return (...args: any[]) => (protocol[property as keyof Electron.Protocol] as Function)(...args);
@@ -17,8 +17,12 @@ Object.setPrototypeOf(protocol, new Proxy({}, {
 
   ownKeys () {
     if (!app.isReady()) return [];
+    return Reflect.ownKeys(session.defaultSession!.protocol);
+  },
 
-    return Object.getOwnPropertyNames(Object.getPrototypeOf(session.defaultSession!.protocol));
+  has: (target, property: string) => {
+    if (!app.isReady()) return false;
+    return Reflect.has(session.defaultSession!.protocol, property);
   },
 
   getOwnPropertyDescriptor () {

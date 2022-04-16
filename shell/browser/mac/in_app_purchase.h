@@ -2,8 +2,8 @@
 // Use of this source code is governed by the MIT license that can be
 // found in the LICENSE file.
 
-#ifndef SHELL_BROWSER_MAC_IN_APP_PURCHASE_H_
-#define SHELL_BROWSER_MAC_IN_APP_PURCHASE_H_
+#ifndef ELECTRON_SHELL_BROWSER_MAC_IN_APP_PURCHASE_H_
+#define ELECTRON_SHELL_BROWSER_MAC_IN_APP_PURCHASE_H_
 
 #include <string>
 
@@ -17,13 +17,15 @@ typedef base::OnceCallback<void(bool isProductValid)> InAppPurchaseCallback;
 
 // --------------------------- Functions ---------------------------
 
-bool CanMakePayments(void);
+bool CanMakePayments();
 
-void FinishAllTransactions(void);
+void RestoreCompletedTransactions();
+
+void FinishAllTransactions();
 
 void FinishTransactionByDate(const std::string& date);
 
-std::string GetReceiptURL(void);
+std::string GetReceiptURL();
 
 void PurchaseProduct(const std::string& productID,
                      int quantity,
@@ -31,4 +33,4 @@ void PurchaseProduct(const std::string& productID,
 
 }  // namespace in_app_purchase
 
-#endif  // SHELL_BROWSER_MAC_IN_APP_PURCHASE_H_
+#endif  // ELECTRON_SHELL_BROWSER_MAC_IN_APP_PURCHASE_H_

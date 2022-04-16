@@ -1,28 +1,46 @@
 import * as fs from 'fs';
-import * as path from 'path';
 
-import { deprecate, Menu } from 'electron';
-import { EventEmitter } from 'events';
+import { Menu } from 'electron/main';
 
-const bindings = process.electronBinding('app');
-const commandLine = process.electronBinding('command_line');
-const { app, App } = bindings;
+const bindings = process._linkedBinding('electron_browser_app');
+const commandLine = process._linkedBinding('electron_common_command_line');
+const { app } = bindings;
 
 // Only one app object permitted.
 export default app;
 
 let dockMenu: Electron.Menu | null = null;
 
-// App is an EventEmitter.
-Object.setPrototypeOf(App.prototype, EventEmitter.prototype);
-EventEmitter.call(app as any);
+// Properties.
+
+const nativeASGetter = app.isAccessibilitySupportEnabled;
+const nativeASSetter = app.setAccessibilitySupportEnabled;
+Object.defineProperty(app, 'accessibilitySupportEnabled', {
+  get: () => nativeASGetter.call(app),
+  set: (enabled) => nativeASSetter.call(app, enabled)
+});
+
+const nativeBCGetter = app.getBadgeCount;
+const nativeBCSetter = app.setBadgeCount;
+Object.defineProperty(app, 'badgeCount', {
+  get: () => nativeBCGetter.call(app),
+  set: (count) => nativeBCSetter.call(app, count)
+});
+
+const nativeNGetter = app.getName;
+const nativeNSetter = app.setName;
+Object.defineProperty(app, 'name', {
+  get: () => nativeNGetter.call(app),
+  set: (name) => nativeNSetter.call(app, name)
+});
 
 Object.assign(app, {
   commandLine: {
     hasSwitch: (theSwitch: string) => commandLine.hasSwitch(String(theSwitch)),
     getSwitchValue: (theSwitch: string) => commandLine.getSwitchValue(String(theSwitch)),
     appendSwitch: (theSwitch: string, value?: string) => commandLine.appendSwitch(String(theSwitch), typeof value === 'undefined' ? value : String(value)),
-    appendArgument: (arg: string) => commandLine.appendArgument(String(arg))
+    appendArgument: (arg: string) => commandLine.appendArgument(String(arg)),
+    removeSwitch: (theSwitch: string) => commandLine.removeSwitch(String(theSwitch))
   } as Electron.CommandLine
 });
 
@@ -37,26 +55,8 @@ Object.defineProperty(app, 'applicationMenu', {
   }
 });
 
-App.prototype.isPackaged = (() => {
-  const execFile = path.basename(process.execPath).toLowerCase();
-  if (process.platform === 'win32') {
-    return execFile !== 'electron.exe';
-  }
-  return execFile !== 'electron';
-})();
-
-app._setDefaultAppPaths = (packagePath) => {
-  // Set the user path according to application's name.
-  app.setPath('userData', path.join(app.getPath('appData'), app.name!));
-  app.setPath('userCache', path.join(app.getPath('cache'), app.name!));
-  app.setAppPath(packagePath);
-
-  // Add support for --user-data-dir=
-  if (app.commandLine.hasSwitch('user-data-dir')) {
-    const userDataDir = app.commandLine.getSwitchValue('user-data-dir');
-    if (path.isAbsolute(userDataDir)) app.setPath('userData', userDataDir);
-  }
-};
+// The native implementation is not provided on non-windows platforms
+app.setAppUserModelId = app.setAppUserModelId || (() => {});
 
 if (process.platform === 'darwin') {
   const setDockMenu = app.dock!.setMenu;
@@ -111,12 +111,3 @@ for (const name of events) {
     webContents.emit(name, event, ...args);
   });
 }
-
-// Property Deprecations
-deprecate.fnToProperty(App.prototype, 'accessibilitySupportEnabled', '_isAccessibilitySupportEnabled', '_setAccessibilitySupportEnabled');
-deprecate.fnToProperty(App.prototype, 'badgeCount', '_getBadgeCount', '_setBadgeCount');
-deprecate.fnToProperty(App.prototype, 'name', '_getName', '_setName');
-
-// Wrappers for native classes.
-const { DownloadItem } = process.electronBinding('download_item');
-Object.setPrototypeOf(DownloadItem.prototype, EventEmitter.prototype);

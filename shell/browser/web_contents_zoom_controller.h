@@ -2,11 +2,8 @@
 // Use of this source code is governed by the MIT license that can be
 // found in the LICENSE file.
 
-#ifndef SHELL_BROWSER_WEB_CONTENTS_ZOOM_CONTROLLER_H_
-#define SHELL_BROWSER_WEB_CONTENTS_ZOOM_CONTROLLER_H_
-
-#include <map>
-#include <string>
+#ifndef ELECTRON_SHELL_BROWSER_WEB_CONTENTS_ZOOM_CONTROLLER_H_
+#define ELECTRON_SHELL_BROWSER_WEB_CONTENTS_ZOOM_CONTROLLER_H_
 
 #include "base/observer_list_types.h"
 #include "content/public/browser/host_zoom_map.h"
@@ -36,23 +33,28 @@ class WebContentsZoomController
     // Results in default zoom behavior, i.e. zoom changes are handled
     // automatically and on a per-origin basis, meaning that other tabs
     // navigated to the same origin will also zoom.
-    DEFAULT,
+    kDefault,
     // Results in zoom changes being handled automatically, but on a per-tab
     // basis. Tabs in this zoom mode will not be affected by zoom changes in
     // other tabs, and vice versa.
-    ISOLATED,
+    kIsolated,
     // Overrides the automatic handling of zoom changes. The |onZoomChange|
     // event will still be dispatched, but the page will not actually be zoomed.
     // These zoom changes can be handled manually by listening for the
     // |onZoomChange| event. Zooming in this mode is also on a per-tab basis.
-    MANUAL,
+    kManual,
     // Disables all zooming in this tab. The tab will revert to the default
     // zoom level, and all attempted zoom changes will be ignored.
-    DISABLED,
+    kDisabled,
   };
 
   explicit WebContentsZoomController(content::WebContents* web_contents);
   ~WebContentsZoomController() override;
+
+  // disable copy
+  WebContentsZoomController(const WebContentsZoomController&) = delete;
+  WebContentsZoomController& operator=(const WebContentsZoomController&) =
+      delete;
 
   void AddObserver(Observer* observer);
   void RemoveObserver(Observer* observer);
@@ -95,13 +97,15 @@ class WebContentsZoomController
   void SetZoomFactorOnNavigationIfNeeded(const GURL& url);
 
   // The current zoom mode.
-  ZoomMode zoom_mode_ = ZoomMode::DEFAULT;
+  ZoomMode zoom_mode_ = ZoomMode::kDefault;
 
   // Current zoom level.
   double zoom_level_ = 1.0;
 
   // kZoomFactor.
   double default_zoom_factor_ = 0;
+
+  const double kPageZoomEpsilon = 0.001;
 
   int old_process_id_ = -1;
   int old_view_id_ = -1;
@@ -113,10 +117,8 @@ class WebContentsZoomController
   content::HostZoomMap* host_zoom_map_;
 
   WEB_CONTENTS_USER_DATA_KEY_DECL();
-
-  DISALLOW_COPY_AND_ASSIGN(WebContentsZoomController);
 };
 
 }  // namespace electron
 
-#endif  // SHELL_BROWSER_WEB_CONTENTS_ZOOM_CONTROLLER_H_
+#endif  // ELECTRON_SHELL_BROWSER_WEB_CONTENTS_ZOOM_CONTROLLER_H_

@@ -23,6 +23,7 @@ const getCurrentDate = () => {
 };
 
 const isNightly = v => v.includes('nightly');
+const isAlpha = v => v.includes('alpha');
 const isBeta = v => v.includes('beta');
 const isStable = v => {
   const parsed = semver.parse(v);
@@ -39,12 +40,29 @@ const makeVersion = (components, delim, pre = preType.NONE) => {
   return version;
 };
 
+async function nextAlpha (v) {
+  const next = semver.coerce(semver.clean(v));
+  const tagBlob = await GitProcess.exec(['tag', '--list', '-l', `v${next}-alpha.*`], ELECTRON_DIR);
+  const tags = tagBlob.stdout.split('\n').filter(e => e !== '');
+  tags.sort((t1, t2) => {
+    const a = parseInt(t1.split('.').pop(), 10);
+    const b = parseInt(t2.split('.').pop(), 10);
+    return a - b;
+  });
+
+  // increment the latest existing alpha tag or start at alpha.1 if it's a new alpha line
+  return tags.length === 0 ? `${next}-alpha.1` : semver.inc(tags.pop(), 'prerelease');
+}
+
 async function nextBeta (v) {
   const next = semver.coerce(semver.clean(v));
-
   const tagBlob = await GitProcess.exec(['tag', '--list', '-l', `v${next}-beta.*`], ELECTRON_DIR);
   const tags = tagBlob.stdout.split('\n').filter(e => e !== '');
-  tags.sort((t1, t2) => semver.gt(t1, t2));
+  tags.sort((t1, t2) => {
+    const a = parseInt(t1.split('.').pop(), 10);
+    const b = parseInt(t2.split('.').pop(), 10);
+    return a - b;
+  });
 
   // increment the latest existing beta tag or start at beta.1 if it's a new beta line
   return tags.length === 0 ? `${next}-beta.1` : semver.inc(tags.pop(), 'prerelease');
@@ -61,8 +79,9 @@ async function nextNightly (v) {
   const pre = `nightly.${getCurrentDate()}`;
 
   const branch = (await GitProcess.exec(['rev-parse', '--abbrev-ref', 'HEAD'], ELECTRON_DIR)).stdout.trim();
-  if (branch === 'master') {
-    next = semver.inc(await getLastMajorForMaster(), 'major');
+  // TODO(main-migration): Simplify once main branch is renamed
+  if (branch === 'master' || branch === 'main') {
+    next = semver.inc(await getLastMajorForMain(), 'major');
   } else if (isStable(v)) {
     next = semver.inc(next, 'patch');
   }
@@ -70,9 +89,9 @@ async function nextNightly (v) {
   return `${next}-${pre}`;
 }
 
-async function getLastMajorForMaster () {
+async function getLastMajorForMain () {
   let branchNames;
-  const result = await GitProcess.exec(['branch', '-a', '--remote', '--list', 'origin/[0-9]-[0-9]-x'], ELECTRON_DIR);
+  const result = await GitProcess.exec(['branch', '-a', '--remote', '--list', 'origin/[0-9]*-x-y'], ELECTRON_DIR);
   if (result.exitCode === 0) {
     branchNames = result.stdout.trim().split('\n');
     const filtered = branchNames.map(b => b.replace('origin/', ''));
@@ -83,14 +102,16 @@ async function getLastMajorForMaster () {
 }
 
 function getNextReleaseBranch (branches) {
-  const converted = branches.map(b => b.replace(/-/g, '.').replace('x', '0'));
+  const converted = branches.map(b => b.replace(/-/g, '.').replace('x', '0').replace('y', '0'));
   return converted.reduce((v1, v2) => semver.gt(v1, v2) ? v1 : v2);
 }
 
 module.exports = {
   isStable,
+  isAlpha,
   isBeta,
   isNightly,
+  nextAlpha,
   nextBeta,
   makeVersion,
   getElectronVersion,

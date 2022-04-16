@@ -6,6 +6,7 @@
 
 #include <windows.h>
 
+#include "base/logging.h"
 #include "base/process/launch.h"
 #include "base/strings/stringprintf.h"
 #include "base/win/scoped_handle.h"
@@ -109,7 +110,7 @@ void RelauncherSynchronizeWithParent() {
   // Notify the parent process that it can quit now.
   StringType name = internal::GetWaitEventName(process.Pid());
   base::win::ScopedHandle wait_event(
-      ::CreateEventW(NULL, TRUE, FALSE, name.c_str()));
+      CreateEvent(NULL, TRUE, FALSE, name.c_str()));
   ::SetEvent(wait_event.Get());
 
   // Wait for parent process to quit.

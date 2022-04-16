@@ -4,10 +4,18 @@
 
 #include "shell/browser/browser_process_impl.h"
 
+#include <memory>
+
 #include <utility>
 
+#include "base/command_line.h"
+#include "base/files/file_path.h"
+#include "base/path_service.h"
+#include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_switches.h"
+#include "components/os_crypt/os_crypt.h"
 #include "components/prefs/in_memory_pref_store.h"
+#include "components/prefs/json_pref_store.h"
 #include "components/prefs/overlay_user_pref_store.h"
 #include "components/prefs/pref_registry.h"
 #include "components/prefs/pref_registry_simple.h"
@@ -15,13 +23,15 @@
 #include "components/proxy_config/pref_proxy_config_tracker_impl.h"
 #include "components/proxy_config/proxy_config_dictionary.h"
 #include "components/proxy_config/proxy_config_pref_names.h"
+#include "content/public/browser/child_process_security_policy.h"
 #include "content/public/common/content_switches.h"
+#include "electron/fuses.h"
+#include "extensions/common/constants.h"
 #include "net/proxy_resolution/proxy_config.h"
 #include "net/proxy_resolution/proxy_config_service.h"
 #include "net/proxy_resolution/proxy_config_with_annotation.h"
-#include "net/proxy_resolution/proxy_resolution_service.h"
 #include "services/network/public/cpp/network_switches.h"
-#include "ui/base/l10n/l10n_util.h"
+#include "shell/common/electron_paths.h"
 
 #if BUILDFLAG(ENABLE_PRINTING)
 #include "chrome/browser/printing/print_job_manager.h"
@@ -74,20 +84,47 @@ void BrowserProcessImpl::ApplyProxyModeFromCommandLine(
   }
 }
 
+BuildState* BrowserProcessImpl::GetBuildState() {
+  NOTIMPLEMENTED();
+  return nullptr;
+}
+
+breadcrumbs::BreadcrumbPersistentStorageManager*
+BrowserProcessImpl::GetBreadcrumbPersistentStorageManager() {
+  NOTIMPLEMENTED();
+  return nullptr;
+}
+
 void BrowserProcessImpl::PostEarlyInitialization() {
-  // Mock user prefs, as we only need to track changes for a
-  // in memory pref store. There are no persistent preferences
   PrefServiceFactory prefs_factory;
   auto pref_registry = base::MakeRefCounted<PrefRegistrySimple>();
   PrefProxyConfigTrackerImpl::RegisterPrefs(pref_registry.get());
+#if defined(OS_WIN)
+  OSCrypt::RegisterLocalPrefs(pref_registry.get());
+#endif
+
   auto pref_store = base::MakeRefCounted<ValueMapPrefStore>();
   ApplyProxyModeFromCommandLine(pref_store.get());
   prefs_factory.set_command_line_prefs(std::move(pref_store));
-  prefs_factory.set_user_prefs(new OverlayUserPrefStore(new InMemoryPrefStore));
+
+  // Only use a persistent prefs store when cookie encryption is enabled as that
+  // is the only key that needs it
+  base::FilePath prefs_path;
+  CHECK(base::PathService::Get(chrome::DIR_USER_DATA, &prefs_path));
+  prefs_path = prefs_path.Append(FILE_PATH_LITERAL("Local State"));
+  base::ThreadRestrictions::ScopedAllowIO allow_io;
+  scoped_refptr<JsonPrefStore> user_pref_store =
+      base::MakeRefCounted<JsonPrefStore>(prefs_path);
+  user_pref_store->ReadPrefs();
+  prefs_factory.set_user_prefs(user_pref_store);
   local_state_ = prefs_factory.Create(std::move(pref_registry));
 }
 
 void BrowserProcessImpl::PreCreateThreads() {
+  // chrome-extension:// URLs are safe to request anywhere, but may only
+  // commit (including in iframes) in extension processes.
+  content::ChildProcessSecurityPolicy::GetInstance()
+      ->RegisterWebSafeIsolatedScheme(extensions::kExtensionScheme, true);
   // Must be created before the IOThread.
   // Once IOThread class is no longer needed,
   // this can be created on first use.
@@ -113,10 +150,6 @@ BrowserProcessImpl::GetMetricsServicesManager() {
 }
 
 metrics::MetricsService* BrowserProcessImpl::metrics_service() {
-  return nullptr;
-}
-
-rappor::RapporServiceImpl* BrowserProcessImpl::rappor_service() {
   return nullptr;
 }
 
@@ -162,10 +195,6 @@ BrowserProcessImpl::system_network_context_manager() {
 }
 
 network::NetworkQualityTracker* BrowserProcessImpl::network_quality_tracker() {
-  return nullptr;
-}
-
-WatchDogThread* BrowserProcessImpl::watchdog_thread() {
   return nullptr;
 }
 
@@ -221,18 +250,13 @@ BrowserProcessImpl::safe_browsing_service() {
   return nullptr;
 }
 
-safe_browsing::ClientSideDetectionService*
-BrowserProcessImpl::safe_browsing_detection_service() {
-  return nullptr;
-}
-
 subresource_filter::RulesetService*
 BrowserProcessImpl::subresource_filter_ruleset_service() {
   return nullptr;
 }
 
-optimization_guide::OptimizationGuideService*
-BrowserProcessImpl::optimization_guide_service() {
+federated_learning::FlocSortingLshClustersService*
+BrowserProcessImpl::floc_sorting_lsh_clusters_service() {
   return nullptr;
 }
 
@@ -266,9 +290,8 @@ resource_coordinator::TabManager* BrowserProcessImpl::GetTabManager() {
   return nullptr;
 }
 
-shell_integration::DefaultWebClientState
-BrowserProcessImpl::CachedDefaultWebClientState() {
-  return shell_integration::UNKNOWN_DEFAULT;
+SerialPolicyAllowedPorts* BrowserProcessImpl::serial_policy_allowed_ports() {
+  return nullptr;
 }
 
 void BrowserProcessImpl::SetApplicationLocale(const std::string& locale) {
@@ -282,7 +305,7 @@ const std::string& BrowserProcessImpl::GetApplicationLocale() {
 printing::PrintJobManager* BrowserProcessImpl::print_job_manager() {
 #if BUILDFLAG(ENABLE_PRINTING)
   if (!print_job_manager_)
-    print_job_manager_.reset(new printing::PrintJobManager());
+    print_job_manager_ = std::make_unique<printing::PrintJobManager>();
   return print_job_manager_.get();
 #else
   return nullptr;

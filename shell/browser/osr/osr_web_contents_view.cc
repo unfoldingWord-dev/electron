@@ -6,16 +6,16 @@
 
 #include "content/browser/web_contents/web_contents_impl.h"  // nogncheck
 #include "content/public/browser/render_view_host.h"
-#include "third_party/blink/public/platform/web_screen_info.h"
 #include "ui/display/screen.h"
+#include "ui/display/screen_info.h"
 
 namespace electron {
 
 OffScreenWebContentsView::OffScreenWebContentsView(
     bool transparent,
     const OnPaintCallback& callback)
-    : native_window_(nullptr), transparent_(transparent), callback_(callback) {
-#if defined(OS_MACOSX)
+    : transparent_(transparent), callback_(callback) {
+#if defined(OS_MAC)
   PlatformCreate();
 #endif
 }
@@ -24,7 +24,7 @@ OffScreenWebContentsView::~OffScreenWebContentsView() {
   if (native_window_)
     native_window_->RemoveObserver(this);
 
-#if defined(OS_MACOSX)
+#if defined(OS_MAC)
   PlatformDestroy();
 #endif
 }
@@ -33,7 +33,8 @@ void OffScreenWebContentsView::SetWebContents(
     content::WebContents* web_contents) {
   web_contents_ = web_contents;
 
-  RenderViewCreated(web_contents_->GetRenderViewHost());
+  if (GetView())
+    GetView()->InstallTransparency();
 }
 
 void OffScreenWebContentsView::SetNativeWindow(NativeWindow* window) {
@@ -65,7 +66,7 @@ gfx::Size OffScreenWebContentsView::GetSize() {
   return native_window_ ? native_window_->GetSize() : gfx::Size();
 }
 
-#if !defined(OS_MACOSX)
+#if !defined(OS_MAC)
 gfx::NativeView OffScreenWebContentsView::GetNativeView() const {
   if (!native_window_)
     return gfx::NativeView();
@@ -85,11 +86,9 @@ gfx::NativeWindow OffScreenWebContentsView::GetTopLevelNativeWindow() const {
 }
 #endif
 
-void OffScreenWebContentsView::GetContainerBounds(gfx::Rect* out) const {
-  *out = GetViewBounds();
+gfx::Rect OffScreenWebContentsView::GetContainerBounds() const {
+  return GetViewBounds();
 }
-
-void OffScreenWebContentsView::SizeContents(const gfx::Size& size) {}
 
 void OffScreenWebContentsView::Focus() {}
 
@@ -109,13 +108,11 @@ gfx::Rect OffScreenWebContentsView::GetViewBounds() const {
   return GetView() ? GetView()->GetViewBounds() : gfx::Rect();
 }
 
-void OffScreenWebContentsView::CreateView(const gfx::Size& initial_size,
-                                          gfx::NativeView context) {}
+void OffScreenWebContentsView::CreateView(gfx::NativeView context) {}
 
 content::RenderWidgetHostViewBase*
 OffScreenWebContentsView::CreateViewForWidget(
-    content::RenderWidgetHost* render_widget_host,
-    bool is_guest_view_hack) {
+    content::RenderWidgetHost* render_widget_host) {
   if (render_widget_host->GetView()) {
     return static_cast<content::RenderWidgetHostViewBase*>(
         render_widget_host->GetView());
@@ -129,30 +126,25 @@ OffScreenWebContentsView::CreateViewForWidget(
 content::RenderWidgetHostViewBase*
 OffScreenWebContentsView::CreateViewForChildWidget(
     content::RenderWidgetHost* render_widget_host) {
-  content::WebContentsImpl* web_contents_impl =
+  auto* web_contents_impl =
       static_cast<content::WebContentsImpl*>(web_contents_);
 
-  OffScreenRenderWidgetHostView* view =
-      static_cast<OffScreenRenderWidgetHostView*>(
-          web_contents_impl->GetOuterWebContents()
-              ? web_contents_impl->GetOuterWebContents()
-                    ->GetRenderWidgetHostView()
-              : web_contents_impl->GetRenderWidgetHostView());
+  auto* view = static_cast<OffScreenRenderWidgetHostView*>(
+      web_contents_impl->GetOuterWebContents()
+          ? web_contents_impl->GetOuterWebContents()->GetRenderWidgetHostView()
+          : web_contents_impl->GetRenderWidgetHostView());
 
   return new OffScreenRenderWidgetHostView(transparent_, painting_,
                                            view->GetFrameRate(), callback_,
                                            render_widget_host, view, GetSize());
 }
 
-void OffScreenWebContentsView::SetPageTitle(const base::string16& title) {}
+void OffScreenWebContentsView::SetPageTitle(const std::u16string& title) {}
 
-void OffScreenWebContentsView::RenderViewCreated(
-    content::RenderViewHost* host) {
+void OffScreenWebContentsView::RenderViewReady() {
   if (GetView())
     GetView()->InstallTransparency();
 }
-
-void OffScreenWebContentsView::RenderViewReady() {}
 
 void OffScreenWebContentsView::RenderViewHostChanged(
     content::RenderViewHost* old_host,
@@ -160,25 +152,28 @@ void OffScreenWebContentsView::RenderViewHostChanged(
 
 void OffScreenWebContentsView::SetOverscrollControllerEnabled(bool enabled) {}
 
-#if defined(OS_MACOSX)
+void OffScreenWebContentsView::OnCapturerCountChanged() {}
+
+#if defined(OS_MAC)
 bool OffScreenWebContentsView::CloseTabAfterEventTrackingIfNeeded() {
   return false;
 }
-#endif  // defined(OS_MACOSX)
+#endif  // defined(OS_MAC)
 
 void OffScreenWebContentsView::StartDragging(
     const content::DropData& drop_data,
-    blink::WebDragOperationsMask allowed_ops,
+    blink::DragOperationsMask allowed_ops,
     const gfx::ImageSkia& image,
     const gfx::Vector2d& image_offset,
-    const content::DragEventSourceInfo& event_info,
+    const blink::mojom::DragEventSourceInfo& event_info,
     content::RenderWidgetHostImpl* source_rwh) {
   if (web_contents_)
-    web_contents_->SystemDragEnded(source_rwh);
+    static_cast<content::WebContentsImpl*>(web_contents_)
+        ->SystemDragEnded(source_rwh);
 }
 
 void OffScreenWebContentsView::UpdateDragCursor(
-    blink::WebDragOperation operation) {}
+    ui::mojom::DragOperation operation) {}
 
 void OffScreenWebContentsView::SetPainting(bool painting) {
   auto* view = GetView();

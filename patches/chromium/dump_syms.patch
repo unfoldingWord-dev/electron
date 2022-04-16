@@ -5,16 +5,16 @@ Subject: dump_syms.patch
 
 dylib currently fails to resolve Squirrel.framework on OSX, we need to fix
 this but it is not a blocker for releasing Electron.  This patch removes
-the hard fail on dylib resolve failure from dump_syms
+tthe hard fail on dylib resolve failure from dump_syms
 
 diff --git a/components/crash/content/tools/generate_breakpad_symbols.py b/components/crash/content/tools/generate_breakpad_symbols.py
-index cdd374c33a3edc12db9c9496a4ca765d2ba0ab5d..db04d39f8d263dc2b3b67b7f84470f557b519cfa 100755
+index e68039d78f1de03f7ffc68017cbb9f948f67f440..b1811df7b5e6252bc71dd0f11ad6bf02858387f4 100755
 --- a/components/crash/content/tools/generate_breakpad_symbols.py
 +++ b/components/crash/content/tools/generate_breakpad_symbols.py
-@@ -175,7 +175,7 @@ def GetSharedLibraryDependenciesMac(binary, exe_path):
+@@ -206,7 +206,7 @@ def GetSharedLibraryDependenciesMac(binary, exe_path):
              'ERROR: failed to resolve %s, exe_path %s, loader_path %s, '
              'rpaths %s' % (m.group(1), exe_path, loader_path,
-                            ', '.join(rpaths)))
+                            ', '.join(rpaths))), file=sys.stderr)
 -        sys.exit(1)
 +        # sys.exit(1)
    return deps

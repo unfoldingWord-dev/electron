@@ -3,7 +3,11 @@
 // found in the LICENSE file.
 
 #include "shell/browser/notifications/win/win32_desktop_notifications/toast_uia.h"
+
 #include <UIAutomation.h>
+
+#include "base/check_op.h"
+#include "base/strings/string_util_win.h"
 #include "shell/browser/notifications/win/win32_desktop_notifications/common.h"
 
 #pragma comment(lib, "uiautomationcore.lib")
@@ -16,7 +20,7 @@ DesktopNotificationController::Toast::UIAutomationInterface::
   text_ = toast->data_->caption;
   if (!toast->data_->body_text.empty()) {
     if (!text_.empty())
-      text_.append(L", ");
+      text_.append(u", ");
     text_.append(toast->data_->body_text);
   }
 }
@@ -104,7 +108,7 @@ DesktopNotificationController::Toast::UIAutomationInterface::GetPropertyValue(
   switch (property_id) {
     case UIA_NamePropertyId:
       retval->vt = VT_BSTR;
-      retval->bstrVal = SysAllocString(text_.c_str());
+      retval->bstrVal = SysAllocString(base::as_wcstr(text_));
       break;
 
     case UIA_ClassNamePropertyId:

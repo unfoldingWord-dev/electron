@@ -1,0 +1,80 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: John Kleinschmidt <jkleinsc@electronjs.org>
+Date: Wed, 16 Jun 2021 11:30:28 -0400
+Subject: Don't run PCScan functions if PCScan is disabled
+
+PCScan should not be invoked if PCScan is disabled.  Upstreamed at https://chromium-review.googlesource.com/c/chromium/src/+/2916657.
+
+diff --git a/base/allocator/partition_allocator/memory_reclaimer.cc b/base/allocator/partition_allocator/memory_reclaimer.cc
+index cc4c5bad93175e309c21bc39e95e7473a22d1a7f..446fca9ebdf6f87a697905d0114a88f5f7c5214a 100644
+--- a/base/allocator/partition_allocator/memory_reclaimer.cc
++++ b/base/allocator/partition_allocator/memory_reclaimer.cc
+@@ -94,7 +94,7 @@ void PartitionAllocMemoryReclaimer::Reclaim(int flags) {
+   //
+   // Lastly decommit empty slot spans and lastly try to discard unused pages at
+   // the end of the remaining active slots.
+-#if PA_STARSCAN_ENABLE_STARSCAN_ON_RECLAIM
++#if PA_STARSCAN_ENABLE_STARSCAN_ON_RECLAIM && defined(PA_ALLOW_PCSCAN)
+   {
+     using PCScan = internal::PCScan;
+     const auto invocation_mode = flags & PartitionPurgeAggressiveReclaim
+diff --git a/base/threading/platform_thread_posix.cc b/base/threading/platform_thread_posix.cc
+index dfdd94db5d929b89671b93c991037dac957690c5..02543e37003dd0524f5321d4aa75f9f2f6899f57 100644
+--- a/base/threading/platform_thread_posix.cc
++++ b/base/threading/platform_thread_posix.cc
+@@ -42,6 +42,7 @@
+ #endif
+ 
+ #if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
++#include "base/allocator/partition_allocator/partition_alloc_config.h"
+ #include "base/allocator/partition_allocator/starscan/pcscan.h"
+ #include "base/allocator/partition_allocator/starscan/stack/stack.h"
+ #endif
+@@ -75,7 +76,7 @@ void* ThreadFunc(void* params) {
+       base::DisallowSingleton();
+ 
+ #if !defined(OS_NACL)
+-#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
++#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) && defined(PA_ALLOW_PCSCAN)
+     internal::PCScan::NotifyThreadCreated(internal::GetStackPointer());
+ #endif
+ 
+@@ -101,7 +102,7 @@ void* ThreadFunc(void* params) {
+       PlatformThread::CurrentHandle().platform_handle(),
+       PlatformThread::CurrentId());
+ 
+-#if !defined(OS_NACL) && BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
++#if !defined(OS_NACL) && BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) && defined(PA_ALLOW_PCSCAN)
+   internal::PCScan::NotifyThreadDestroyed();
+ #endif
+ 
+diff --git a/base/threading/platform_thread_win.cc b/base/threading/platform_thread_win.cc
+index 047114ee7e2ad54cfd6240dda930ee6b5b067947..ba912d601ac12bc1a7c331d0bfc22acbecb86f3a 100644
+--- a/base/threading/platform_thread_win.cc
++++ b/base/threading/platform_thread_win.cc
+@@ -29,6 +29,7 @@
+ #include <windows.h>
+ 
+ #if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
++#include "base/allocator/partition_allocator/partition_alloc_config.h"
+ #include "base/allocator/partition_allocator/starscan/pcscan.h"
+ #include "base/allocator/partition_allocator/starscan/stack/stack.h"
+ #endif
+@@ -105,7 +106,7 @@ DWORD __stdcall ThreadFunc(void* params) {
+                                 FALSE,
+                                 DUPLICATE_SAME_ACCESS);
+ 
+-#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
++#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) && defined(PA_ALLOW_PCSCAN)
+   internal::PCScan::NotifyThreadCreated(internal::GetStackPointer());
+ #endif
+ 
+@@ -127,7 +128,7 @@ DWORD __stdcall ThreadFunc(void* params) {
+         PlatformThread::CurrentId());
+   }
+ 
+-#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
++#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) && defined(PA_ALLOW_PCSCAN)
+   internal::PCScan::NotifyThreadDestroyed();
+ #endif
+ 

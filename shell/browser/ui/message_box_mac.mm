@@ -4,6 +4,7 @@
 
 #include "shell/browser/ui/message_box.h"
 
+#include <map>
 #include <string>
 #include <utility>
 #include <vector>
@@ -11,8 +12,14 @@
 #import <Cocoa/Cocoa.h>
 
 #include "base/callback.h"
+#include "base/containers/contains.h"
 #include "base/mac/mac_util.h"
+#include "base/mac/scoped_nsobject.h"
+#include "base/no_destructor.h"
 #include "base/strings/sys_string_conversions.h"
+#include "base/task/post_task.h"
+#include "content/public/browser/browser_task_traits.h"
+#include "content/public/browser/browser_thread.h"
 #include "shell/browser/native_window.h"
 #include "skia/ext/skia_utils_mac.h"
 #include "ui/gfx/image/image_skia.h"
@@ -24,6 +31,12 @@ MessageBoxSettings::MessageBoxSettings(const MessageBoxSettings&) = default;
 MessageBoxSettings::~MessageBoxSettings() = default;
 
 namespace {
+
+// <ID, messageBox> map
+std::map<int, NSAlert*>& GetDialogsMap() {
+  static base::NoDestructor<std::map<int, NSAlert*>> dialogs;
+  return *dialogs;
+}
 
 NSAlert* CreateNSAlert(const MessageBoxSettings& settings) {
   // Ignore the title; it's the window title on other platforms and ignorable.
@@ -88,20 +101,26 @@ NSAlert* CreateNSAlert(const MessageBoxSettings& settings) {
     [alert setIcon:image];
   }
 
+  if (settings.text_width > 0) {
+    NSRect rect = NSMakeRect(0, 0, settings.text_width, 0);
+    NSView* accessoryView = [[NSView alloc] initWithFrame:rect];
+    [alert setAccessoryView:[accessoryView autorelease]];
+  }
+
   return alert;
 }
 
 }  // namespace
 
 int ShowMessageBoxSync(const MessageBoxSettings& settings) {
-  NSAlert* alert = CreateNSAlert(settings);
+  base::scoped_nsobject<NSAlert> alert(CreateNSAlert(settings));
 
   // Use runModal for synchronous alert without parent, since we don't have a
   // window to wait for. Also use it when window is provided but it is not
   // shown as it would be impossible to dismiss the alert if it is connected
   // to invisible window (see #22671).
   if (!settings.parent_window || !settings.parent_window->IsVisible())
-    return [[alert autorelease] runModal];
+    return [alert runModal];
 
   __block int ret_code = -1;
 
@@ -127,6 +146,12 @@ void ShowMessageBox(const MessageBoxSettings& settings,
     int ret = [[alert autorelease] runModal];
     std::move(callback).Run(ret, alert.suppressionButton.state == NSOnState);
   } else {
+    if (settings.id) {
+      if (base::Contains(GetDialogsMap(), *settings.id))
+        CloseMessageBox(*settings.id);
+      GetDialogsMap()[*settings.id] = alert;
+    }
+
     NSWindow* window =
         settings.parent_window
             ? settings.parent_window->GetNativeWindow().GetNativeNSWindow()
@@ -135,16 +160,42 @@ void ShowMessageBox(const MessageBoxSettings& settings,
     // Duplicate the callback object here since c is a reference and gcd would
     // only store the pointer, by duplication we can force gcd to store a copy.
     __block MessageBoxCallback callback_ = std::move(callback);
+    __block absl::optional<int> id = std::move(settings.id);
+    __block int cancel_id = settings.cancel_id;
 
-    [alert beginSheetModalForWindow:window
-                  completionHandler:^(NSModalResponse response) {
-                    std::move(callback_).Run(
-                        response, alert.suppressionButton.state == NSOnState);
-                  }];
+    auto handler = ^(NSModalResponse response) {
+      if (id)
+        GetDialogsMap().erase(*id);
+      // When the alert is cancelled programmatically, the response would be
+      // something like -1000. This currently only happens when users call
+      // CloseMessageBox API, and we should return cancelId as result.
+      if (response < 0)
+        response = cancel_id;
+      bool suppressed = alert.suppressionButton.state == NSOnState;
+      [alert release];
+      // The completionHandler runs inside a transaction commit, and we should
+      // not do any runModal inside it. However since we can not control what
+      // users will run in the callback, we have to delay running the callback
+      // until next tick, otherwise crash like this may happen:
+      // https://github.com/electron/electron/issues/26884
+      base::PostTask(
+          FROM_HERE, {content::BrowserThread::UI},
+          base::BindOnce(std::move(callback_), response, suppressed));
+    };
+    [alert beginSheetModalForWindow:window completionHandler:handler];
   }
 }
 
-void ShowErrorBox(const base::string16& title, const base::string16& content) {
+void CloseMessageBox(int id) {
+  auto it = GetDialogsMap().find(id);
+  if (it == GetDialogsMap().end()) {
+    LOG(ERROR) << "CloseMessageBox called with nonexistent ID";
+    return;
+  }
+  [NSApp endSheet:it->second.window];
+}
+
+void ShowErrorBox(const std::u16string& title, const std::u16string& content) {
   NSAlert* alert = [[NSAlert alloc] init];
   [alert setMessageText:base::SysUTF16ToNSString(title)];
   [alert setInformativeText:base::SysUTF16ToNSString(content)];

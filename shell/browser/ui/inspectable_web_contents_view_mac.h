@@ -3,23 +3,26 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE-CHROMIUM file.
 
-#ifndef SHELL_BROWSER_UI_INSPECTABLE_WEB_CONTENTS_VIEW_MAC_H_
-#define SHELL_BROWSER_UI_INSPECTABLE_WEB_CONTENTS_VIEW_MAC_H_
+#ifndef ELECTRON_SHELL_BROWSER_UI_INSPECTABLE_WEB_CONTENTS_VIEW_MAC_H_
+#define ELECTRON_SHELL_BROWSER_UI_INSPECTABLE_WEB_CONTENTS_VIEW_MAC_H_
 
 #include "shell/browser/ui/inspectable_web_contents_view.h"
 
 #include "base/mac/scoped_nsobject.h"
 
-@class AtomInspectableWebContentsView;
+@class ElectronInspectableWebContentsView;
 
 namespace electron {
 
-class InspectableWebContentsImpl;
+class InspectableWebContents;
 
 class InspectableWebContentsViewMac : public InspectableWebContentsView {
  public:
   explicit InspectableWebContentsViewMac(
-      InspectableWebContentsImpl* inspectable_web_contents_impl);
+      InspectableWebContents* inspectable_web_contents);
+  InspectableWebContentsViewMac(const InspectableWebContentsViewMac&) = delete;
+  InspectableWebContentsViewMac& operator=(
+      const InspectableWebContentsViewMac&) = delete;
   ~InspectableWebContentsViewMac() override;
 
   gfx::NativeView GetNativeView() const override;
@@ -30,21 +33,19 @@ class InspectableWebContentsViewMac : public InspectableWebContentsView {
   void SetIsDocked(bool docked, bool activate) override;
   void SetContentsResizingStrategy(
       const DevToolsContentsResizingStrategy& strategy) override;
-  void SetTitle(const base::string16& title) override;
+  void SetTitle(const std::u16string& title) override;
 
-  InspectableWebContentsImpl* inspectable_web_contents() {
+  InspectableWebContents* inspectable_web_contents() {
     return inspectable_web_contents_;
   }
 
  private:
   // Owns us.
-  InspectableWebContentsImpl* inspectable_web_contents_;
+  InspectableWebContents* inspectable_web_contents_;
 
-  base::scoped_nsobject<AtomInspectableWebContentsView> view_;
-
-  DISALLOW_COPY_AND_ASSIGN(InspectableWebContentsViewMac);
+  base::scoped_nsobject<ElectronInspectableWebContentsView> view_;
 };
 
 }  // namespace electron
 
-#endif  // SHELL_BROWSER_UI_INSPECTABLE_WEB_CONTENTS_VIEW_MAC_H_
+#endif  // ELECTRON_SHELL_BROWSER_UI_INSPECTABLE_WEB_CONTENTS_VIEW_MAC_H_

@@ -9,9 +9,9 @@
 
 namespace electron {
 
-ViewsDelegateMac::ViewsDelegateMac() {}
+ViewsDelegateMac::ViewsDelegateMac() = default;
 
-ViewsDelegateMac::~ViewsDelegateMac() {}
+ViewsDelegateMac::~ViewsDelegateMac() = default;
 
 void ViewsDelegateMac::OnBeforeWidgetInit(
     views::Widget::InitParams* params,
@@ -34,10 +34,6 @@ void ViewsDelegateMac::OnBeforeWidgetInit(
 
 ui::ContextFactory* ViewsDelegateMac::GetContextFactory() {
   return content::GetContextFactory();
-}
-
-ui::ContextFactoryPrivate* ViewsDelegateMac::GetContextFactoryPrivate() {
-  return content::GetContextFactoryPrivate();
 }
 
 }  // namespace electron

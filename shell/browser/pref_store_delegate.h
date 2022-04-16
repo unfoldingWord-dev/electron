@@ -2,26 +2,34 @@
 // Use of this source code is governed by the MIT license that can be
 // found in the LICENSE file.
 
-#ifndef SHELL_BROWSER_PREF_STORE_DELEGATE_H_
-#define SHELL_BROWSER_PREF_STORE_DELEGATE_H_
+#ifndef ELECTRON_SHELL_BROWSER_PREF_STORE_DELEGATE_H_
+#define ELECTRON_SHELL_BROWSER_PREF_STORE_DELEGATE_H_
 
 #include <vector>
 
-#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
-#include "components/prefs/persistent_pref_store.h"
 #include "components/prefs/pref_value_store.h"
+
+class PersistentPrefStore;
+class PrefNotifier;
+class PrefRegistry;
+class PrefStore;
 
 namespace electron {
 
-class AtomBrowserContext;
+class ElectronBrowserContext;
 
 // Retrieves handle to the in memory pref store that gets
 // initialized with the pref service.
 class PrefStoreDelegate : public PrefValueStore::Delegate {
  public:
-  explicit PrefStoreDelegate(base::WeakPtr<AtomBrowserContext> browser_context);
+  explicit PrefStoreDelegate(
+      base::WeakPtr<ElectronBrowserContext> browser_context);
   ~PrefStoreDelegate() override;
+
+  // disable copy
+  PrefStoreDelegate(const PrefStoreDelegate&) = delete;
+  PrefStoreDelegate& operator=(const PrefStoreDelegate&) = delete;
 
   void Init(PrefStore* managed_prefs,
             PrefStore* supervised_user_prefs,
@@ -42,11 +50,9 @@ class PrefStoreDelegate : public PrefValueStore::Delegate {
   void UpdateCommandLinePrefStore(PrefStore* command_line_prefs) override;
 
  private:
-  base::WeakPtr<AtomBrowserContext> browser_context_;
-
-  DISALLOW_COPY_AND_ASSIGN(PrefStoreDelegate);
+  base::WeakPtr<ElectronBrowserContext> browser_context_;
 };
 
 }  // namespace electron
 
-#endif  // SHELL_BROWSER_PREF_STORE_DELEGATE_H_
+#endif  // ELECTRON_SHELL_BROWSER_PREF_STORE_DELEGATE_H_

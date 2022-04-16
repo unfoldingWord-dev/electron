@@ -28,6 +28,16 @@ const char kMaximizable[] = "maximizable";
 const char kFullScreenable[] = "fullscreenable";
 const char kClosable[] = "closable";
 const char kFullscreen[] = "fullscreen";
+const char kTrafficLightPosition[] = "trafficLightPosition";
+const char kRoundedCorners[] = "roundedCorners";
+
+// The color to use as the theme and symbol colors respectively for Window
+// Controls Overlay if enabled on Windows.
+const char kOverlayButtonColor[] = "color";
+const char kOverlaySymbolColor[] = "symbolColor";
+
+// The custom height for Window Controls Overlay.
+const char kOverlayHeight[] = "height";
 
 // Whether the window should show in taskbar.
 const char kSkipTaskbar[] = "skipTaskbar";
@@ -98,11 +108,17 @@ const char kWebPreferences[] = "webPreferences";
 // Add a vibrancy effect to the browser window
 const char kVibrancyType[] = "vibrancy";
 
+// Specify how the material appearance should reflect window activity state on
+// macOS.
+const char kVisualEffectState[] = "visualEffectState";
+
 // The factor of which page should be zoomed.
 const char kZoomFactor[] = "zoomFactor";
 
 // Script that will be loaded by guest WebContents before other scripts.
 const char kPreloadScript[] = "preload";
+
+const char kPreloadScripts[] = "preloadScripts";
 
 // Like --preload, but the passed argument is an URL.
 const char kPreloadURL[] = "preloadURL";
@@ -110,14 +126,8 @@ const char kPreloadURL[] = "preloadURL";
 // Enable the node integration.
 const char kNodeIntegration[] = "nodeIntegration";
 
-// Enable the remote module
-const char kEnableRemoteModule[] = "enableRemoteModule";
-
 // Enable context isolation of Electron APIs and preload script
 const char kContextIsolation[] = "contextIsolation";
-
-// Instance ID of guest WebContents.
-const char kGuestInstanceID[] = "guestInstanceId";
 
 // Web runtime features.
 const char kExperimentalFeatures[] = "experimentalFeatures";
@@ -166,6 +176,9 @@ const char kJavaScript[] = "javascript";
 // Enables image support.
 const char kImages[] = "images";
 
+// Image animation policy.
+const char kImageAnimationPolicy[] = "imageAnimationPolicy";
+
 // Make TextArea elements resizable.
 const char kTextAreasAreResizable[] = "textAreasAreResizable";
 
@@ -176,15 +189,24 @@ const char kWebGL[] = "webgl";
 // navigation.
 const char kNavigateOnDragDrop[] = "navigateOnDragDrop";
 
+const char kHiddenPage[] = "hiddenPage";
+
+#if BUILDFLAG(ENABLE_BUILTIN_SPELLCHECKER)
+const char kSpellcheck[] = "spellcheck";
+#endif
+
+const char kEnableWebSQL[] = "enableWebSQL";
+
+const char kEnablePreferredSizeMode[] = "enablePreferredSizeMode";
+
+const char ktitleBarOverlay[] = "titleBarOverlay";
+
 }  // namespace options
 
 namespace switches {
 
 // Enable chromium sandbox.
 const char kEnableSandbox[] = "enable-sandbox";
-
-// Enable plugins.
-const char kEnablePlugins[] = "enable-plugins";
 
 // Ppapi Flash path.
 const char kPpapiFlashPath[] = "ppapi-flash-path";
@@ -213,6 +235,9 @@ const char kFetchSchemes[] = "fetch-schemes";
 // Register schemes as CORS enabled.
 const char kCORSSchemes[] = "cors-schemes";
 
+// Register schemes as streaming responses.
+const char kStreamingSchemes[] = "streaming-schemes";
+
 // The browser process app model ID
 const char kAppUserModelId[] = "app-user-model-id";
 
@@ -220,28 +245,10 @@ const char kAppUserModelId[] = "app-user-model-id";
 const char kAppPath[] = "app-path";
 
 // The command line switch versions of the options.
-const char kBackgroundColor[] = "background-color";
-const char kPreloadScript[] = "preload";
-const char kPreloadScripts[] = "preload-scripts";
-const char kNodeIntegration[] = "node-integration";
-const char kDisableRemoteModule[] = "disable-remote-module";
-const char kContextIsolation[] = "context-isolation";
-const char kGuestInstanceID[] = "guest-instance-id";
-const char kOpenerID[] = "opener-id";
 const char kScrollBounce[] = "scroll-bounce";
-const char kHiddenPage[] = "hidden-page";
-const char kNativeWindowOpen[] = "native-window-open";
-const char kWebviewTag[] = "webview-tag";
-const char kDisableElectronSiteInstanceOverrides[] =
-    "disable-electron-site-instance-overrides";
-const char kEnableNodeLeakageInRenderers[] = "enable-node-leakage-in-renderers";
 
 // Command switch passed to renderer process to control nodeIntegration.
 const char kNodeIntegrationInWorker[] = "node-integration-in-worker";
-
-// Command switch passed to renderer process to control whether node
-// environments will be created in sub-frames.
-const char kNodeIntegrationInSubFrames[] = "node-integration-in-subframes";
 
 // Widevine options
 // Path to Widevine CDM binaries.
@@ -264,6 +271,13 @@ const char kAuthNegotiateDelegateWhitelist[] =
 
 // If set, include the port in generated Kerberos SPNs.
 const char kEnableAuthNegotiatePort[] = "enable-auth-negotiate-port";
+
+// If set, NTLM v2 is disabled for POSIX platforms.
+const char kDisableNTLMv2[] = "disable-ntlm-v2";
+
+const char kGlobalCrashKeys[] = "global-crash-keys";
+
+const char kEnableWebSQL[] = "enable-websql";
 
 }  // namespace switches
 

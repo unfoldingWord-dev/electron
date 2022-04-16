@@ -2,13 +2,14 @@
 // Use of this source code is governed by the MIT license that can be
 // found in the LICENSE file.
 
-#ifndef SHELL_BROWSER_NET_WEB_REQUEST_API_INTERFACE_H_
-#define SHELL_BROWSER_NET_WEB_REQUEST_API_INTERFACE_H_
+#ifndef ELECTRON_SHELL_BROWSER_NET_WEB_REQUEST_API_INTERFACE_H_
+#define ELECTRON_SHELL_BROWSER_NET_WEB_REQUEST_API_INTERFACE_H_
 
 #include <set>
 #include <string>
 
 #include "extensions/browser/api/web_request/web_request_info.h"
+#include "net/base/completion_once_callback.h"
 #include "services/network/public/cpp/resource_request.h"
 
 namespace electron {
@@ -58,4 +59,4 @@ class WebRequestAPI {
 
 }  // namespace electron
 
-#endif  // SHELL_BROWSER_NET_WEB_REQUEST_API_INTERFACE_H_
+#endif  // ELECTRON_SHELL_BROWSER_NET_WEB_REQUEST_API_INTERFACE_H_

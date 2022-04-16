@@ -1,6 +1,8 @@
 # Build Instructions (Linux)
 
-Follow the guidelines below for building Electron on Linux.
+Follow the guidelines below for building **Electron itself** on Linux, for the purposes of creating custom Electron binaries. For bundling and distributing your app code with the prebuilt Electron binaries, see the [application distribution][application-distribution] guide.
+
+[application-distribution]: ../tutorial/application-distribution.md
 
 ## Prerequisites
 
@@ -25,7 +27,7 @@ Follow the guidelines below for building Electron on Linux.
   Doing so permits installing Node on your own home directory as a standard user.
   Or try repositories such as [NodeSource](https://nodesource.com/blog/nodejs-v012-iojs-and-the-nodesource-linux-repositories).
 * [clang](https://clang.llvm.org/get_started.html) 3.4 or later.
-* Development headers of GTK+ and libnotify.
+* Development headers of GTK 3 and libnotify.
 
 On Ubuntu, install the following libraries:
 
@@ -55,6 +57,15 @@ $ sudo dnf install clang dbus-devel gtk3-devel libnotify-devel \
                    nss-devel python-dbusmock openjdk-8-jre
 ```
 
+On Arch Linux / Manjaro, install the following libraries:
+
+```sh
+$ sudo pacman -Syu base-devel clang libdbus gtk2 libnotify \
+                   libgnome-keyring alsa-lib libcap libcups libxtst \
+                   libxss nss gcc-multilib curl gperf bison \
+                   python2 python-dbusmock jdk8-openjdk
+```
+
 Other distributions may offer similar packages for installation via package
 managers such as pacman. Or one can compile from source code.
 
@@ -79,7 +90,7 @@ And to cross-compile for `arm` or `ia32` targets, you should pass the
 `target_cpu` parameter to `gn gen`:
 
 ```sh
-$ gn gen out/Debug --args='import(...) target_cpu="arm"'
+$ gn gen out/Testing --args='import(...) target_cpu="arm"'
 ```
 
 ## Building
@@ -114,7 +125,7 @@ GN args.
 For example if you installed `clang` under `/usr/local/bin/clang`:
 
 ```sh
-$ gn gen out/Debug --args='import("//electron/build/args/debug.gn") clang_base_path = "/usr/local/bin"'
+$ gn gen out/Testing --args='import("//electron/build/args/testing.gn") clang_base_path = "/usr/local/bin"'
 ```
 
 ### Using compilers other than `clang`

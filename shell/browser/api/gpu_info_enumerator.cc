@@ -11,7 +11,7 @@ namespace electron {
 GPUInfoEnumerator::GPUInfoEnumerator()
     : value_stack(), current(std::make_unique<base::DictionaryValue>()) {}
 
-GPUInfoEnumerator::~GPUInfoEnumerator() {}
+GPUInfoEnumerator::~GPUInfoEnumerator() = default;
 
 void GPUInfoEnumerator::AddInt64(const char* name, int64_t value) {
   current->SetInteger(name, value);
@@ -33,6 +33,11 @@ void GPUInfoEnumerator::AddBool(const char* name, bool value) {
 void GPUInfoEnumerator::AddTimeDeltaInSecondsF(const char* name,
                                                const base::TimeDelta& value) {
   current->SetInteger(name, value.InMilliseconds());
+}
+
+void GPUInfoEnumerator::AddBinary(const char* name,
+                                  const base::span<const uint8_t>& value) {
+  current->Set(name, std::make_unique<base::Value>(value));
 }
 
 void GPUInfoEnumerator::BeginGPUDevice() {
@@ -108,14 +113,14 @@ void GPUInfoEnumerator::EndAuxAttributes() {
   value_stack.pop();
 }
 
-void GPUInfoEnumerator::BeginDx12VulkanVersionInfo() {
+void GPUInfoEnumerator::BeginOverlayInfo() {
   value_stack.push(std::move(current));
   current = std::make_unique<base::DictionaryValue>();
 }
 
-void GPUInfoEnumerator::EndDx12VulkanVersionInfo() {
+void GPUInfoEnumerator::EndOverlayInfo() {
   auto& top_value = value_stack.top();
-  top_value->SetDictionary(kDx12VulkanVersionInfoKey, std::move(current));
+  top_value->SetDictionary(kOverlayInfo, std::move(current));
   current = std::move(top_value);
   value_stack.pop();
 }

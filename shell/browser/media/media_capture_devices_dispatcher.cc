@@ -33,14 +33,13 @@ MediaCaptureDevicesDispatcher* MediaCaptureDevicesDispatcher::GetInstance() {
   return base::Singleton<MediaCaptureDevicesDispatcher>::get();
 }
 
-MediaCaptureDevicesDispatcher::MediaCaptureDevicesDispatcher()
-    : is_device_enumeration_disabled_(false) {
+MediaCaptureDevicesDispatcher::MediaCaptureDevicesDispatcher() {
   // MediaCaptureDevicesDispatcher is a singleton. It should be created on
   // UI thread.
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
 }
 
-MediaCaptureDevicesDispatcher::~MediaCaptureDevicesDispatcher() {}
+MediaCaptureDevicesDispatcher::~MediaCaptureDevicesDispatcher() = default;
 
 const blink::MediaStreamDevices&
 MediaCaptureDevicesDispatcher::GetAudioCaptureDevices() {

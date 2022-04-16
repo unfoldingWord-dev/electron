@@ -5,9 +5,7 @@ const args = require('minimist')(process.argv.slice(2), {
   boolean: ['automaticRelease', 'notesOnly', 'stable']
 });
 const ciReleaseBuild = require('./ci-release-build');
-const octokit = require('@octokit/rest')({
-  auth: process.env.ELECTRON_GITHUB_TOKEN
-});
+const { Octokit } = require('@octokit/rest');
 const { execSync } = require('child_process');
 const { GitProcess } = require('dugite');
 
@@ -18,13 +16,17 @@ const { getCurrentBranch, ELECTRON_DIR } = require('../lib/utils.js');
 const bumpType = args._[0];
 const targetRepo = bumpType === 'nightly' ? 'nightlies' : 'electron';
 
+const octokit = new Octokit({
+  auth: process.env.ELECTRON_GITHUB_TOKEN
+});
+
 require('colors');
-const pass = '\u2713'.green;
-const fail = '\u2717'.red;
+const pass = '✓'.green;
+const fail = '✗'.red;
 
 if (!bumpType && !args.notesOnly) {
-  console.log(`Usage: prepare-release [stable | beta | nightly]` +
-     ` (--stable) (--notesOnly) (--automaticRelease) (--branch)`);
+  console.log('Usage: prepare-release [stable | minor | beta | alpha | nightly]' +
+     ' (--stable) (--notesOnly) (--automaticRelease) (--branch)');
   process.exit(1);
 }
 
@@ -66,7 +68,7 @@ async function createRelease (branchToTarget, isBeta) {
   const releaseNotes = await getReleaseNotes(branchToTarget, newVersion);
   await tagRelease(newVersion);
 
-  console.log(`Checking for existing draft release.`);
+  console.log('Checking for existing draft release.');
   const releases = await octokit.repos.listReleases({
     owner: 'electron',
     repo: targetRepo
@@ -87,15 +89,20 @@ async function createRelease (branchToTarget, isBeta) {
   let releaseIsPrelease = false;
   if (isBeta) {
     if (newVersion.indexOf('nightly') > 0) {
-      releaseBody = `Note: This is a nightly release.  Please file new issues ` +
-        `for any bugs you find in it.\n \n This release is published to npm ` +
-        `under the nightly tag and can be installed via npm install electron@nightly, ` +
-        `or npm i electron@${newVersion.substr(1)}.\n \n ${releaseNotes.text}`;
+      releaseBody = 'Note: This is a nightly release.  Please file new issues ' +
+        'for any bugs you find in it.\n \n This release is published to npm ' +
+        'under the electron-nightly package and can be installed via `npm install electron-nightly`, ' +
+        `or \`npm install electron-nightly@${newVersion.substr(1)}\`.\n \n ${releaseNotes.text}`;
+    } else if (newVersion.indexOf('alpha') > 0) {
+      releaseBody = 'Note: This is an alpha release.  Please file new issues ' +
+        'for any bugs you find in it.\n \n This release is published to npm ' +
+        'under the alpha tag and can be installed via `npm install electron@alpha`, ' +
+        `or \`npm install electron@${newVersion.substr(1)}\`.\n \n ${releaseNotes.text}`;
     } else {
-      releaseBody = `Note: This is a beta release.  Please file new issues ` +
-        `for any bugs you find in it.\n \n This release is published to npm ` +
-        `under the beta tag and can be installed via npm install electron@beta, ` +
-        `or npm i electron@${newVersion.substr(1)}.\n \n ${releaseNotes.text}`;
+      releaseBody = 'Note: This is a beta release.  Please file new issues ' +
+        'for any bugs you find in it.\n \n This release is published to npm ' +
+        'under the beta tag and can be installed via `npm install electron@beta`, ' +
+        `or \`npm install electron@${newVersion.substr(1)}\`.\n \n ${releaseNotes.text}`;
     }
     releaseIsPrelease = true;
   } else {
@@ -110,7 +117,7 @@ async function createRelease (branchToTarget, isBeta) {
     name: `electron ${newVersion}`,
     body: releaseBody,
     prerelease: releaseIsPrelease,
-    target_commitish: newVersion.indexOf('nightly') !== -1 ? 'master' : branchToTarget
+    target_commitish: newVersion.indexOf('nightly') !== -1 ? 'main' : branchToTarget
   }).catch(err => {
     console.log(`${fail} Error creating new release: `, err);
     process.exit(1);
@@ -124,7 +131,7 @@ async function pushRelease (branch) {
   const pushDetails = await GitProcess.exec(['push', 'origin', `HEAD:${branch}`, '--follow-tags'], ELECTRON_DIR);
   if (pushDetails.exitCode === 0) {
     console.log(`${pass} Successfully pushed the release.  Wait for ` +
-      `release builds to finish before running "npm run release".`);
+      'release builds to finish before running "npm run release".');
   } else {
     console.log(`${fail} Error pushing the release: ${pushDetails.stderr}`);
     process.exit(1);
@@ -133,14 +140,13 @@ async function pushRelease (branch) {
 
 async function runReleaseBuilds (branch) {
   await ciReleaseBuild(branch, {
-    ghRelease: true,
-    automaticRelease: args.automaticRelease
+    ghRelease: true
   });
 }
 
 async function tagRelease (version) {
   console.log(`Tagging release ${version}.`);
-  const checkoutDetails = await GitProcess.exec([ 'tag', '-a', '-m', version, version ], ELECTRON_DIR);
+  const checkoutDetails = await GitProcess.exec(['tag', '-a', '-m', version, version], ELECTRON_DIR);
   if (checkoutDetails.exitCode === 0) {
     console.log(`${pass} Successfully tagged ${version}.`);
   } else {
@@ -179,10 +185,11 @@ async function promptForVersion (version) {
   });
 }
 
-// function to determine if there have been commits to master since the last release
+// function to determine if there have been commits to main since the last release
 async function changesToRelease () {
-  const lastCommitWasRelease = new RegExp(`^Bump v[0-9.]*(-beta[0-9.]*)?(-nightly[0-9.]*)?$`, 'g');
-  const lastCommit = await GitProcess.exec(['log', '-n', '1', `--pretty=format:'%s'`], ELECTRON_DIR);
+  // eslint-disable-next-line no-useless-escape
+  const lastCommitWasRelease = new RegExp('^Bump v[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?(-alpha\.[0-9]+)?(-nightly\.[0-9]+)?$', 'g');
+  const lastCommit = await GitProcess.exec(['log', '-n', '1', '--pretty=format:\'%s\''], ELECTRON_DIR);
   return !lastCommitWasRelease.test(lastCommit.stdout);
 }
 
@@ -197,18 +204,22 @@ async function prepareRelease (isBeta, notesOnly) {
       const releaseNotes = await getReleaseNotes(currentBranch, newVersion);
       console.log(`Draft release notes are: \n${releaseNotes.text}`);
     } else {
-      const changes = await changesToRelease(currentBranch);
+      const changes = await changesToRelease();
       if (changes) {
         await verifyNewVersion();
         await createRelease(currentBranch, isBeta);
         await pushRelease(currentBranch);
         await runReleaseBuilds(currentBranch);
       } else {
-        console.log(`There are no new changes to this branch since the last release, aborting release.`);
+        console.log('There are no new changes to this branch since the last release, aborting release.');
         process.exit(1);
       }
     }
   }
 }
 
-prepareRelease(!args.stable, args.notesOnly);
+prepareRelease(!args.stable, args.notesOnly)
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });

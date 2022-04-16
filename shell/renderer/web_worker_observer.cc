@@ -7,8 +7,7 @@
 #include "base/lazy_instance.h"
 #include "base/threading/thread_local.h"
 #include "shell/common/api/electron_bindings.h"
-#include "shell/common/api/event_emitter_caller.h"
-#include "shell/common/asar/asar_util.h"
+#include "shell/common/gin_helper/event_emitter_caller.h"
 #include "shell/common/node_bindings.h"
 #include "shell/common/node_includes.h"
 
@@ -30,28 +29,44 @@ WebWorkerObserver* WebWorkerObserver::GetCurrent() {
 
 WebWorkerObserver::WebWorkerObserver()
     : node_bindings_(
-          NodeBindings::Create(NodeBindings::BrowserEnvironment::WORKER)),
-      electron_bindings_(new ElectronBindings(node_bindings_->uv_loop())) {
+          NodeBindings::Create(NodeBindings::BrowserEnvironment::kWorker)),
+      electron_bindings_(
+          std::make_unique<ElectronBindings>(node_bindings_->uv_loop())) {
   lazy_tls.Pointer()->Set(this);
 }
 
 WebWorkerObserver::~WebWorkerObserver() {
   lazy_tls.Pointer()->Set(nullptr);
+  // Destroying the node environment will also run the uv loop,
+  // Node.js expects `kExplicit` microtasks policy and will run microtasks
+  // checkpoints after every call into JavaScript. Since we use a different
+  // policy in the renderer - switch to `kExplicit`
+  v8::Isolate* isolate = node_bindings_->uv_env()->isolate();
+  DCHECK_EQ(v8::MicrotasksScope::GetCurrentDepth(isolate), 0);
+  isolate->SetMicrotasksPolicy(v8::MicrotasksPolicy::kExplicit);
   node::FreeEnvironment(node_bindings_->uv_env());
-  asar::ClearArchives();
+  node::FreeIsolateData(node_bindings_->isolate_data());
 }
 
-void WebWorkerObserver::ContextCreated(v8::Local<v8::Context> worker_context) {
+void WebWorkerObserver::WorkerScriptReadyForEvaluation(
+    v8::Local<v8::Context> worker_context) {
   v8::Context::Scope context_scope(worker_context);
+  auto* isolate = worker_context->GetIsolate();
+  v8::MicrotasksScope microtasks_scope(
+      isolate, v8::MicrotasksScope::kDoNotRunMicrotasks);
 
   // Start the embed thread.
   node_bindings_->PrepareMessageLoop();
 
+  // Setup node tracing controller.
+  if (!node::tracing::TraceEventHelper::GetAgent())
+    node::tracing::TraceEventHelper::SetAgent(node::CreateAgent());
+
   // Setup node environment for each window.
-  v8::Local<v8::Context> context = node::MaybeInitializeContext(worker_context);
-  DCHECK(!context.IsEmpty());
+  bool initialized = node::InitializeContext(worker_context);
+  CHECK(initialized);
   node::Environment* env =
-      node_bindings_->CreateEnvironment(context, nullptr, true);
+      node_bindings_->CreateEnvironment(worker_context, nullptr);
 
   // Add Electron extended APIs.
   electron_bindings_->BindTo(env->isolate(), env->process_object());
@@ -69,7 +84,7 @@ void WebWorkerObserver::ContextCreated(v8::Local<v8::Context> worker_context) {
 void WebWorkerObserver::ContextWillDestroy(v8::Local<v8::Context> context) {
   node::Environment* env = node::Environment::GetCurrent(context);
   if (env)
-    mate::EmitEvent(env->isolate(), env->process_object(), "exit");
+    gin_helper::EmitEvent(env->isolate(), env->process_object(), "exit");
 
   delete this;
 }

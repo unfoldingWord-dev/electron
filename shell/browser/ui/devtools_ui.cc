@@ -6,10 +6,13 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "base/memory/ref_counted_memory.h"
+#include "base/strings/strcat.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
+#include "chrome/common/webui_url_constants.h"
 #include "content/public/browser/devtools_frontend_host.h"
 #include "content/public/browser/url_data_source.h"
 #include "content/public/browser/web_contents.h"
@@ -19,11 +22,13 @@ namespace electron {
 
 namespace {
 
-const char kChromeUIDevToolsHost[] = "devtools";
-const char kChromeUIDevToolsBundledPath[] = "bundled";
-
 std::string PathWithoutParams(const std::string& path) {
-  return GURL(std::string("devtools://devtools/") + path).path().substr(1);
+  return GURL(base::StrCat({content::kChromeDevToolsScheme,
+                            url::kStandardSchemeSeparator,
+                            chrome::kChromeUIDevToolsHost}))
+      .Resolve(path)
+      .path()
+      .substr(1);
 }
 
 std::string GetMimeTypeForPath(const std::string& path) {
@@ -34,11 +39,19 @@ std::string GetMimeTypeForPath(const std::string& path) {
                             base::CompareCase::INSENSITIVE_ASCII)) {
     return "text/css";
   } else if (base::EndsWith(filename, ".js",
+                            base::CompareCase::INSENSITIVE_ASCII) ||
+             base::EndsWith(filename, ".mjs",
                             base::CompareCase::INSENSITIVE_ASCII)) {
     return "application/javascript";
   } else if (base::EndsWith(filename, ".png",
                             base::CompareCase::INSENSITIVE_ASCII)) {
     return "image/png";
+  } else if (base::EndsWith(filename, ".map",
+                            base::CompareCase::INSENSITIVE_ASCII)) {
+    return "application/json";
+  } else if (base::EndsWith(filename, ".ts",
+                            base::CompareCase::INSENSITIVE_ASCII)) {
+    return "application/x-typescript";
   } else if (base::EndsWith(filename, ".gif",
                             base::CompareCase::INSENSITIVE_ASCII)) {
     return "image/gif";
@@ -54,27 +67,32 @@ std::string GetMimeTypeForPath(const std::string& path) {
 
 class BundledDataSource : public content::URLDataSource {
  public:
-  BundledDataSource() {}
-  ~BundledDataSource() override {}
+  BundledDataSource() = default;
+  ~BundledDataSource() override = default;
+
+  // disable copy
+  BundledDataSource(const BundledDataSource&) = delete;
+  BundledDataSource& operator=(const BundledDataSource&) = delete;
 
   // content::URLDataSource implementation.
-  std::string GetSource() override { return kChromeUIDevToolsHost; }
+  std::string GetSource() override { return chrome::kChromeUIDevToolsHost; }
 
-  void StartDataRequest(const std::string& path,
+  void StartDataRequest(const GURL& url,
                         const content::WebContents::Getter& wc_getter,
-                        const GotDataCallback& callback) override {
+                        GotDataCallback callback) override {
+    const std::string path = content::URLDataSource::URLToRequestPath(url);
     // Serve request from local bundle.
-    std::string bundled_path_prefix(kChromeUIDevToolsBundledPath);
+    std::string bundled_path_prefix(chrome::kChromeUIDevToolsBundledPath);
     bundled_path_prefix += "/";
     if (base::StartsWith(path, bundled_path_prefix,
                          base::CompareCase::INSENSITIVE_ASCII)) {
       StartBundledDataRequest(path.substr(bundled_path_prefix.length()),
-                              callback);
+                              std::move(callback));
       return;
     }
 
     // We do not handle remote and custom requests.
-    callback.Run(nullptr);
+    std::move(callback).Run(nullptr);
   }
 
   std::string GetMimeType(const std::string& path) override {
@@ -88,22 +106,17 @@ class BundledDataSource : public content::URLDataSource {
   bool ShouldServeMimeTypeAsContentTypeHeader() override { return true; }
 
   void StartBundledDataRequest(const std::string& path,
-                               const GotDataCallback& callback) {
+                               GotDataCallback callback) {
     std::string filename = PathWithoutParams(path);
-    base::StringPiece resource =
-        content::DevToolsFrontendHost::GetFrontendResource(filename);
+    scoped_refptr<base::RefCountedMemory> bytes =
+        content::DevToolsFrontendHost::GetFrontendResourceBytes(filename);
 
-    DLOG_IF(WARNING, resource.empty())
+    DLOG_IF(WARNING, !bytes)
         << "Unable to find dev tool resource: " << filename
         << ". If you compiled with debug_devtools=1, try running with "
            "--debug-devtools.";
-    scoped_refptr<base::RefCountedStaticMemory> bytes(
-        new base::RefCountedStaticMemory(resource.data(), resource.length()));
-    callback.Run(bytes.get());
+    std::move(callback).Run(bytes);
   }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(BundledDataSource);
 };
 
 }  // namespace

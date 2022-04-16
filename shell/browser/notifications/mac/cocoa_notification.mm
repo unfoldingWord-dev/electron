@@ -7,6 +7,7 @@
 #include <string>
 #include <utility>
 
+#include "base/logging.h"
 #include "base/mac/mac_util.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/strings/utf_string_conversions.h"
@@ -32,7 +33,7 @@ void CocoaNotification::Show(const NotificationOptions& options) {
   NSString* identifier =
       [NSString stringWithFormat:@"%@:notification:%@",
                                  [[NSBundle mainBundle] bundleIdentifier],
-                                 [[[NSUUID alloc] init] UUIDString]];
+                                 [[NSUUID UUID] UUIDString]];
 
   [notification_ setTitle:base::SysUTF16ToNSString(options.title)];
   [notification_ setSubtitle:base::SysUTF16ToNSString(options.subtitle)];
@@ -64,7 +65,7 @@ void CocoaNotification::Show(const NotificationOptions& options) {
   NSMutableArray* additionalActions =
       [[[NSMutableArray alloc] init] autorelease];
   for (const auto& action : options.actions) {
-    if (action.type == base::ASCIIToUTF16("button")) {
+    if (action.type == u"button") {
       if (action_index_ == UINT_MAX) {
         // First button observed is the displayed action
         [notification_ setHasActionButton:true];
@@ -110,8 +111,6 @@ void CocoaNotification::Dismiss() {
         removeDeliveredNotification:notification_];
 
   NotificationDismissed();
-
-  this->LogAction("dismissed");
 
   notification_.reset(nil);
 }
@@ -163,8 +162,9 @@ void CocoaNotification::NotificationDismissed() {
 }
 
 void CocoaNotification::LogAction(const char* action) {
-  if (getenv("ELECTRON_DEBUG_NOTIFICATIONS")) {
+  if (getenv("ELECTRON_DEBUG_NOTIFICATIONS") && notification_) {
     NSString* identifier = [notification_ valueForKey:@"identifier"];
+    DCHECK(identifier);
     LOG(INFO) << "Notification " << action << " (" << [identifier UTF8String]
               << ")";
   }

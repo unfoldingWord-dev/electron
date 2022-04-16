@@ -1,12 +1,8 @@
-import { remote, webFrame } from 'electron';
-
-import * as ipcRendererUtils from '@electron/internal/renderer/ipc-renderer-internal-utils';
-import * as guestViewInternal from '@electron/internal/renderer/web-view/guest-view-internal';
+import type * as guestViewInternalModule from '@electron/internal/renderer/web-view/guest-view-internal';
 import { WEB_VIEW_CONSTANTS } from '@electron/internal/renderer/web-view/web-view-constants';
 import { syncMethods, asyncMethods, properties } from '@electron/internal/common/web-view-methods';
-import { deserialize } from '@electron/internal/common/type-utils';
-
-const v8Util = process.electronBinding('v8_util');
+import type { WebViewAttribute, PartitionAttribute } from '@electron/internal/renderer/web-view/web-view-attributes';
+import { setupWebViewAttributes } from '@electron/internal/renderer/web-view/web-view-attributes';
 
 // ID generator.
 let nextId = 0;
@@ -14,6 +10,12 @@ let nextId = 0;
 const getNextId = function () {
   return ++nextId;
 };
+
+export interface WebViewImplHooks {
+  readonly guestViewInternal: typeof guestViewInternalModule;
+  readonly allowGuestViewElementDefinition: NodeJS.InternalWebFrame['allowGuestViewElementDefinition'];
+  readonly setIsWebView: (iframe: HTMLIFrameElement) => void;
+}
 
 // Represents the internal state of the WebView node.
 export class WebViewImpl {
@@ -23,23 +25,22 @@ export class WebViewImpl {
   public hasFocus = false
   public internalInstanceId?: number;
   public resizeObserver?: ResizeObserver;
-  public userAgentOverride?: string;
   public viewInstanceId: number
 
   // on* Event handlers.
   public on: Record<string, any> = {}
   public internalElement: HTMLIFrameElement
 
-  // Replaced in web-view-attributes
-  public attributes: Record<string, any> = {}
-  public setupWebViewAttributes (): void {}
+  public attributes: Map<string, WebViewAttribute>;
 
-  constructor (public webviewNode: HTMLElement) {
+  constructor (public webviewNode: HTMLElement, private hooks: WebViewImplHooks) {
     // Create internal iframe element.
     this.internalElement = this.createInternalElement();
     const shadowRoot = this.webviewNode.attachShadow({ mode: 'open' });
-    shadowRoot.innerHTML = '<!DOCTYPE html><style type="text/css">:host { display: flex; }</style>';
-    this.setupWebViewAttributes();
+    const style = shadowRoot.ownerDocument.createElement('style');
+    style.textContent = ':host { display: flex; }';
+    shadowRoot.appendChild(style);
+    this.attributes = setupWebViewAttributes(this);
     this.viewInstanceId = getNextId();
     shadowRoot.appendChild(this.internalElement);
 
@@ -57,7 +58,8 @@ export class WebViewImpl {
     iframeElement.style.flex = '1 1 auto';
     iframeElement.style.width = '100%';
     iframeElement.style.border = '0';
-    v8Util.setHiddenValue(iframeElement, 'internal', this);
+    // used by RendererClientBase::IsWebViewFrame
+    this.hooks.setIsWebView(iframeElement);
     return iframeElement;
   }
 
@@ -70,11 +72,11 @@ export class WebViewImpl {
     // heard back from createGuest yet. We will not reset the flag in this case so
     // that we don't end up allocating a second guest.
     if (this.guestInstanceId) {
-      this.guestInstanceId = void 0;
+      this.guestInstanceId = undefined;
     }
 
     this.beforeFirstNavigation = true;
-    this.attributes[WEB_VIEW_CONSTANTS.ATTRIBUTE_PARTITION].validPartitionId = true;
+    (this.attributes.get(WEB_VIEW_CONSTANTS.ATTRIBUTE_PARTITION) as PartitionAttribute).validPartitionId = true;
 
     // Since attachment swaps a local frame for a remote frame, we need our
     // internal iframe element to be local again before we can reattach.
@@ -93,34 +95,40 @@ export class WebViewImpl {
   // attribute, if necessary. See BrowserPlugin::UpdateDOMAttribute for more
   // details.
   handleWebviewAttributeMutation (attributeName: string, oldValue: any, newValue: any) {
-    if (!this.attributes[attributeName] || this.attributes[attributeName].ignoreMutation) {
+    if (!this.attributes.has(attributeName) || this.attributes.get(attributeName)!.ignoreMutation) {
       return;
     }
 
     // Let the changed attribute handle its own mutation
-    this.attributes[attributeName].handleMutation(oldValue, newValue);
+    this.attributes.get(attributeName)!.handleMutation(oldValue, newValue);
   }
 
   onElementResize () {
-    const resizeEvent = new Event('resize') as ElectronInternal.WebFrameResizeEvent;
-    resizeEvent.newWidth = this.webviewNode.clientWidth;
-    resizeEvent.newHeight = this.webviewNode.clientHeight;
-    this.dispatchEvent(resizeEvent);
+    const props = {
+      newWidth: this.webviewNode.clientWidth,
+      newHeight: this.webviewNode.clientHeight
+    };
+    this.dispatchEvent('resize', props);
   }
 
   createGuest () {
-    guestViewInternal.createGuest(this.buildParams()).then(guestInstanceId => {
-      this.attachGuestInstance(guestInstanceId);
-    });
+    this.internalInstanceId = getNextId();
+    this.hooks.guestViewInternal.createGuest(this.internalElement, this.internalInstanceId, this.buildParams())
+      .then(guestInstanceId => {
+        this.attachGuestInstance(guestInstanceId);
+      });
   }
 
-  createGuestSync () {
-    this.beforeFirstNavigation = false;
-    this.attachGuestInstance(guestViewInternal.createGuestSync(this.buildParams()));
-  }
+  dispatchEvent (eventName: string, props: Record<string, any> = {}) {
+    const event = new Event(eventName);
+    Object.assign(event, props);
+    this.webviewNode.dispatchEvent(event);
 
-  dispatchEvent (webViewEvent: Electron.Event) {
-    this.webviewNode.dispatchEvent(webViewEvent);
+    if (eventName === 'load-commit') {
+      this.onLoadCommit(props);
+    } else if (eventName === '-focus-change') {
+      this.onFocusChange();
+    }
   }
 
   // Adds an 'on<event>' property on the webview, which can be used to set/unset
@@ -145,62 +153,56 @@ export class WebViewImpl {
   }
 
   // Updates state upon loadcommit.
-  onLoadCommit (webViewEvent: ElectronInternal.WebViewEvent) {
+  onLoadCommit (props: Record<string, any>) {
     const oldValue = this.webviewNode.getAttribute(WEB_VIEW_CONSTANTS.ATTRIBUTE_SRC);
-    const newValue = webViewEvent.url;
-    if (webViewEvent.isMainFrame && (oldValue !== newValue)) {
+    const newValue = props.url;
+    if (props.isMainFrame && (oldValue !== newValue)) {
       // Touching the src attribute triggers a navigation. To avoid
       // triggering a page reload on every guest-initiated navigation,
       // we do not handle this mutation.
-      this.attributes[WEB_VIEW_CONSTANTS.ATTRIBUTE_SRC].setValueIgnoreMutation(newValue);
+      this.attributes.get(WEB_VIEW_CONSTANTS.ATTRIBUTE_SRC)!.setValueIgnoreMutation(newValue);
     }
   }
 
   // Emits focus/blur events.
   onFocusChange () {
-    const hasFocus = document.activeElement === this.webviewNode;
+    const hasFocus = this.webviewNode.ownerDocument.activeElement === this.webviewNode;
     if (hasFocus !== this.hasFocus) {
       this.hasFocus = hasFocus;
-      this.dispatchEvent(new Event(hasFocus ? 'focus' : 'blur'));
+      this.dispatchEvent(hasFocus ? 'focus' : 'blur');
     }
   }
 
   onAttach (storagePartitionId: number) {
-    return this.attributes[WEB_VIEW_CONSTANTS.ATTRIBUTE_PARTITION].setValue(storagePartitionId);
+    return this.attributes.get(WEB_VIEW_CONSTANTS.ATTRIBUTE_PARTITION)!.setValue(storagePartitionId);
   }
 
   buildParams () {
     const params: Record<string, any> = {
-      instanceId: this.viewInstanceId,
-      userAgentOverride: this.userAgentOverride
+      instanceId: this.viewInstanceId
     };
 
-    for (const attributeName in this.attributes) {
-      if (this.attributes.hasOwnProperty(attributeName)) {
-        params[attributeName] = this.attributes[attributeName].getValue();
-      }
+    for (const [attributeName, attribute] of this.attributes) {
+      params[attributeName] = attribute.getValue();
     }
 
     return params;
   }
 
   attachGuestInstance (guestInstanceId: number) {
-    if (!this.elementAttached) {
-      // The element could be detached before we got response from browser.
+    if (guestInstanceId === -1) {
+      // Do nothing
       return;
     }
-    this.internalInstanceId = getNextId();
+
+    if (!this.elementAttached) {
+      // The element could be detached before we got response from browser.
+      // Destroy the backing webContents to avoid any zombie nodes in the frame tree.
+      this.hooks.guestViewInternal.detachGuest(guestInstanceId);
+      return;
+    }
+
     this.guestInstanceId = guestInstanceId;
-
-    guestViewInternal.attachGuest(
-      this.internalInstanceId,
-      this.guestInstanceId,
-      this.buildParams(),
-      this.internalElement.contentWindow!
-    );
-
-    // ResizeObserver is a browser global not recognized by "standard".
-    /* globals ResizeObserver */
     // TODO(zcbenz): Should we deprecate the "resize" event? Wait, it is not
     // even documented.
     this.resizeObserver = new ResizeObserver(this.onElementResize.bind(this));
@@ -208,88 +210,43 @@ export class WebViewImpl {
   }
 }
 
-export const setupAttributes = () => {
-  require('@electron/internal/renderer/web-view/web-view-attributes');
-};
-
 // I wish eslint wasn't so stupid, but it is
 // eslint-disable-next-line
-export const setupMethods = (WebViewElement: typeof ElectronInternal.WebViewElement) => {
-  WebViewElement.prototype.getWebContentsId = function () {
-    const internal = v8Util.getHiddenValue<WebViewImpl>(this, 'internal');
-    if (!internal.guestInstanceId) {
-      throw new Error('The WebView must be attached to the DOM and the dom-ready event emitted before this method can be called.');
-    }
-    return internal.guestInstanceId;
-  };
-
-  // WebContents associated with this webview.
-  WebViewElement.prototype.getWebContents = function () {
-    if (!remote) {
-      throw new Error('getGuestWebContents requires remote, which is not enabled');
-    }
-    const internal = v8Util.getHiddenValue<WebViewImpl>(this, 'internal');
-    if (!internal.guestInstanceId) {
-      internal.createGuestSync();
-    }
-
-    return (remote as Electron.RemoteInternal).getGuestWebContents(internal.guestInstanceId!);
-  };
-
+export const setupMethods = (WebViewElement: typeof ElectronInternal.WebViewElement, hooks: WebViewImplHooks) => {
   // Focusing the webview should move page focus to the underlying iframe.
   WebViewElement.prototype.focus = function () {
     this.contentWindow.focus();
   };
 
   // Forward proto.foo* method calls to WebViewImpl.foo*.
-  const createBlockHandler = function (method: string) {
-    return function (this: ElectronInternal.WebViewElement, ...args: Array<any>) {
-      return ipcRendererUtils.invokeSync('ELECTRON_GUEST_VIEW_MANAGER_CALL', this.getWebContentsId(), method, args);
-    };
-  };
-
   for (const method of syncMethods) {
-    (WebViewElement.prototype as Record<string, any>)[method] = createBlockHandler(method);
-  }
-
-  const createNonBlockHandler = function (method: string) {
-    return function (this: ElectronInternal.WebViewElement, ...args: Array<any>) {
-      return ipcRendererUtils.invoke('ELECTRON_GUEST_VIEW_MANAGER_CALL', this.getWebContentsId(), method, args);
+    (WebViewElement.prototype as Record<string, any>)[method] = function (this: ElectronInternal.WebViewElement, ...args: Array<any>) {
+      return hooks.guestViewInternal.invokeSync(this.getWebContentsId(), method, args);
     };
-  };
+  }
 
   for (const method of asyncMethods) {
-    (WebViewElement.prototype as Record<string, any>)[method] = createNonBlockHandler(method);
+    (WebViewElement.prototype as Record<string, any>)[method] = function (this: ElectronInternal.WebViewElement, ...args: Array<any>) {
+      return hooks.guestViewInternal.invoke(this.getWebContentsId(), method, args);
+    };
   }
-
-  WebViewElement.prototype.capturePage = async function (...args) {
-    return deserialize(await ipcRendererUtils.invoke('ELECTRON_GUEST_VIEW_MANAGER_CAPTURE_PAGE', this.getWebContentsId(), args));
-  };
 
   const createPropertyGetter = function (property: string) {
     return function (this: ElectronInternal.WebViewElement) {
-      return ipcRendererUtils.invokeSync('ELECTRON_GUEST_VIEW_MANAGER_PROPERTY_GET', this.getWebContentsId(), property);
+      return hooks.guestViewInternal.propertyGet(this.getWebContentsId(), property);
     };
   };
 
   const createPropertySetter = function (property: string) {
     return function (this: ElectronInternal.WebViewElement, arg: any) {
-      return ipcRendererUtils.invokeSync('ELECTRON_GUEST_VIEW_MANAGER_PROPERTY_SET', this.getWebContentsId(), property, arg);
+      return hooks.guestViewInternal.propertySet(this.getWebContentsId(), property, arg);
     };
   };
 
   for (const property of properties) {
     Object.defineProperty(WebViewElement.prototype, property, {
-      get: createPropertyGetter(property) as any,
+      get: createPropertyGetter(property),
       set: createPropertySetter(property)
     });
   }
-};
-
-export const webViewImplModule = {
-  setupAttributes,
-  setupMethods,
-  guestViewInternal,
-  webFrame,
-  WebViewImpl
 };

@@ -7,7 +7,7 @@
 #include "base/strings/utf_string_conversions.h"
 #include "content/public/browser/notification_event_dispatcher.h"
 #include "content/public/browser/render_process_host.h"
-#include "shell/browser/atom_browser_client.h"
+#include "shell/browser/electron_browser_client.h"
 #include "shell/browser/notifications/notification.h"
 #include "shell/browser/notifications/notification_delegate.h"
 #include "shell/browser/notifications/notification_presenter.h"
@@ -46,6 +46,10 @@ class NotificationDelegateImpl final : public electron::NotificationDelegate {
   explicit NotificationDelegateImpl(const std::string& notification_id)
       : notification_id_(notification_id) {}
 
+  // disable copy
+  NotificationDelegateImpl(const NotificationDelegateImpl&) = delete;
+  NotificationDelegateImpl& operator=(const NotificationDelegateImpl&) = delete;
+
   void NotificationDestroyed() override { delete this; }
 
   void NotificationClick() override {
@@ -65,33 +69,42 @@ class NotificationDelegateImpl final : public electron::NotificationDelegate {
 
  private:
   std::string notification_id_;
-
-  DISALLOW_COPY_AND_ASSIGN(NotificationDelegateImpl);
 };
 
 }  // namespace
 
 PlatformNotificationService::PlatformNotificationService(
-    AtomBrowserClient* browser_client)
+    ElectronBrowserClient* browser_client)
     : browser_client_(browser_client) {}
 
-PlatformNotificationService::~PlatformNotificationService() {}
+PlatformNotificationService::~PlatformNotificationService() = default;
 
 void PlatformNotificationService::DisplayNotification(
-    content::RenderProcessHost* render_process_host,
+    content::RenderFrameHost* render_frame_host,
     const std::string& notification_id,
     const GURL& origin,
+    const GURL& document_url,
     const blink::PlatformNotificationData& notification_data,
     const blink::NotificationResources& notification_resources) {
   auto* presenter = browser_client_->GetNotificationPresenter();
   if (!presenter)
     return;
-  NotificationDelegateImpl* delegate =
-      new NotificationDelegateImpl(notification_id);
+
+  // If a new notification is created with the same tag as an
+  // existing one, replace the old notification with the new one.
+  // The notification_id is generated from the tag, so the only way a
+  // notification will be closed as a result of this call is if one with
+  // the same tag is already extant.
+  //
+  // See: https://notifications.spec.whatwg.org/#showing-a-notification
+  presenter->CloseNotificationWithId(notification_id);
+
+  auto* delegate = new NotificationDelegateImpl(notification_id);
+
   auto notification = presenter->CreateNotification(delegate, notification_id);
   if (notification) {
     browser_client_->WebNotificationAllowed(
-        render_process_host->GetID(),
+        render_frame_host,
         base::BindRepeating(&OnWebNotificationAllowed, notification,
                             notification_resources.notification_icon,
                             notification_data));

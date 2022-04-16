@@ -7,11 +7,11 @@ Make chrome's install-sysroot scripts point to our custom sysroot builds,
 which include extra deps that Electron needs (e.g. libnotify)
 
 diff --git a/build/linux/sysroot_scripts/install-sysroot.py b/build/linux/sysroot_scripts/install-sysroot.py
-index 165551a2948b74c024459be42d1a9a3d96878a10..5c9272a512e22dfe2e90f6665083f53f0fa8979e 100755
+index ada6208644cb22c9f51c571f9509e335c0836163..86b55223fc21adf0e01cb276ebc613f6ea24f8b2 100755
 --- a/build/linux/sysroot_scripts/install-sysroot.py
 +++ b/build/linux/sysroot_scripts/install-sysroot.py
-@@ -37,9 +37,11 @@ except ImportError:
-     from urllib2 import urlopen
+@@ -41,9 +41,11 @@ except ImportError:
+   from urllib2 import urlopen
  
  SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 +SRC_DIR = os.path.dirname(os.path.dirname(os.path.dirname(SCRIPT_DIR)))
@@ -19,12 +19,12 @@ index 165551a2948b74c024459be42d1a9a3d96878a10..5c9272a512e22dfe2e90f6665083f53f
  
 -URL_PREFIX = 'https://commondatastorage.googleapis.com'
 -URL_PATH = 'chrome-linux-sysroot/toolchain'
-+URL_PREFIX = 'http://s3.amazonaws.com'
-+URL_PATH = 'gh-contractor-zcbenz/toolchain'
++URL_PREFIX = 'https://s3.amazonaws.com'
++URL_PATH = 'electronjs-sysroots/toolchain'
  
  VALID_ARCHS = ('arm', 'arm64', 'i386', 'amd64', 'mips', 'mips64el')
  
-@@ -103,7 +105,7 @@ def GetSysrootDict(target_platform, target_arch):
+@@ -105,7 +107,7 @@ def GetSysrootDict(target_platform, target_arch):
    if target_arch not in VALID_ARCHS:
      raise Error('Unknown architecture: %s' % target_arch)
  

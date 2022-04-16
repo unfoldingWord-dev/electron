@@ -1,3 +1,5 @@
+# Menu
+
 ## Class: Menu
 
 > Create native application menus and context menus.
@@ -22,8 +24,10 @@ Sets `menu` as the application menu on macOS. On Windows and Linux, the
 Also on Windows and Linux, you can use a `&` in the top-level item name to
 indicate which letter should get a generated accelerator. For example, using
 `&File` for the file menu would result in a generated `Alt-F` accelerator that
-opens the associated menu. The indicated character in the button label gets an
-underline. The `&` character is not displayed on the button label.
+opens the associated menu. The indicated character in the button label then gets an
+underline, and the `&` character is not displayed on the button label.
+
+In order to escape the `&` character in an item name, add a proceeding `&`. For example, `&&File` would result in `&File` displayed on the button label.
 
 Passing `null` will suppress the default menu. On Windows and Linux,
 this has the additional effect of removing the menu bar from the window.
@@ -41,7 +45,7 @@ be dynamically modified.
 
 #### `Menu.sendActionToFirstResponder(action)` _macOS_
 
-* `action` String
+* `action` string
 
 Sends the `action` to the first responder of application. This is used for
 emulating default macOS menu behaviors. Usually you would use the
@@ -69,11 +73,11 @@ The `menu` object has the following instance methods:
 
 * `options` Object (optional)
   * `window` [BrowserWindow](browser-window.md) (optional) - Default is the focused window.
-  * `x` Number (optional) - Default is the current mouse cursor position.
+  * `x` number (optional) - Default is the current mouse cursor position.
     Must be declared if `y` is declared.
-  * `y` Number (optional) - Default is the current mouse cursor position.
+  * `y` number (optional) - Default is the current mouse cursor position.
     Must be declared if `x` is declared.
-  * `positioningItem` Number (optional) _macOS_ - The index of the menu item to
+  * `positioningItem` number (optional) _macOS_ - The index of the menu item to
     be positioned under the mouse cursor at the specified coordinates. Default
     is -1.
   * `callback` Function (optional) - Called when menu is closed.
@@ -94,9 +98,9 @@ Appends the `menuItem` to the menu.
 
 #### `menu.getMenuItemById(id)`
 
-* `id` String
+* `id` string
 
-Returns `MenuItem` the item with the specified `id`
+Returns `MenuItem | null` the item with the specified `id`
 
 #### `menu.insert(pos, menuItem)`
 
@@ -141,13 +145,7 @@ can have a submenu.
 
 ## Examples
 
-The `Menu` class is only available in the main process, but you can also use it
-in the render process via the [`remote`](remote.md) module.
-
-### Main process
-
-An example of creating the application menu in the main process with the
-simple template API:
+An example of creating the application menu with the simple template API:
 
 ```javascript
 const { app, Menu } = require('electron')
@@ -164,7 +162,7 @@ const template = [
       { role: 'services' },
       { type: 'separator' },
       { role: 'hide' },
-      { role: 'hideothers' },
+      { role: 'hideOthers' },
       { role: 'unhide' },
       { type: 'separator' },
       { role: 'quit' }
@@ -195,8 +193,8 @@ const template = [
         {
           label: 'Speech',
           submenu: [
-            { role: 'startspeaking' },
-            { role: 'stopspeaking' }
+            { role: 'startSpeaking' },
+            { role: 'stopSpeaking' }
           ]
         }
       ] : [
@@ -211,12 +209,12 @@ const template = [
     label: 'View',
     submenu: [
       { role: 'reload' },
-      { role: 'forcereload' },
-      { role: 'toggledevtools' },
+      { role: 'forceReload' },
+      { role: 'toggleDevTools' },
       { type: 'separator' },
-      { role: 'resetzoom' },
-      { role: 'zoomin' },
-      { role: 'zoomout' },
+      { role: 'resetZoom' },
+      { role: 'zoomIn' },
+      { role: 'zoomOut' },
       { type: 'separator' },
       { role: 'togglefullscreen' }
     ]
@@ -257,26 +255,36 @@ Menu.setApplicationMenu(menu)
 
 ### Render process
 
-Below is an example of creating a menu dynamically in a web page
-(render process) by using the [`remote`](remote.md) module, and showing it when
-the user right clicks the page:
+To create menus initiated by the renderer process, send the required
+information to the main process using IPC and have the main process display the
+menu on behalf of the renderer.
 
-```html
-<!-- index.html -->
-<script>
-const { remote } = require('electron')
-const { Menu, MenuItem } = remote
+Below is an example of showing a menu when the user right clicks the page:
 
-const menu = new Menu()
-menu.append(new MenuItem({ label: 'MenuItem1', click() { console.log('item 1 clicked') } }))
-menu.append(new MenuItem({ type: 'separator' }))
-menu.append(new MenuItem({ label: 'MenuItem2', type: 'checkbox', checked: true }))
-
+```js
+// renderer
 window.addEventListener('contextmenu', (e) => {
   e.preventDefault()
-  menu.popup({ window: remote.getCurrentWindow() })
-}, false)
-</script>
+  ipcRenderer.send('show-context-menu')
+})
+
+ipcRenderer.on('context-menu-command', (e, command) => {
+  // ...
+})
+
+// main
+ipcMain.on('show-context-menu', (event) => {
+  const template = [
+    {
+      label: 'Menu Item 1',
+      click: () => { event.sender.send('context-menu-command', 'menu-item-1') }
+    },
+    { type: 'separator' },
+    { label: 'Menu Item 2', type: 'checkbox', checked: true }
+  ]
+  const menu = Menu.buildFromTemplate(template)
+  menu.popup(BrowserWindow.fromWebContents(event.sender))
+})
 ```
 
 ## Notes on macOS Application Menu
@@ -397,4 +405,4 @@ Menu:
 ```
 
 [AboutInformationPropertyListFiles]: https://developer.apple.com/library/ios/documentation/general/Reference/InfoPlistKeyReference/Articles/AboutInformationPropertyListFiles.html
-[setMenu]: https://github.com/electron/electron/blob/master/docs/api/browser-window.md#winsetmenumenu-linux-windows
+[setMenu]: browser-window.md#winsetmenumenu-linux-windows

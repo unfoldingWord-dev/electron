@@ -2,8 +2,8 @@
 // Use of this source code is governed by the MIT license that can be
 // found in the LICENSE file.
 
-#ifndef SHELL_COMMON_NODE_BINDINGS_MAC_H_
-#define SHELL_COMMON_NODE_BINDINGS_MAC_H_
+#ifndef ELECTRON_SHELL_COMMON_NODE_BINDINGS_MAC_H_
+#define ELECTRON_SHELL_COMMON_NODE_BINDINGS_MAC_H_
 
 #include "base/compiler_specific.h"
 #include "shell/common/node_bindings.h"
@@ -15,6 +15,7 @@ class NodeBindingsMac : public NodeBindings {
   explicit NodeBindingsMac(BrowserEnvironment browser_env);
   ~NodeBindingsMac() override;
 
+  void PrepareMessageLoop() override;
   void RunMessageLoop() override;
 
  private:
@@ -23,9 +24,10 @@ class NodeBindingsMac : public NodeBindings {
 
   void PollEvents() override;
 
-  DISALLOW_COPY_AND_ASSIGN(NodeBindingsMac);
+  // uv's backend fd.
+  int handle_ = -1;
 };
 
 }  // namespace electron
 
-#endif  // SHELL_COMMON_NODE_BINDINGS_MAC_H_
+#endif  // ELECTRON_SHELL_COMMON_NODE_BINDINGS_MAC_H_

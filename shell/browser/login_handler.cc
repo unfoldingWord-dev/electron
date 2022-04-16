@@ -4,20 +4,18 @@
 
 #include "shell/browser/login_handler.h"
 
-#include <memory>
-#include <string>
 #include <utility>
-#include <vector>
 
 #include "base/callback.h"
-#include "base/strings/string16.h"
-#include "native_mate/arguments.h"
-#include "native_mate/dictionary.h"
-#include "shell/browser/api/atom_api_web_contents.h"
-#include "shell/common/native_mate_converters/callback.h"
-#include "shell/common/native_mate_converters/gurl_converter.h"
-#include "shell/common/native_mate_converters/net_converter.h"
-#include "shell/common/native_mate_converters/value_converter.h"
+#include "base/threading/sequenced_task_runner_handle.h"
+#include "gin/arguments.h"
+#include "gin/dictionary.h"
+#include "shell/browser/api/electron_api_web_contents.h"
+#include "shell/browser/javascript_environment.h"
+#include "shell/common/gin_converters/callback_converter.h"
+#include "shell/common/gin_converters/gurl_converter.h"
+#include "shell/common/gin_converters/net_converter.h"
+#include "shell/common/gin_converters/value_converter.h"
 
 using content::BrowserThread;
 
@@ -36,8 +34,8 @@ LoginHandler::LoginHandler(
       auth_required_callback_(std::move(auth_required_callback)) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
-  base::PostTaskWithTraits(
-      FROM_HERE, {BrowserThread::UI},
+  base::SequencedTaskRunnerHandle::Get()->PostTask(
+      FROM_HERE,
       base::BindOnce(&LoginHandler::EmitEvent, weak_factory_.GetWeakPtr(),
                      auth_info, is_main_frame, url, response_headers,
                      first_auth_attempt));
@@ -49,17 +47,16 @@ void LoginHandler::EmitEvent(
     const GURL& url,
     scoped_refptr<net::HttpResponseHeaders> response_headers,
     bool first_auth_attempt) {
-  v8::Isolate* isolate = v8::Isolate::GetCurrent();
+  v8::Isolate* isolate = JavascriptEnvironment::GetIsolate();
+  v8::HandleScope scope(isolate);
 
-  auto api_web_contents = api::WebContents::From(isolate, web_contents());
-  if (api_web_contents.IsEmpty()) {
-    std::move(auth_required_callback_).Run(base::nullopt);
+  api::WebContents* api_web_contents = api::WebContents::From(web_contents());
+  if (!api_web_contents) {
+    std::move(auth_required_callback_).Run(absl::nullopt);
     return;
   }
 
-  v8::HandleScope scope(isolate);
-
-  auto details = mate::Dictionary::CreateEmpty(isolate);
+  auto details = gin::Dictionary::CreateEmpty(isolate);
   details.Set("url", url);
 
   // These parameters aren't documented, and I'm not sure that they're useful,
@@ -69,22 +66,26 @@ void LoginHandler::EmitEvent(
   details.Set("firstAuthAttempt", first_auth_attempt);
   details.Set("responseHeaders", response_headers.get());
 
+  auto weak_this = weak_factory_.GetWeakPtr();
   bool default_prevented =
       api_web_contents->Emit("login", std::move(details), auth_info,
                              base::BindOnce(&LoginHandler::CallbackFromJS,
                                             weak_factory_.GetWeakPtr()));
-  if (!default_prevented && auth_required_callback_) {
-    std::move(auth_required_callback_).Run(base::nullopt);
+  // ⚠️ NB, if CallbackFromJS is called during Emit(), |this| will have been
+  // deleted. Check the weak ptr before accessing any member variables to
+  // prevent UAF.
+  if (weak_this && !default_prevented && auth_required_callback_) {
+    std::move(auth_required_callback_).Run(absl::nullopt);
   }
 }
 
 LoginHandler::~LoginHandler() = default;
 
-void LoginHandler::CallbackFromJS(mate::Arguments* args) {
+void LoginHandler::CallbackFromJS(gin::Arguments* args) {
   if (auth_required_callback_) {
-    base::string16 username, password;
+    std::u16string username, password;
     if (!args->GetNext(&username) || !args->GetNext(&password)) {
-      std::move(auth_required_callback_).Run(base::nullopt);
+      std::move(auth_required_callback_).Run(absl::nullopt);
       return;
     }
     std::move(auth_required_callback_)

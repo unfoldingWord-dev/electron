@@ -2,8 +2,8 @@
 // Use of this source code is governed by the MIT license that can be
 // found in the LICENSE file.
 
-#ifndef SHELL_BROWSER_UI_WIN_TASKBAR_HOST_H_
-#define SHELL_BROWSER_UI_WIN_TASKBAR_HOST_H_
+#ifndef ELECTRON_SHELL_BROWSER_UI_WIN_TASKBAR_HOST_H_
+#define ELECTRON_SHELL_BROWSER_UI_WIN_TASKBAR_HOST_H_
 
 #include <shobjidl.h>
 #include <wrl/client.h>
@@ -25,7 +25,7 @@ class TaskbarHost {
     std::string tooltip;
     gfx::Image icon;
     std::vector<std::string> flags;
-    base::Closure clicked_callback;
+    base::RepeatingClosure clicked_callback;
 
     ThumbarButton();
     ThumbarButton(const ThumbarButton&);
@@ -34,6 +34,10 @@ class TaskbarHost {
 
   TaskbarHost();
   virtual ~TaskbarHost();
+
+  // disable copy
+  TaskbarHost(const TaskbarHost&) = delete;
+  TaskbarHost& operator=(const TaskbarHost&) = delete;
 
   // Add or update the buttons in thumbar.
   bool SetThumbarButtons(HWND window,
@@ -48,7 +52,7 @@ class TaskbarHost {
 
   // Set the overlay icon in taskbar.
   bool SetOverlayIcon(HWND window,
-                      const gfx::Image& overlay,
+                      const SkBitmap& overlay,
                       const std::string& text);
 
   // Set the region of the window to show as a thumbnail in taskbar.
@@ -60,11 +64,13 @@ class TaskbarHost {
   // Called by the window that there is a button in thumbar clicked.
   bool HandleThumbarButtonEvent(int button_id);
 
+  void SetThumbarButtonsAdded(bool added) { thumbar_buttons_added_ = added; }
+
  private:
   // Initialize the taskbar object.
   bool InitializeTaskbar();
 
-  using CallbackMap = std::map<int, base::Closure>;
+  using CallbackMap = std::map<int, base::RepeatingClosure>;
   CallbackMap callback_map_;
 
   std::vector<ThumbarButton> last_buttons_;
@@ -74,10 +80,8 @@ class TaskbarHost {
 
   // Whether we have already added the buttons to thumbar.
   bool thumbar_buttons_added_ = false;
-
-  DISALLOW_COPY_AND_ASSIGN(TaskbarHost);
 };
 
 }  // namespace electron
 
-#endif  // SHELL_BROWSER_UI_WIN_TASKBAR_HOST_H_
+#endif  // ELECTRON_SHELL_BROWSER_UI_WIN_TASKBAR_HOST_H_

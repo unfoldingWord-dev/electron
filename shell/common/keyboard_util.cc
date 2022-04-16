@@ -7,7 +7,7 @@
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "shell/common/keyboard_util.h"
-#include "third_party/blink/public/platform/web_input_event.h"
+#include "third_party/blink/public/common/input/web_input_event.h"
 #include "ui/events/event_constants.h"
 
 namespace electron {
@@ -15,8 +15,9 @@ namespace electron {
 namespace {
 
 // Return key code represented by |str|.
-ui::KeyboardCode KeyboardCodeFromKeyIdentifier(const std::string& s,
-                                               bool* shifted) {
+ui::KeyboardCode KeyboardCodeFromKeyIdentifier(
+    const std::string& s,
+    absl::optional<char16_t>* shifted_char) {
   std::string str = base::ToLowerASCII(s);
   if (str == "ctrl" || str == "control") {
     return ui::VKEY_CONTROL;
@@ -24,7 +25,7 @@ ui::KeyboardCode KeyboardCodeFromKeyIdentifier(const std::string& s,
              str == "meta") {
     return ui::VKEY_COMMAND;
   } else if (str == "commandorcontrol" || str == "cmdorctrl") {
-#if defined(OS_MACOSX)
+#if defined(OS_MAC)
     return ui::VKEY_COMMAND;
 #else
     return ui::VKEY_CONTROL;
@@ -36,7 +37,7 @@ ui::KeyboardCode KeyboardCodeFromKeyIdentifier(const std::string& s,
   } else if (str == "altgr") {
     return ui::VKEY_ALTGR;
   } else if (str == "plus") {
-    *shifted = true;
+    shifted_char->emplace('+');
     return ui::VKEY_OEM_PLUS;
   } else if (str == "capslock") {
     return ui::VKEY_CAPITAL;
@@ -138,7 +139,7 @@ ui::KeyboardCode KeyboardCodeFromKeyIdentifier(const std::string& s,
 
 }  // namespace
 
-ui::KeyboardCode KeyboardCodeFromCharCode(base::char16 c, bool* shifted) {
+ui::KeyboardCode KeyboardCodeFromCharCode(char16_t c, bool* shifted) {
   c = base::ToLowerASCII(c);
   *shifted = false;
   switch (c) {
@@ -319,40 +320,17 @@ ui::KeyboardCode KeyboardCodeFromCharCode(base::char16 c, bool* shifted) {
   }
 }
 
-ui::KeyboardCode KeyboardCodeFromStr(const std::string& str, bool* shifted) {
-  if (str.size() == 1)
-    return KeyboardCodeFromCharCode(str[0], shifted);
-  else
-    return KeyboardCodeFromKeyIdentifier(str, shifted);
-}
-
-int WebEventModifiersToEventFlags(int modifiers) {
-  int flags = 0;
-
-  if (modifiers & blink::WebInputEvent::kShiftKey)
-    flags |= ui::EF_SHIFT_DOWN;
-  if (modifiers & blink::WebInputEvent::kControlKey)
-    flags |= ui::EF_CONTROL_DOWN;
-  if (modifiers & blink::WebInputEvent::kAltKey)
-    flags |= ui::EF_ALT_DOWN;
-  if (modifiers & blink::WebInputEvent::kMetaKey)
-    flags |= ui::EF_COMMAND_DOWN;
-  if (modifiers & blink::WebInputEvent::kCapsLockOn)
-    flags |= ui::EF_CAPS_LOCK_ON;
-  if (modifiers & blink::WebInputEvent::kNumLockOn)
-    flags |= ui::EF_NUM_LOCK_ON;
-  if (modifiers & blink::WebInputEvent::kScrollLockOn)
-    flags |= ui::EF_SCROLL_LOCK_ON;
-  if (modifiers & blink::WebInputEvent::kLeftButtonDown)
-    flags |= ui::EF_LEFT_MOUSE_BUTTON;
-  if (modifiers & blink::WebInputEvent::kMiddleButtonDown)
-    flags |= ui::EF_MIDDLE_MOUSE_BUTTON;
-  if (modifiers & blink::WebInputEvent::kRightButtonDown)
-    flags |= ui::EF_RIGHT_MOUSE_BUTTON;
-  if (modifiers & blink::WebInputEvent::kIsAutoRepeat)
-    flags |= ui::EF_IS_REPEAT;
-
-  return flags;
+ui::KeyboardCode KeyboardCodeFromStr(const std::string& str,
+                                     absl::optional<char16_t>* shifted_char) {
+  if (str.size() == 1) {
+    bool shifted = false;
+    auto ret = KeyboardCodeFromCharCode(str[0], &shifted);
+    if (shifted)
+      shifted_char->emplace(str[0]);
+    return ret;
+  } else {
+    return KeyboardCodeFromKeyIdentifier(str, shifted_char);
+  }
 }
 
 }  // namespace electron

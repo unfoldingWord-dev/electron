@@ -1,4 +1,7 @@
-const { ipcRenderer, remote } = require('electron');
+const { ipcRenderer, webFrame } = require('electron');
 
-ipcRenderer.send('answer', process.argv, remote.getCurrentWindow().webContents.getWebPreferences());
+ipcRenderer.send('answer', {
+  nativeWindowOpen: webFrame.getWebPreference('nativeWindowOpen'),
+  argv: process.argv
+});
 window.close();

@@ -10,6 +10,7 @@
 #include "base/bind.h"
 #include "base/lazy_instance.h"
 #include "base/threading/thread_task_runner_handle.h"
+#include "content/public/renderer/render_frame.h"
 #include "ui/gfx/geometry/size.h"
 
 namespace electron {
@@ -22,8 +23,7 @@ static base::LazyInstance<GuestViewContainerMap>::DestructorAtExit
 
 }  // namespace
 
-GuestViewContainer::GuestViewContainer(content::RenderFrame* render_frame)
-    : weak_ptr_factory_(this) {}
+GuestViewContainer::GuestViewContainer(content::RenderFrame* render_frame) {}
 
 GuestViewContainer::~GuestViewContainer() {
   if (element_instance_id_ > 0)
@@ -55,10 +55,6 @@ void GuestViewContainer::DidResizeElement(const gfx::Size& new_size) {
 
   base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(element_resize_callback_, new_size));
-}
-
-base::WeakPtr<content::BrowserPluginDelegate> GuestViewContainer::GetWeakPtr() {
-  return weak_ptr_factory_.GetWeakPtr();
 }
 
 }  // namespace electron

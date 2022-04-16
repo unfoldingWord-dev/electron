@@ -2,8 +2,8 @@
 // Use of this source code is governed by the MIT license that can be
 // found in the LICENSE file.
 
-#ifndef SHELL_BROWSER_LOGIN_HANDLER_H_
-#define SHELL_BROWSER_LOGIN_HANDLER_H_
+#ifndef ELECTRON_SHELL_BROWSER_LOGIN_HANDLER_H_
+#define ELECTRON_SHELL_BROWSER_LOGIN_HANDLER_H_
 
 #include "base/values.h"
 #include "content/public/browser/content_browser_client.h"
@@ -14,7 +14,7 @@ namespace content {
 class WebContents;
 }
 
-namespace mate {
+namespace gin {
 class Arguments;
 }
 
@@ -33,21 +33,23 @@ class LoginHandler : public content::LoginDelegate,
                LoginAuthRequiredCallback auth_required_callback);
   ~LoginHandler() override;
 
+  // disable copy
+  LoginHandler(const LoginHandler&) = delete;
+  LoginHandler& operator=(const LoginHandler&) = delete;
+
  private:
   void EmitEvent(net::AuthChallengeInfo auth_info,
                  bool is_main_frame,
                  const GURL& url,
                  scoped_refptr<net::HttpResponseHeaders> response_headers,
                  bool first_auth_attempt);
-  void CallbackFromJS(mate::Arguments* args);
+  void CallbackFromJS(gin::Arguments* args);
 
   LoginAuthRequiredCallback auth_required_callback_;
 
   base::WeakPtrFactory<LoginHandler> weak_factory_{this};
-
-  DISALLOW_COPY_AND_ASSIGN(LoginHandler);
 };
 
 }  // namespace electron
 
-#endif  // SHELL_BROWSER_LOGIN_HANDLER_H_
+#endif  // ELECTRON_SHELL_BROWSER_LOGIN_HANDLER_H_
