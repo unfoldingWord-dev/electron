@@ -1,7 +1,7 @@
 ## Building Electronite on MacOS
 ### Setup on MacOS Monterey
 - Configured my M1 Silicon PC using these notes as a reference: https:https://github.com/unfoldingWord/electronite/blob/v17.3.1-graphite/docs/development/build-instructions-macos.md
-- Make sure you has a lot of free disk space - need over 150GB free.
+- Make sure you have a lot of free disk space - need over 150GB free.
 - installed node using nvm
   - install nvm: `curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.37.2/install.sh | bash`
   - restart terminal
@@ -25,7 +25,7 @@ sudo npm i -g @electron/build-tools
 
 ### Build Electronite
 #### Build Arm64
-- open terminal and cd to the folder you will use for build:
+- open terminal and initialize build:
 ```
 e init --root=~/Develop/Electronite-Build -o arm64 arm64 -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
 ```
@@ -56,13 +56,13 @@ e use arm64
 e build electron
 ```
 
-- Make the release
+- Make the release to ~/Develop/Electronite-Build/src/out/arm64/dist.zip
 ```
 e build electron:dist
 ```
 
 #### Build Intel x64
-- open terminal and cd to the folder you will use for build:
+- open terminal and initialize build (I had to turn off goma or initialzation would fail):
 ```
 e init --root=~/Develop/Electronite-Build -o x64 x64 -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
 ```
@@ -93,7 +93,7 @@ e use x64
 e build electron
 ```
 
-- Make the release
+- Make the release to ~/Develop/Electronite-Build/src/out/x64/dist.zip
 ```
 e build electron:dist
 ```
