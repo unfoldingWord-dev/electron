@@ -22,8 +22,9 @@ WINDOWSSDKDIR=C:\Program Files (x86)\Windows Kits\10
 
 - installed: https://chocolatey.org/install
 	
-- Setup Build tools (using command prompt, not powershell):
+- Setup Build tools (using command prompt, not powershell).  Install using didn't work for me:
 ```
+npm i -g @electron/build-tools
 C:
 cd %HOMEPATH%
 git clone https://github.com/electron/build-tools .electron_build_tools
@@ -35,7 +36,7 @@ npm i
 #### Build Intel x64
 - open command prompt and initialize build:
 ```
-e init --root=.\Build-Electron -o x64 x64 -i release --goma cache-only --fork unfoldingWord-box3/electron --use-https -f
+e init --root=.\Build-Electron -o x64 x64 -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
 ```
 
 - edit `~\.electron_build_tools\configs\evm.x64.json`
@@ -62,6 +63,7 @@ e sync
 - Do build (takes a long time)
 ```
 e use x64
+set NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
 e build electron
 ```
 
@@ -70,10 +72,10 @@ e build electron
 e build electron:dist
 ```
 
-#### Build Intel x86
+#### Build Intel x86 (32 bit)
 - open command prompt and initialize build:
 ```
-e init --root=.\Build-Electron -o x86 x86 -i release --goma cache-only --fork unfoldingWord-box3/electron --use-https -f
+e init --root=.\Build-Electron -o x86 x86 -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
 ```
 
 - edit `~\.electron_build_tools\configs\evm.x86.json`
@@ -100,6 +102,7 @@ e sync
 - Do build (takes a long time)
 ```
 e use x86
+set NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
 e build electron
 ```
 

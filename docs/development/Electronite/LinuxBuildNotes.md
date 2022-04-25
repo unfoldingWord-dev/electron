@@ -4,12 +4,6 @@
 - Make sure the VM has a lot of disk space - I ran out of disk space with 60GB of storage configured.  Rather than starting over with a new VM.  I added a second Virtual Hard Drive with 100GB and then used that drive for the builds.
 
 ### Build Electronite
-- open terminal and cd to the folder you will use for build
-- install the depot_tools here: `git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git`
-- download build script to this folder from: https://github.com/unfoldingWord/electronite/blob/v17.3.1-graphite/docs/development/Electronite/electronite-tools.sh
-- set execute permission on script: `chmod +x ./electronite-tools.sh`
-- before build do: `export PATH=/path/to/depot_tools:$PATH`
-- get source files (this can take several hours the first time as the git cache is loaded): `./electronite-tools.sh get v17.3.1-graphite`
 - to create `arm64` builds, you must have installed the arm64 dependencies mentioned in the Linux build instructions above.  Then run:
 ```
 cd electron-gn/src
@@ -22,16 +16,59 @@ cd electron-gn/src
 build/linux/sysroot_scripts/install-sysroot.py --arch=arm
 cd ../..
 ```
-- builds can take over 20 hours on a VM.
-- build Electronite for Intel 64-bit:
-  - build for 64-bit: `./electronite-tools.sh build x64`
-  - create release for 32-bit: `./electronite-tools.sh release x64`
+- install and configure python:
+```
+sudo apt install python python3.9
+pip3 install --user --upgrade pip
+pip3 install --user pyobjc
+```
 
-- build Electronite for Arm 64-bit:
-  - build for arm 64-bit: `./electronite-tools.sh build arm64`
-  - create release for arm 64-bit: `./electronite-tools.sh release arm64`
+- installed electron build-tools (https://github.com/electron/build-tools):
+```
+npm i -g @electron/build-tools
+```
+- it still didn’t work, so tried this and then initialization seemed to work:
+```
+git clone https://github.com/electron/build-tools ~/.electron_build_tools && (cd ~/.electron_build_tools && npm install)
+``` 
 
-- build Electronite for Arm:
-    - build for arm: `./electronite-tools.sh build arm`
-    - create release for arm: `./electronite-tools.sh release arm`
+### Build Electronite
+#### Build Arm64
+- open terminal and initialize build:
+```
+e init --root=~/Develop/Electronite-Build -o arm64 arm64 -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
+```
+
+- edit `~/.electron_build_tools/configs/evm.arm64.json`
+  and add option to args:       `"target_cpu = \"arm64\""`
+- get the base Electron source code (this can take many hours the first time as the git cache is loaded):
+```
+e sync
+```
+
+- checkout the correct Electronite tag
+```
+cd ~/Develop/Electronite-Build/src/electron
+git fetch --all
+git checkout tags/v18.1.0-graphite -b v18.1.0-graphite
+cd ../..
+```
+
+- now get the Electronite sources
+```
+e sync
+```
+
+- Do build (takes a long time)
+```
+e use arm64
+export NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
+e build electron
+```
+
+- Make the release to ~/Develop/Electronite-Build/src/out/arm64/dist.zip
+```
+e build electron:dist
+```
+
    

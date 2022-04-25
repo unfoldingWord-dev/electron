@@ -26,7 +26,7 @@ sudo npm i -g @electron/build-tools
 
 ### Build Electronite
 #### Build Arm64
-- open terminal and initialize build:
+- open terminal and initialize build (on M1 Mac, had to use `--goma none`):
 ```
 e init --root=~/Develop/Electronite-Build -o arm64 arm64 -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
 ```
@@ -54,6 +54,7 @@ e sync
 - Do build (takes a long time)
 ```
 e use arm64
+export NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
 e build electron
 ```
 
@@ -63,7 +64,7 @@ e build electron:dist
 ```
 
 #### Build Intel x64
-- open terminal and initialize build (I had to turn off goma or initialzation would fail):
+- open terminal and initialize build (on M1 Mac, had to use `--goma none`):
 ```
 e init --root=~/Develop/Electronite-Build -o x64 x64 -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
 ```
@@ -91,6 +92,7 @@ e sync
 - Do build (takes a long time)
 ```
 e use x64
+export NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
 e build electron
 ```
 
