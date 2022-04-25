@@ -2,7 +2,7 @@
 ### Setup on Clean Windows 10 VM
 - Configured my VM using these notes as a reference:
   - https://chromium.googlesource.com/chromium/src/+/main/docs/windows_build_instructions.md#visual-studio
-  - https://github.com/unfoldingWord/electronite/blob/v17.3.1-graphite/docs/development/build-instructions-windows.md
+  - https://github.com/unfoldingWord/electronite/blob/v18.1.0-graphite/docs/development/build-instructions-windows.md
 - Make sure the VM has a lot of disk space - I configured with 220GB of storage.
 - Make sure to add exception to the build folder for Windows defender, or it will delete a couple of the build files.
 - Add to git support for long file names: `git config --system core.longpaths true`
