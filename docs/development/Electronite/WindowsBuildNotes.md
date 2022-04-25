@@ -60,6 +60,14 @@ cd ..\..
 e sync
 ```
 
+- if you get an error about unstaged changes, do:
+```
+cd src
+git add -A
+git commit -m "commit changes" --author="A U Thor <author@example.com>"
+cd ..
+```
+
 - Do build (takes a long time)
 ```
 e use x64
@@ -97,6 +105,14 @@ cd ..\..
 - now get the Electronite sources
 ```
 e sync
+```
+
+- if you get an error about unstaged changes, do:
+```
+cd src
+git add -A
+git commit -m "commit changes" --author="A U Thor <author@example.com>"
+cd ..
 ```
 
 - Do build (takes a long time)
