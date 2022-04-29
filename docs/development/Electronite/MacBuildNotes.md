@@ -3,6 +3,8 @@
 - Configured using these notes as a reference: https:https://github.com/unfoldingWord/electronite/blob/v18.1.0-graphite/docs/development/build-instructions-macos.md
 - Building for x64 does not work on M1 Silicon Macs, only for Arm64.  On Intel based Macs can build for both Arm64 and Intel x64
 - Make sure you have a lot of free disk space - need over 150GB free.
+- if you have trouble building with these notes, you could try the older Chromium Build tools: https://github.com/unfoldingWord/electronite/blob/v18.1.0-graphite/docs/development/Electronite/MacBuildNotesChromeTools.md
+
 - installed node using nvm
   - install nvm: `curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.37.2/install.sh | bash`
   - restart terminal

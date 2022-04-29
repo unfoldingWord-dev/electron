@@ -2,6 +2,7 @@
 ### Setup on Clean Linux VM
 - Configured my VM using these notes as a reference: https://github.com/unfoldingWord/electronite/blob/v18.1.0-graphite/docs/development/build-instructions-linux.md
 - Make sure the VM has a lot of disk space - I ran out of disk space with 60GB of storage configured.  Rather than starting over with a new VM.  I added a second Virtual Hard Drive with 100GB and then used that drive for the builds.
+- if you have trouble building with these notes, you could try the older Chromium Build tools: https://github.com/unfoldingWord/electronite/blob/v18.1.0-graphite/docs/development/Electronite/LinuxBuildNotesChromeTools.md
 
 ### Build Electronite
 - to create `arm64` builds, you must have installed the arm64 dependencies mentioned in the Linux build instructions above.  Then run:
