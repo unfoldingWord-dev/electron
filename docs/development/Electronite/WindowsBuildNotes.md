@@ -34,7 +34,7 @@ npm i
 
 ### Build Electronite
 #### Build Intel x64
-- open command prompt and initialize build:
+- open command prompt and initialize build configuration (note that if you have a slow or unreliable internet connection, it is better to change the goma setting from `cache-only` to `none`):
 ```
 e init --root=.\Build-Electron -o x64 x64 -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
 ```
@@ -73,7 +73,7 @@ e build electron:dist
 ```
 
 #### Build Intel x86 (32 bit)
-- open command prompt and initialize build:
+- open command prompt and initialize build configuration (note that if you have a slow or unreliable internet connection, it is better to change the goma setting from `cache-only` to `none`):
 ```
 e init --root=.\Build-Electron -o x86 x86 -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
 ```

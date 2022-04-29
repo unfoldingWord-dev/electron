@@ -26,7 +26,7 @@ sudo npm i -g @electron/build-tools
 
 ### Build Electronite
 #### Build Arm64
-- open terminal and initialize build (on M1 Mac, had to use `--goma none`):
+- open terminal and initialize build (on M1 Mac, had to use `--goma none`, and it may be faster if you have a slow or unreliable internet connection):
 ```
 e init --root=~/Develop/Electronite-Build -o arm64 arm64 -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
 ```

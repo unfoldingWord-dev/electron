@@ -34,7 +34,7 @@ git clone https://github.com/electron/build-tools ~/.electron_build_tools && (cd
 
 ### Build Electronite
 #### Build Arm64
-- open terminal and initialize build:
+- open terminal and initialize build configuration (note that if you have a slow or unreliable internet connection, it is better to change the goma setting from `cache-only` to `none`):
 ```
 e init --root=~/Develop/Electronite-Build -o arm64 arm64 -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
 ```
