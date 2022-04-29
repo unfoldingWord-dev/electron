@@ -1,6 +1,6 @@
 ## Building Electronite on MacOS
 ### Setup on MacOS Catalina VM
-- Configured my VM using these notes as a reference: https:https://github.com/unfoldingWord/electronite/blob/v17.3.1-graphite/docs/development/build-instructions-macos.md
+- Configured my VM using these notes as a reference: https:https://github.com/unfoldingWord/electronite/blob/<<build-tag>>/docs/development/build-instructions-macos.md
 - Make sure the VM has a lot of disk space - I was able to build with 120GB of storage configured.  But only had 13GB of space at end of build, so that may not be enough in the future.
 - Installed xcode 12.4.
 - installed node using nvm
@@ -23,10 +23,10 @@ pip3 install --user pyobjc
 ### Build Electronite
 - open terminal and cd to the folder you will use for build
 - install the depot_tools here: `git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git`
-- download build script to this folder from: https://github.com/unfoldingWord/electronite/blob/v17.3.1-graphite/docs/development/Electronite/electronite-tools.sh
+- download build script to this folder from: https://github.com/unfoldingWord/electronite/blob/<<build-tag>>/docs/development/Electronite/electronite-tools.sh
 - set execute permission on script: `chmod +x ./electronite-tools.sh`
 - before build do: `export PATH=/path/to/depot_tools:$PATH`
-- get source files (this can take several hours the first time as the git cache is loaded): `./electronite-tools.sh get v17.3.1-graphite`
+- get source files (this can take several hours the first time as the git cache is loaded): `./electronite-tools.sh get <<build-tag>>`
 - builds can take over 15 hours on a VM.
 - build Electronite for MacOS Intel 64-bit:
     - build for 64-bit: `./electronite-tools.sh build x64`
