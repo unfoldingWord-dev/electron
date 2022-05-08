@@ -80,6 +80,13 @@ e init --root=~/Develop/Electronite-Build -o arm64 arm64 -i release --goma cache
 e sync
 ```
 
+- to create `arm64` builds, you must have installed the arm64 dependencies mentioned in the Linux build instructions above.  Then run:
+```
+cd ./src
+build/linux/sysroot_scripts/install-sysroot.py --arch=arm64
+cd ..
+```
+
 - checkout the correct Electronite tag
 ```
 cd ~/Develop/Electronite-Build/src/electron
