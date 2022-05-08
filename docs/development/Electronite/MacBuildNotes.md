@@ -1,9 +1,9 @@
 ## Building Electronite on MacOS
 ### Setup on MacOS Monterey
-- Configured using these notes as a reference: https://github.com/unfoldingWord/electronite/blob/v18.1.0-graphite/docs/development/build-instructions-macos.md
+- Configured using these notes as a reference: https://github.com/unfoldingWord/electronite/blob/v18.2.1-graphite/docs/development/build-instructions-macos.md
 - Building for x64 does not work on M1 Silicon Macs, only for Arm64.  On Intel based Macs can build for both Arm64 and Intel x64
 - Make sure you have a lot of free disk space - need over 150GB free.
-- if you have trouble building with these notes, you could try the older Chromium Build tools: https://github.com/unfoldingWord/electronite/blob/v18.1.0-graphite/docs/development/Electronite/MacBuildNotesChromeTools.md
+- if you have trouble building with these notes, you could try the older Chromium Build tools: https://github.com/unfoldingWord/electronite/blob/v18.2.1-graphite/docs/development/Electronite/MacBuildNotesChromeTools.md
 
 - installed node using nvm
   - install nvm: `curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.37.2/install.sh | bash`
@@ -25,6 +25,11 @@ pip3 install --user pyobjc
 ``` 
 sudo npm i -g @electron/build-tools
 ```
+
+- if e commands don’t work, try this and then initialization seemed to work:
+```
+git clone https://github.com/electron/build-tools ~/.electron_build_tools && (cd ~/.electron_build_tools && npm install)
+``` 
 
 #### Monitoring Goma status
 - if you browse to http://localhost:8088 on your local machine you can monitor compile jobs as they flow through the goma system.
@@ -48,7 +53,7 @@ e sync
 ```
 cd ~/Develop/Electronite-Build/src/electron
 git fetch --all
-git checkout tags/v18.1.0-graphite -b v18.1.0-graphite
+git checkout tags/v18.2.1-graphite -b v18.2.1-graphite
 cd ../..
 ```
 
@@ -86,7 +91,7 @@ e sync
 ```
 cd ~/Develop/Electronite-Build/src/electron
 git fetch --all
-git checkout tags/v18.1.0-graphite -b v18.1.0-graphite
+git checkout tags/v18.2.1-graphite -b v18.2.1-graphite
 cd ../..
 ```
 

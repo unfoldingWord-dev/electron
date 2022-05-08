@@ -2,9 +2,9 @@
 ### Setup on Clean Windows 10 VM
 - Configured my VM using these notes as a reference:
   - https://chromium.googlesource.com/chromium/src/+/main/docs/windows_build_instructions.md#visual-studio
-  - https://github.com/unfoldingWord/electronite/blob/v18.1.0-graphite/docs/development/build-instructions-windows.md
+  - https://github.com/unfoldingWord/electronite/blob/v18.2.1-graphite/docs/development/build-instructions-windows.md
 - Make sure the VM has a lot of disk space - I configured with 220GB of storage.
-- if you have trouble building with these notes, you could try the older Chromium Build tools: https://github.com/unfoldingWord/electronite/blob/v18.1.0-graphite/docs/development/Electronite/WindowsBuildNotesChromeTools.md
+- if you have trouble building with these notes, you could try the older Chromium Build tools: https://github.com/unfoldingWord/electronite/blob/v18.2.1-graphite/docs/development/Electronite/WindowsBuildNotesChromeTools.md
 - Make sure to add exception to the build folder for Windows defender, or it will delete a couple of the build files.
 - Add to git support for long file names: `git config --system core.longpaths true`
 - Installed VS 2019 Community edition and Windows SDK 10.0.19041.0.
@@ -55,7 +55,7 @@ e sync
 ```
 cd .\Build-Electron\src\electron
 git fetch --all
-git checkout tags/v18.1.0-graphite -b v18.1.0-graphite
+git checkout tags/v18.2.1-graphite -b v18.2.1-graphite
 cd ..\..
 ```
 
@@ -94,7 +94,7 @@ e sync
 ```
 cd .\Build-Electron\src\electron
 git fetch --all
-git checkout tags/v18.1.0-graphite -b v18.1.0-graphite
+git checkout tags/v18.2.1-graphite -b v18.2.1-graphite
 cd ..\..
 ```
 

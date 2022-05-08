@@ -1,8 +1,8 @@
 ## Building Electronite on Linux
 ### Setup on Clean Linux VM
-- Configured my VM using these notes as a reference: https://github.com/unfoldingWord/electronite/blob/v18.1.0-graphite/docs/development/build-instructions-linux.md
+- Configured my VM using these notes as a reference: https://github.com/unfoldingWord/electronite/blob/v18.2.1-graphite/docs/development/build-instructions-linux.md
 - Make sure the VM has a lot of disk space - I ran out of disk space with 60GB of storage configured.  Rather than starting over with a new VM.  I added a second Virtual Hard Drive with 100GB and then used that drive for the builds.
-- if you have trouble building with these notes, you could try the older Chromium Build tools: https://github.com/unfoldingWord/electronite/blob/v18.1.0-graphite/docs/development/Electronite/LinuxBuildNotesChromeTools.md
+- if you have trouble building with these notes, you could try the older Chromium Build tools: https://github.com/unfoldingWord/electronite/blob/v18.2.1-graphite/docs/development/Electronite/LinuxBuildNotesChromeTools.md
 
 - to create `arm64` builds, you must have installed the arm64 dependencies mentioned in the Linux build instructions above.  Then run:
 - install and configure python:
@@ -16,7 +16,7 @@ pip3 install --user pyobjc
 ```
 npm i -g @electron/build-tools
 ```
-- it still didn’t work, so tried this and then initialization seemed to work:
+- if e commands don’t work, try this and then initialization seemed to work:
 ```
 git clone https://github.com/electron/build-tools ~/.electron_build_tools && (cd ~/.electron_build_tools && npm install)
 ``` 
@@ -43,7 +43,7 @@ e sync
 ```
 cd ~/Develop/Electronite-Build/src/electron
 git fetch --all
-git checkout tags/v18.1.0-graphite -b v18.1.0-graphite
+git checkout tags/v18.2.1-graphite -b v18.2.1-graphite
 cd ../..
 ```
 
@@ -84,7 +84,7 @@ e sync
 ```
 cd ~/Develop/Electronite-Build/src/electron
 git fetch --all
-git checkout tags/v18.1.0-graphite -b v18.1.0-graphite
+git checkout tags/v18.2.1-graphite -b v18.2.1-graphite
 cd ../..
 ```
 
