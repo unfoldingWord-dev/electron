@@ -6,6 +6,9 @@
 - Make sure the VM has a lot of disk space - I configured with 220GB of storage.
 - if you have trouble building with these notes, you could try the older Chromium Build tools: https://github.com/unfoldingWord/electronite/blob/v18.2.1-graphite/docs/development/Electronite/WindowsBuildNotesChromeTools.md
 - Make sure to add exception to the build folder for Windows defender, or it will delete a couple of the build files.
+  - Go to Start button > Settings > Update & Security > Windows Security > Virus & threat protection.
+  - Under Virus & threat protection settings, select Manage settings, and then under Exclusions, select Add or remove exclusions.
+  - Add folder `.\Build-Electron` (which is the default build folder used below, or the build folder you actually use).
 - Add to git support for long file names: `git config --system core.longpaths true`
 - Installed VS 2019 Community edition and Windows SDK 10.0.19041.0.
 - Installed Python 3.9.11 (Python 3.10 has breaking changes that broke compile) from https://www.python.org/downloads/windows/
