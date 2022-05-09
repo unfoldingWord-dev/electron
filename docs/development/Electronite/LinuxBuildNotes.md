@@ -61,9 +61,7 @@ e build electron
 
 - Make the release to ~/Develop/Electronite-Build/src/out/x64/dist.zip
 ```
-cd ./src
-./electron/script/strip-binaries.py -d out/x64
-cd ..
+./src/electron/script/strip-binaries.py -d src/out/x64
 e build electron:dist
 ```
 
@@ -109,9 +107,7 @@ e build electron
 
 - Make the release to ~/Develop/Electronite-Build/src/out/arm64/dist.zip
 ```
-cd ./src
-./electron/script/strip-binaries.py --target-cpu=arm64 -d out/arm64
-cd ..
+./src/electron/script/strip-binaries.py --target-cpu=arm64 -d src/out/arm64
 e build electron:dist
 ```
 
