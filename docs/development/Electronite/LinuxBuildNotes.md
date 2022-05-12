@@ -4,7 +4,7 @@
 - Make sure the VM has a lot of disk space - I ran out of disk space with 60GB of storage configured.  Rather than starting over with a new VM.  I added a second Virtual Hard Drive with 100GB and then used that drive for the builds.
 - if you have trouble building with these notes, you could try the older Chromium Build tools: https://github.com/unfoldingWord/electronite/blob/v18.2.1-graphite/docs/development/Electronite/LinuxBuildNotesChromeTools.md
 
-- to create `arm64` builds, you must have installed the arm64 dependencies mentioned in the Linux build instructions above.  Then run:
+- to create `arm64` and `arm7vl` builds, you must have installed the arm dependencies mentioned in the Linux build instructions above.  Then run:
 - install and configure python:
 ```
 sudo apt install python python3.9
@@ -65,52 +65,6 @@ e build electron
 e build electron:dist
 ```
 
-#### Build Arm64
-- open terminal and initialize build configuration (note that if you have a slow or unreliable internet connection, it is better to change the goma setting from `cache-only` to `none`):
-```
-e init --root=~/Develop/Electronite-Build -o arm64 arm64 -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
-```
-
-- edit `~/.electron_build_tools/configs/evm.arm64.json`
-  and add option to args:       `"target_cpu = \"arm64\""`
-- get the base Electron source code (this can take many hours the first time as the git cache is loaded):
-```
-e sync
-```
-
-- to create `arm64` builds, you must have installed the arm64 dependencies mentioned in the Linux build instructions above.  Then run:
-```
-cd ./src
-build/linux/sysroot_scripts/install-sysroot.py --arch=arm64
-cd ..
-```
-
-- checkout the correct Electronite tag
-```
-cd ~/Develop/Electronite-Build/src/electron
-git fetch --all
-git checkout tags/v18.2.1-graphite -b v18.2.1-graphite
-cd ../..
-```
-
-- now get the Electronite sources
-```
-e sync
-```
-
-- Do build (takes a long time)
-```
-e use arm64
-export NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
-e build electron
-```
-
-- Make the release to ~/Develop/Electronite-Build/src/out/arm64/dist.zip
-```
-./src/electron/script/strip-binaries.py --target-cpu=arm64 -d src/out/arm64
-e build electron:dist
-```
-
 #### Build x86
 - open terminal and initialize build configuration (note that if you have a slow or unreliable internet connection, it is better to change the goma setting from `cache-only` to `none`):
 ```
@@ -158,3 +112,94 @@ e build electron
 e build electron:dist
 ```
 
+#### Build Arm64
+- open terminal and initialize build configuration (note that if you have a slow or unreliable internet connection, it is better to change the goma setting from `cache-only` to `none`):
+```
+e init --root=~/Develop/Electronite-Build -o arm64 arm64 -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
+```
+
+- edit `~/.electron_build_tools/configs/evm.arm64.json`
+  and add option to args:       `"target_cpu = \"arm64\""`
+- get the base Electron source code (this can take many hours the first time as the git cache is loaded):
+```
+e sync
+```
+
+- to create `arm64` builds, you must have installed the arm64 dependencies mentioned in the Linux build instructions above.  Then run:
+```
+cd ./src
+build/linux/sysroot_scripts/install-sysroot.py --arch=arm64
+cd ..
+```
+
+- checkout the correct Electronite tag
+```
+cd ~/Develop/Electronite-Build/src/electron
+git fetch --all
+git checkout tags/v18.2.1-graphite -b v18.2.1-graphite
+cd ../..
+```
+
+- now get the Electronite sources
+```
+e sync
+```
+
+- Do build (takes a long time)
+```
+e use arm64
+export NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
+e build electron
+```
+
+- Make the release to ~/Develop/Electronite-Build/src/out/arm64/dist.zip
+```
+./src/electron/script/strip-binaries.py --target-cpu=arm64 -d src/out/arm64
+e build electron:dist
+```
+
+#### Build arm7vl
+- open terminal and initialize build configuration (note that if you have a slow or unreliable internet connection, it is better to change the goma setting from `cache-only` to `none`):
+```
+e init --root=~/Develop/Electronite-Build -o arm7vl arm7vl -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
+```
+
+- edit `~/.electron_build_tools/configs/evm.arm7vl.json`
+  and add option to args:       `"target_cpu = \"arm7vl\""`
+- get the base Electron source code (this can take many hours the first time as the git cache is loaded):
+```
+e sync
+```
+
+- to create `arm7vl` builds, you must have installed the arm7vl dependencies mentioned in the Linux build instructions above.  Then run:
+```
+cd ./src
+build/linux/sysroot_scripts/install-sysroot.py --arch=arm7vl
+cd ..
+```
+
+- checkout the correct Electronite tag
+```
+cd ~/Develop/Electronite-Build/src/electron
+git fetch --all
+git checkout tags/v18.2.1-graphite -b v18.2.1-graphite
+cd ../..
+```
+
+- now get the Electronite sources
+```
+e sync
+```
+
+- Do build (takes a long time)
+```
+e use arm7vl
+export NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
+e build electron
+```
+
+- Make the release to ~/Develop/Electronite-Build/src/out/arm7vl/dist.zip
+```
+./src/electron/script/strip-binaries.py --target-cpu=arm7vl -d src/out/arm7vl
+e build electron:dist
+```
