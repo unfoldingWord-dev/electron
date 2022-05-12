@@ -158,23 +158,23 @@ e build electron
 e build electron:dist
 ```
 
-#### Build arm7vl
+#### Build arm
 - open terminal and initialize build configuration (note that if you have a slow or unreliable internet connection, it is better to change the goma setting from `cache-only` to `none`):
 ```
-e init --root=~/Develop/Electronite-Build -o arm7vl arm7vl -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
+e init --root=~/Develop/Electronite-Build -o arm arm -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
 ```
 
-- edit `~/.electron_build_tools/configs/evm.arm7vl.json`
-  and add option to args:       `"target_cpu = \"arm7vl\""`
+- edit `~/.electron_build_tools/configs/evm.arm.json`
+  and add option to args:       `"target_cpu = \"arm\""`
 - get the base Electron source code (this can take many hours the first time as the git cache is loaded):
 ```
 e sync
 ```
 
-- to create `arm7vl` builds, you must have installed the arm7vl dependencies mentioned in the Linux build instructions above.  Then run:
+- to create `arm` builds, you must have installed the arm dependencies mentioned in the Linux build instructions above.  Then run:
 ```
 cd ./src
-build/linux/sysroot_scripts/install-sysroot.py --arch=arm7vl
+build/linux/sysroot_scripts/install-sysroot.py --arch=arm
 cd ..
 ```
 
@@ -193,13 +193,13 @@ e sync
 
 - Do build (takes a long time)
 ```
-e use arm7vl
+e use arm
 export NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
 e build electron
 ```
 
-- Make the release to ~/Develop/Electronite-Build/src/out/arm7vl/dist.zip
+- Make the release to ~/Develop/Electronite-Build/src/out/arm/dist.zip
 ```
-./src/electron/script/strip-binaries.py --target-cpu=arm7vl -d src/out/arm7vl
+./src/electron/script/strip-binaries.py --target-cpu=arm -d src/out/arm
 e build electron:dist
 ```
