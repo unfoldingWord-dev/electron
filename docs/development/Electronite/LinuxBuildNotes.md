@@ -111,4 +111,50 @@ e build electron
 e build electron:dist
 ```
 
-   
+#### Build x86
+- open terminal and initialize build configuration (note that if you have a slow or unreliable internet connection, it is better to change the goma setting from `cache-only` to `none`):
+```
+sudo apt-get install ia32-libs-gtk ia32-libs
+e init --root=~/Develop/Electronite-Build -o x86 x86 -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
+```
+
+- edit `~/.electron_build_tools/configs/evm.x86.json`
+  and add option to args:       `"target_cpu = \"x86\""`
+- get the base Electron source code (this can take many hours the first time as the git cache is loaded):
+```
+e sync
+```
+
+- to create `x86` builds, you must have installed the x86 dependencies mentioned in the Linux build instructions above.  Then run:
+```
+cd ./src
+build/linux/sysroot_scripts/install-sysroot.py --arch=x86
+cd ..
+```
+
+- checkout the correct Electronite tag
+```
+cd ~/Develop/Electronite-Build/src/electron
+git fetch --all
+git checkout tags/v18.2.1-graphite -b v18.2.1-graphite
+cd ../..
+```
+
+- now get the Electronite sources
+```
+e sync
+```
+
+- Do build (takes a long time)
+```
+e use x86
+export NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
+e build electron
+```
+
+- Make the release to ~/Develop/Electronite-Build/src/out/x86/dist.zip
+```
+./src/electron/script/strip-binaries.py --target-cpu=x86 -d src/out/x86
+e build electron:dist
+```
+
