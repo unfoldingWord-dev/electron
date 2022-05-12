@@ -3,8 +3,14 @@
 - Configured my VM using these notes as a reference: https://github.com/unfoldingWord/electronite/blob/v18.2.1-graphite/docs/development/build-instructions-linux.md
 - Make sure the VM has a lot of disk space - I ran out of disk space with 60GB of storage configured.  Rather than starting over with a new VM.  I added a second Virtual Hard Drive with 100GB and then used that drive for the builds.
 - if you have trouble building with these notes, you could try the older Chromium Build tools: https://github.com/unfoldingWord/electronite/blob/v18.2.1-graphite/docs/development/Electronite/LinuxBuildNotesChromeTools.md
-
-- to create `arm64` and `arm7vl` builds, you must have installed the arm dependencies mentioned in the Linux build instructions above.  Then run:
+- upgrade to g++ 8.4:
+```
+sudo apt install build-essential
+sudo apt -y install g++-7 g++-8
+sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-8 8
+g++ --version
+```
+- to create `arm64` and `arm` builds, you must have installed the arm dependencies mentioned in the Linux build instructions above.  Then run:
 - install and configure python:
 ```
 sudo apt install python python3.9
