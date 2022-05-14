@@ -1,4 +1,4 @@
-// Type definitions for Electron 17.3.1
+// Type definitions for Electron 18.2.1
 // Project: http://electronjs.org/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -315,6 +315,35 @@ declare namespace Electron {
     addListener(event: 'did-become-active', listener: (event: Event) => void): this;
     removeListener(event: 'did-become-active', listener: (event: Event) => void): this;
     /**
+     * This event will be emitted within the second instance during the call to
+     * `app.requestSingleInstanceLock()`, when the first instance calls the
+     * `ackCallback` provided by the `second-instance` event handler.
+     */
+    on(event: 'first-instance-ack', listener: (event: Event,
+                                               /**
+                                                * A JSON object of additional data passed from the first instance, in response to
+                                                * the first instance's `second-instance` event.
+                                                */
+                                               additionalData: unknown) => void): this;
+    once(event: 'first-instance-ack', listener: (event: Event,
+                                               /**
+                                                * A JSON object of additional data passed from the first instance, in response to
+                                                * the first instance's `second-instance` event.
+                                                */
+                                               additionalData: unknown) => void): this;
+    addListener(event: 'first-instance-ack', listener: (event: Event,
+                                               /**
+                                                * A JSON object of additional data passed from the first instance, in response to
+                                                * the first instance's `second-instance` event.
+                                                */
+                                               additionalData: unknown) => void): this;
+    removeListener(event: 'first-instance-ack', listener: (event: Event,
+                                               /**
+                                                * A JSON object of additional data passed from the first instance, in response to
+                                                * the first instance's `second-instance` event.
+                                                */
+                                               additionalData: unknown) => void): this;
+    /**
      * Emitted whenever there is a GPU info update.
      */
     on(event: 'gpu-info-update', listener: Function): this;
@@ -499,6 +528,19 @@ declare namespace Electron {
      * **Note:** If the second instance is started by a different user than the first,
      * the `argv` array will not include the arguments.
      *
+     * **Note:** `ackCallback` allows the user to send data back to the second instance
+     * during the `app.requestSingleInstanceLock()` flow. This callback can be used for
+     * cases where the second instance needs to obtain additional information from the
+     * first instance before quitting.
+     *
+     * Currently, the limit on the message size is kMaxMessageLength, or around 32kB.
+     * To be safe, keep the amount of data passed to 31kB at most.
+     *
+     * In order to call the callback, `event.preventDefault()` must be called, first.
+     * If the callback is not called in either case, `null` will be sent back. If
+     * `event.preventDefault()` is not called, but `ackCallback` is called by the user
+     * in the event, then the behaviour is undefined.
+     *
      * This event is guaranteed to be emitted after the `ready` event of `app` gets
      * emitted.
      *
@@ -517,7 +559,11 @@ declare namespace Electron {
                                             /**
                                              * A JSON object of additional data passed from the second instance
                                              */
-                                            additionalData: unknown) => void): this;
+                                            additionalData: unknown,
+                                            /**
+                                             * A function that can be used to send data back to the second instance
+                                             */
+                                            ackCallback: unknown) => void): this;
     once(event: 'second-instance', listener: (event: Event,
                                             /**
                                              * An array of the second instance's command line arguments
@@ -530,7 +576,11 @@ declare namespace Electron {
                                             /**
                                              * A JSON object of additional data passed from the second instance
                                              */
-                                            additionalData: unknown) => void): this;
+                                            additionalData: unknown,
+                                            /**
+                                             * A function that can be used to send data back to the second instance
+                                             */
+                                            ackCallback: unknown) => void): this;
     addListener(event: 'second-instance', listener: (event: Event,
                                             /**
                                              * An array of the second instance's command line arguments
@@ -543,7 +593,11 @@ declare namespace Electron {
                                             /**
                                              * A JSON object of additional data passed from the second instance
                                              */
-                                            additionalData: unknown) => void): this;
+                                            additionalData: unknown,
+                                            /**
+                                             * A function that can be used to send data back to the second instance
+                                             */
+                                            ackCallback: unknown) => void): this;
     removeListener(event: 'second-instance', listener: (event: Event,
                                             /**
                                              * An array of the second instance's command line arguments
@@ -556,7 +610,11 @@ declare namespace Electron {
                                             /**
                                              * A JSON object of additional data passed from the second instance
                                              */
-                                            additionalData: unknown) => void): this;
+                                            additionalData: unknown,
+                                            /**
+                                             * A function that can be used to send data back to the second instance
+                                             */
+                                            ackCallback: unknown) => void): this;
     /**
      * Emitted when a client certificate is requested.
      *
@@ -1275,7 +1333,7 @@ declare namespace Electron {
      *
      * @platform win32
      */
-    setJumpList(categories: (JumpListCategory[]) | (null)): void;
+    setJumpList(categories: (JumpListCategory[]) | (null)): ('ok' | 'error' | 'invalidSeparatorError' | 'fileTypeRegistrationError' | 'customCategoryAccessDeniedError');
     /**
      * To work with Electron's `autoUpdater` on Windows, which uses Squirrel, you'll
      * want to set the launch path to Update.exe, and pass arguments that specify your
@@ -1615,6 +1673,36 @@ declare namespace Electron {
      */
     getBounds(): Rectangle;
     setAutoResize(options: AutoResizeOptions): void;
+    /**
+     * Examples of valid `color` values:
+     *
+     * * Hex
+     *   * #fff (RGB)
+     *   * #ffff (ARGB)
+     *   * #ffffff (RRGGBB)
+     *   * #ffffffff (AARRGGBB)
+     * * RGB
+     *   * rgb(([\d]+),\s*([\d]+),\s*([\d]+))
+     *     * e.g. rgb(255, 255, 255)
+     * * RGBA
+     *   * rgba(([\d]+),\s*([\d]+),\s*([\d]+),\s*([\d.]+))
+     *     * e.g. rgba(255, 255, 255, 1.0)
+     * * HSL
+     *   * hsl((-?[\d.]+),\s*([\d.]+)%,\s*([\d.]+)%)
+     *     * e.g. hsl(200, 20%, 50%)
+     * * HSLA
+     *   * hsla((-?[\d.]+),\s*([\d.]+)%,\s*([\d.]+)%,\s*([\d.]+))
+     *     * e.g. hsla(200, 20%, 50%, 0.5)
+     * * Color name
+     *   * Options are listed in SkParseColor.cpp
+     *   * Similar to CSS Color Module Level 3 keywords, but case-sensitive.
+     *     * e.g. `blueviolet` or `red`
+     *
+     * **Note:** Hex format with alpha takes `AARRGGBB` or `ARGB`, _not_ `RRGGBBA` or
+     * `RGA`.
+     *
+     * @experimental
+     */
     setBackgroundColor(color: string): void;
     /**
      * Resizes and moves the view to the supplied bounds relative to the window.
@@ -2147,7 +2235,12 @@ declare namespace Electron {
     focus(): void;
     focusOnWebView(): void;
     /**
-     * Gets the background color of the window. See Setting `backgroundColor`.
+     * Gets the background color of the window in Hex (`#RRGGBB`) format.
+     *
+     * See Setting `backgroundColor`.
+     *
+     * **Note:** The alpha value is _not_ returned alongside the red, green, and blue
+     * values.
      */
     getBackgroundColor(): string;
     /**
@@ -2548,6 +2641,30 @@ declare namespace Electron {
      */
     setAutoHideMenuBar(hide: boolean): void;
     /**
+     * Examples of valid `backgroundColor` values:
+     *
+     * * Hex
+     *   * #fff (shorthand RGB)
+     *   * #ffff (shorthand ARGB)
+     *   * #ffffff (RGB)
+     *   * #ffffffff (ARGB)
+     * * RGB
+     *   * rgb(([\d]+),\s*([\d]+),\s*([\d]+))
+     *     * e.g. rgb(255, 255, 255)
+     * * RGBA
+     *   * rgba(([\d]+),\s*([\d]+),\s*([\d]+),\s*([\d.]+))
+     *     * e.g. rgba(255, 255, 255, 1.0)
+     * * HSL
+     *   * hsl((-?[\d.]+),\s*([\d.]+)%,\s*([\d.]+)%)
+     *     * e.g. hsl(200, 20%, 50%)
+     * * HSLA
+     *   * hsla((-?[\d.]+),\s*([\d.]+)%,\s*([\d.]+)%,\s*([\d.]+))
+     *     * e.g. hsla(200, 20%, 50%, 0.5)
+     * * Color name
+     *   * Options are listed in SkParseColor.cpp
+     *   * Similar to CSS Color Module Level 3 keywords, but case-sensitive.
+     *     * e.g. `blueviolet` or `red`
+     *
      * Sets the background color of the window. See Setting `backgroundColor`.
      */
     setBackgroundColor(backgroundColor: string): void;
@@ -2817,6 +2934,13 @@ declare namespace Electron {
      */
     setTitle(title: string): void;
     /**
+     * On a Window with Window Controls Overlay already enabled, this method updates
+     * the style of the title bar overlay.
+     *
+     * @platform win32
+     */
+    setTitleBarOverlay(options: TitleBarOverlayOptions): void;
+    /**
      * Raises `browserView` above other `BrowserView`s attached to `win`. Throws an
      * error if `browserView` is not attached to `win`.
      *
@@ -3034,44 +3158,6 @@ declare namespace Electron {
      *
      */
     readonly webContents: WebContents;
-  }
-
-  class BrowserWindowProxy {
-
-    // Docs: https://electronjs.org/docs/api/browser-window-proxy
-
-    /**
-     * Removes focus from the child window.
-     */
-    blur(): void;
-    /**
-     * Forcefully closes the child window without calling its unload event.
-     */
-    close(): void;
-    /**
-     * Evaluates the code in the child window.
-     */
-    eval(code: string): void;
-    /**
-     * Focuses the child window (brings the window to front).
-     */
-    focus(): void;
-    /**
-     * Sends a message to the child window with the specified origin or `*` for no
-     * origin preference.
-     *
-     * In addition to these methods, the child window implements `window.opener` object
-     * with no properties and a single method.
-     */
-    postMessage(message: any, targetOrigin: string): void;
-    /**
-     * Invokes the print dialog on the child window.
-     */
-    print(): void;
-    /**
-     * A `boolean` that is set to true after the child window gets closed.
-     */
-    closed: boolean;
   }
 
   interface Certificate {
@@ -4338,8 +4424,8 @@ declare namespace Electron {
      * However, the request remains active until either the application becomes active
      * or the request is canceled.
      *
-     * **Nota Bene:** This method can only be used while the app is not focused; when
-     * the app is focused it will return -1.
+     * **Note:** This method can only be used while the app is not focused; when the
+     * app is focused it will return -1.
      *
      * @platform darwin
      */
@@ -4926,6 +5012,14 @@ declare namespace Electron {
      * An `Integer` indicating the HTTP protocol minor version number.
      */
     httpVersionMinor: number;
+    /**
+     * A `string[]` containing the raw HTTP response headers exactly as they were
+     * received. The keys and values are in the same list. It is not a list of tuples.
+     * So, the even-numbered offsets are key values, and the odd-numbered offsets are
+     * the associated values. Header names are not lowercased, and duplicates are not
+     * merged.
+     */
+    rawHeaders: string[];
     /**
      * An `Integer` indicating the HTTP response status code.
      */
@@ -6974,7 +7068,8 @@ declare namespace Electron {
      * Whether encryption is available.
      *
      * On Linux, returns true if the secret key is available. On MacOS, returns true if
-     * Keychain is available. On Windows, returns true with no other preconditions.
+     * Keychain is available. On Windows, returns true once the app has emitted the
+     * `ready` event.
      */
     isEncryptionAvailable(): boolean;
   }
@@ -8461,9 +8556,12 @@ declare namespace Electron {
      * defaults. This is necessary for events such as
      * `NSUserDefaultsDidChangeNotification`.
      *
+     * If `event` is null, the `NSNotificationCenter` doesn’t use it as criteria for
+     * delivery to the observer. See docs for more information.
+     *
      * @platform darwin
      */
-    subscribeLocalNotification(event: string, callback: (event: string, userInfo: Record<string, unknown>, object: string) => void): number;
+    subscribeLocalNotification(event: (string) | (null), callback: (event: string, userInfo: Record<string, unknown>, object: string) => void): number;
     /**
      * The ID of this subscription
      *
@@ -8484,9 +8582,12 @@ declare namespace Electron {
      * * `AppleColorPreferencesChangedNotification`
      * * `AppleShowScrollBarsSettingChanged`
      *
+     * If `event` is null, the `NSDistributedNotificationCenter` doesn’t use it as
+     * criteria for delivery to the observer. See docs  for more information.
+     *
      * @platform darwin
      */
-    subscribeNotification(event: string, callback: (event: string, userInfo: Record<string, unknown>, object: string) => void): number;
+    subscribeNotification(event: (string) | (null), callback: (event: string, userInfo: Record<string, unknown>, object: string) => void): number;
     /**
      * The ID of this subscription
      *
@@ -8494,9 +8595,12 @@ declare namespace Electron {
      * `NSWorkspace.sharedWorkspace.notificationCenter`. This is necessary for events
      * such as `NSWorkspaceDidActivateApplicationNotification`.
      *
+     * If `event` is null, the `NSWorkspaceNotificationCenter` doesn’t use it as
+     * criteria for delivery to the observer. See docs for more information.
+     *
      * @platform darwin
      */
-    subscribeWorkspaceNotification(event: string, callback: (event: string, userInfo: Record<string, unknown>, object: string) => void): number;
+    subscribeWorkspaceNotification(event: (string) | (null), callback: (event: string, userInfo: Record<string, unknown>, object: string) => void): number;
     /**
      * Same as `unsubscribeNotification`, but removes the subscriber from
      * `NSNotificationCenter`.
@@ -9589,6 +9693,13 @@ declare namespace Electron {
                                                 */
                                                input: Input) => void): this;
     /**
+     * Emitted when the `WebContents` loses focus.
+     */
+    on(event: 'blur', listener: Function): this;
+    once(event: 'blur', listener: Function): this;
+    addListener(event: 'blur', listener: Function): this;
+    removeListener(event: 'blur', listener: Function): this;
+    /**
      * Emitted when failed to verify the `certificate` for `url`.
      *
      * The usage is the same with the `certificate-error` event of `app`.
@@ -10205,6 +10316,22 @@ declare namespace Electron {
     addListener(event: 'enter-html-full-screen', listener: Function): this;
     removeListener(event: 'enter-html-full-screen', listener: Function): this;
     /**
+     * Emitted when the `WebContents` gains focus.
+     *
+     * Note that on macOS, having focus means the `WebContents` is the first responder
+     * of window, so switching focus between windows would not trigger the `focus` and
+     * `blur` events of `WebContents`, as the first responder of each window is not
+     * changed.
+     *
+     * The `focus` and `blur` events of `WebContents` should only be used to detect
+     * focus change between different `WebContents` and `BrowserView` in the same
+     * window.
+     */
+    on(event: 'focus', listener: Function): this;
+    once(event: 'focus', listener: Function): this;
+    addListener(event: 'focus', listener: Function): this;
+    removeListener(event: 'focus', listener: Function): this;
+    /**
      * Emitted when a result is available for [`webContents.findInPage`] request.
      */
     on(event: 'found-in-page', listener: (event: Event,
@@ -10733,7 +10860,7 @@ declare namespace Electron {
     addListener(event: 'will-prevent-unload', listener: (event: Event) => void): this;
     removeListener(event: 'will-prevent-unload', listener: (event: Event) => void): this;
     /**
-     * Emitted as a server side redirect occurs during navigation.  For example a 302
+     * Emitted when a server side redirect occurs during navigation.  For example a 302
      * redirect.
      *
      * This event will be emitted after `did-start-navigation` and always before the
@@ -12879,9 +13006,10 @@ declare namespace Electron {
      */
     enableLargerThanScreen?: boolean;
     /**
-     * Window's background color as a hexadecimal value, like `#66CD00` or `#FFF` or
-     * `#80FFFFFF` (alpha in #AARRGGBB format is supported if `transparent` is set to
-     * `true`). Default is `#FFF` (white).
+     * The window's background color in Hex, RGB, RGBA, HSL, HSLA or named CSS color
+     * format. Alpha in #AARRGGBB format is supported if `transparent` is set to
+     * `true`. Default is `#FFF` (white). See win.setBackgroundColor for more
+     * information.
      */
     backgroundColor?: string;
     /**
@@ -12969,7 +13097,7 @@ declare namespace Electron {
      */
     webPreferences?: WebPreferences;
     /**
-     *  When using a frameless window in conjuction with
+     *  When using a frameless window in conjunction with
      * `win.setWindowButtonVisibility(true)` on macOS or using a `titleBarStyle` so
      * that the standard window controls ("traffic lights" on macOS) are visible, this
      * property enables the Window Controls Overlay JavaScript APIs and CSS Environment
@@ -14050,13 +14178,15 @@ declare namespace Electron {
      * `selectAll`, `reload`, `forceReload`, `toggleDevTools`, `resetZoom`, `zoomIn`,
      * `zoomOut`, `toggleSpellChecker`, `togglefullscreen`, `window`, `minimize`,
      * `close`, `help`, `about`, `services`, `hide`, `hideOthers`, `unhide`, `quit`,
-     * `startSpeaking`, `stopSpeaking`, `zoom`, `front`, `appMenu`, `fileMenu`,
-     * `editMenu`, `viewMenu`, `shareMenu`, `recentDocuments`, `toggleTabBar`,
-     * `selectNextTab`, `selectPreviousTab`, `mergeAllWindows`, `clearRecentDocuments`,
-     * `moveTabToNewWindow` or `windowMenu` - Define the action of the menu item, when
-     * specified the `click` property will be ignored. See roles.
+     * 'showSubstitutions', 'toggleSmartQuotes', 'toggleSmartDashes',
+     * 'toggleTextReplacement', `startSpeaking`, `stopSpeaking`, `zoom`, `front`,
+     * `appMenu`, `fileMenu`, `editMenu`, `viewMenu`, `shareMenu`, `recentDocuments`,
+     * `toggleTabBar`, `selectNextTab`, `selectPreviousTab`, `mergeAllWindows`,
+     * `clearRecentDocuments`, `moveTabToNewWindow` or `windowMenu` - Define the action
+     * of the menu item, when specified the `click` property will be ignored. See
+     * roles.
      */
-    role?: ('undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'pasteAndMatchStyle' | 'delete' | 'selectAll' | 'reload' | 'forceReload' | 'toggleDevTools' | 'resetZoom' | 'zoomIn' | 'zoomOut' | 'toggleSpellChecker' | 'togglefullscreen' | 'window' | 'minimize' | 'close' | 'help' | 'about' | 'services' | 'hide' | 'hideOthers' | 'unhide' | 'quit' | 'startSpeaking' | 'stopSpeaking' | 'zoom' | 'front' | 'appMenu' | 'fileMenu' | 'editMenu' | 'viewMenu' | 'shareMenu' | 'recentDocuments' | 'toggleTabBar' | 'selectNextTab' | 'selectPreviousTab' | 'mergeAllWindows' | 'clearRecentDocuments' | 'moveTabToNewWindow' | 'windowMenu');
+    role?: ('undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'pasteAndMatchStyle' | 'delete' | 'selectAll' | 'reload' | 'forceReload' | 'toggleDevTools' | 'resetZoom' | 'zoomIn' | 'zoomOut' | 'toggleSpellChecker' | 'togglefullscreen' | 'window' | 'minimize' | 'close' | 'help' | 'about' | 'services' | 'hide' | 'hideOthers' | 'unhide' | 'quit' | 'showSubstitutions' | 'toggleSmartQuotes' | 'toggleSmartDashes' | 'toggleTextReplacement' | 'startSpeaking' | 'stopSpeaking' | 'zoom' | 'front' | 'appMenu' | 'fileMenu' | 'editMenu' | 'viewMenu' | 'shareMenu' | 'recentDocuments' | 'toggleTabBar' | 'selectNextTab' | 'selectPreviousTab' | 'mergeAllWindows' | 'clearRecentDocuments' | 'moveTabToNewWindow' | 'windowMenu');
     /**
      * Can be `normal`, `separator`, `submenu`, `checkbox` or `radio`.
      */
@@ -14482,6 +14612,7 @@ declare namespace Electron {
     resourceType: ('mainFrame' | 'subFrame' | 'stylesheet' | 'script' | 'image' | 'font' | 'object' | 'xhr' | 'ping' | 'cspReport' | 'media' | 'webSocket' | 'other');
     referrer: string;
     timestamp: number;
+    uploadData?: UploadData[];
     requestHeaders: Record<string, string>;
   }
 
@@ -15269,6 +15400,27 @@ declare namespace Electron {
      * @platform win32,linux
      */
     swapFree: number;
+  }
+
+  interface TitleBarOverlayOptions {
+    /**
+     * The CSS color of the Window Controls Overlay when enabled.
+     *
+     * @platform win32
+     */
+    color?: string;
+    /**
+     * The CSS color of the symbols on the Window Controls Overlay when enabled.
+     *
+     * @platform win32
+     */
+    symbolColor?: string;
+    /**
+     * The height of the title bar and Window Controls Overlay in pixels.
+     *
+     * @platform win32
+     */
+    height?: number;
   }
 
   interface TitleOptions {
@@ -16148,12 +16300,6 @@ declare namespace Electron {
      */
     contextIsolation?: boolean;
     /**
-     * Whether to use native `window.open()`. Defaults to `true`. Child windows will
-     * always have node integration disabled unless `nodeIntegrationInSubFrames` is
-     * true.
-     */
-    nativeWindowOpen?: boolean;
-    /**
      * Whether to enable the `<webview>` tag. Defaults to `false`. **Note:** The
      * `preload` script configured for the `<webview>` will have node integration
      * enabled when it is executed so you should ensure remote/untrusted content is not
@@ -16423,6 +16569,7 @@ declare namespace Electron {
     type SSLConfigConfig = Electron.SSLConfigConfig;
     type StartLoggingOptions = Electron.StartLoggingOptions;
     type SystemMemoryInfo = Electron.SystemMemoryInfo;
+    type TitleBarOverlayOptions = Electron.TitleBarOverlayOptions;
     type TitleOptions = Electron.TitleOptions;
     type ToBitmapOptions = Electron.ToBitmapOptions;
     type ToDataURLOptions = Electron.ToDataURLOptions;
@@ -16716,6 +16863,7 @@ declare namespace Electron {
     type SSLConfigConfig = Electron.SSLConfigConfig;
     type StartLoggingOptions = Electron.StartLoggingOptions;
     type SystemMemoryInfo = Electron.SystemMemoryInfo;
+    type TitleBarOverlayOptions = Electron.TitleBarOverlayOptions;
     type TitleOptions = Electron.TitleOptions;
     type ToBitmapOptions = Electron.ToBitmapOptions;
     type ToDataURLOptions = Electron.ToDataURLOptions;
@@ -16817,7 +16965,6 @@ declare namespace Electron {
   }
 
   namespace Renderer {
-    type BrowserWindowProxy = Electron.BrowserWindowProxy;
     const contextBridge: ContextBridge;
     type ContextBridge = Electron.ContextBridge;
     const ipcRenderer: IpcRenderer;
@@ -16947,6 +17094,7 @@ declare namespace Electron {
     type SSLConfigConfig = Electron.SSLConfigConfig;
     type StartLoggingOptions = Electron.StartLoggingOptions;
     type SystemMemoryInfo = Electron.SystemMemoryInfo;
+    type TitleBarOverlayOptions = Electron.TitleBarOverlayOptions;
     type TitleOptions = Electron.TitleOptions;
     type ToBitmapOptions = Electron.ToBitmapOptions;
     type ToDataURLOptions = Electron.ToDataURLOptions;
@@ -17054,7 +17202,6 @@ declare namespace Electron {
     type AutoUpdater = Electron.AutoUpdater;
     class BrowserView extends Electron.BrowserView {}
     class BrowserWindow extends Electron.BrowserWindow {}
-    type BrowserWindowProxy = Electron.BrowserWindowProxy;
     type ClientRequest = Electron.ClientRequest;
     const clipboard: Clipboard;
     type Clipboard = Electron.Clipboard;
@@ -17255,6 +17402,7 @@ declare namespace Electron {
     type SSLConfigConfig = Electron.SSLConfigConfig;
     type StartLoggingOptions = Electron.StartLoggingOptions;
     type SystemMemoryInfo = Electron.SystemMemoryInfo;
+    type TitleBarOverlayOptions = Electron.TitleBarOverlayOptions;
     type TitleOptions = Electron.TitleOptions;
     type ToBitmapOptions = Electron.ToBitmapOptions;
     type ToDataURLOptions = Electron.ToDataURLOptions;
@@ -17385,34 +17533,34 @@ declare namespace Electron {
 
 }
 
-declare module 'electronite' {
+declare module 'electron' {
   export = Electron.CrossProcessExports;
 }
 
-declare module 'electronite/main' {
+declare module 'electron/main' {
   export = Electron.Main
 }
 
-declare module 'electronite/common' {
+declare module 'electron/common' {
   export = Electron.Common
 }
 
-declare module 'electronite/renderer' {
+declare module 'electron/renderer' {
   export = Electron.Renderer
 }
 
 interface NodeRequireFunction {
-  (moduleName: 'electronite'): typeof Electron.CrossProcessExports;
-  (moduleName: 'electronite/main'): typeof Electron.Main;
-  (moduleName: 'electronite/common'): typeof Electron.Common;
-  (moduleName: 'electronite/renderer'): typeof Electron.Renderer;
+  (moduleName: 'electron'): typeof Electron.CrossProcessExports;
+  (moduleName: 'electron/main'): typeof Electron.Main;
+  (moduleName: 'electron/common'): typeof Electron.Common;
+  (moduleName: 'electron/renderer'): typeof Electron.Renderer;
 }
 
 interface NodeRequire {
-  (moduleName: 'electronite'): typeof Electron.CrossProcessExports;
-  (moduleName: 'electronite/main'): typeof Electron.Main;
-  (moduleName: 'electronite/common'): typeof Electron.Common;
-  (moduleName: 'electronite/renderer'): typeof Electron.Renderer;
+  (moduleName: 'electron'): typeof Electron.CrossProcessExports;
+  (moduleName: 'electron/main'): typeof Electron.Main;
+  (moduleName: 'electron/common'): typeof Electron.Common;
+  (moduleName: 'electron/renderer'): typeof Electron.Renderer;
 }
 
 interface File {
