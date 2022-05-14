@@ -3,11 +3,11 @@
 - Configured my VM using these notes as a reference: https://github.com/unfoldingWord/electronite/blob/v18.2.1-graphite/docs/development/build-instructions-linux.md
 - Make sure the VM has a lot of disk space - I ran out of disk space with 60GB of storage configured.  Rather than starting over with a new VM.  I added a second Virtual Hard Drive with 100GB and then used that drive for the builds.
 - if you have trouble building with these notes, you could try the older Chromium Build tools: https://github.com/unfoldingWord/electronite/blob/v18.2.1-graphite/docs/development/Electronite/LinuxBuildNotesChromeTools.md
-- upgrade to g++ 8.4:
+- if you get warning that you need to upgrade to newer g++, here's an example of how to upgrade to g++ 10:
 ```
 sudo apt install build-essential
-sudo apt -y install g++-7 g++-8
-sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-8 8
+sudo apt -y install g++-10
+sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-10 10
 g++ --version
 ```
 - to create `arm64` and `arm` builds, you must have installed the arm dependencies mentioned in the Linux build instructions above.  Then run:
@@ -161,51 +161,5 @@ e build electron
 - Make the release to ~/Develop/Electronite-Build/src/out/arm64/dist.zip
 ```
 ./src/electron/script/strip-binaries.py --target-cpu=arm64 -d src/out/arm64
-e build electron:dist
-```
-
-#### Build arm
-- open terminal and initialize build configuration (note that if you have a slow or unreliable internet connection, it is better to change the goma setting from `cache-only` to `none`):
-```
-e init --root=~/Develop/Electronite-Build -o arm arm -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
-```
-
-- edit `~/.electron_build_tools/configs/evm.arm.json`
-  and add option to args:       `"target_cpu = \"arm\""`
-- get the base Electron source code (this can take many hours the first time as the git cache is loaded):
-```
-e sync
-```
-
-- to create `arm` builds, you must have installed the arm dependencies mentioned in the Linux build instructions above.  Then run:
-```
-cd ./src
-build/linux/sysroot_scripts/install-sysroot.py --arch=arm
-cd ..
-```
-
-- checkout the correct Electronite tag
-```
-cd ~/Develop/Electronite-Build/src/electron
-git fetch --all
-git checkout tags/v18.2.1-graphite -b v18.2.1-graphite
-cd ../..
-```
-
-- now get the Electronite sources
-```
-e sync
-```
-
-- Do build (takes a long time)
-```
-e use arm
-export NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
-e build electron
-```
-
-- Make the release to ~/Develop/Electronite-Build/src/out/arm/dist.zip
-```
-./src/electron/script/strip-binaries.py --target-cpu=arm -d src/out/arm
 e build electron:dist
 ```
