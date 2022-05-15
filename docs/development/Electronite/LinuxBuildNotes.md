@@ -121,6 +121,7 @@ e build electron:dist
 #### Build Arm64
 - open terminal and initialize build configuration (note that if you have a slow or unreliable internet connection, it is better to change the goma setting from `cache-only` to `none`):
 ```
+sudo apt-get install binutils-aarch64-linux-gnu
 e init --root=~/Develop/Electronite-Build -o arm64 arm64 -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
 ```
 
