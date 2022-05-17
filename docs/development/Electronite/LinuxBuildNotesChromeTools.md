@@ -1,12 +1,12 @@
 ## Building Electronite on Linux
 ### Setup on Linux VM
-- Configured my VM using these notes as a reference: https://github.com/unfoldingWord/electronite/blob/v17.3.1-graphite/docs/development/build-instructions-linux.md
+- Configured my VM using these notes as a reference: [build-instructions-linux](../build-instructions-linux.md){
 - Make sure the VM has a lot of disk space - I ran out of disk space with 60GB of storage configured.  Rather than starting over with a new VM.  I added a second Virtual Hard Drive with 100GB and then used that drive for the builds.
 
 ### Build Electronite
 - open terminal and cd to the folder you will use for build
 - install the depot_tools here: `git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git`
-- download build script to this folder from: https://github.com/unfoldingWord/electronite/blob/v17.3.1-graphite/docs/development/Electronite/electronite-tools.sh
+- download build script to this folder from: [electronite-tools](electronite-tools.sh)
 - set execute permission on script: `chmod +x ./electronite-tools.sh`
 - before build do: `export PATH=/path/to/depot_tools:$PATH`
 - get source files (this can take several hours the first time as the git cache is loaded): `./electronite-tools.sh get <<build-tag>>`

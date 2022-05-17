@@ -2,7 +2,7 @@
 ### Setup on Clean Windows 10 VM
 - Configured my VM using these notes as a reference:
     - https://chromium.googlesource.com/chromium/src/+/main/docs/windows_build_instructions.md#visual-studio
-    - https://github.com/unfoldingWord/electronite/blob/v17.3.1-graphite/docs/development/build-instructions-windows.md
+    - [build-instructions-windows](../build-instructions-windows.md)
 - Make sure the VM has a lot of disk space - I ran out of disk space with 120GB of storage configured.  Rather than starting over with a new VM.  I added a second Virtual Hard Drive with 100GB and then used that drive for the builds.
 - Make sure to add exception to the build folder for Windows defender, or it will delete a couple of the build files.
 - Add to git support for long file names: `git config --system core.longpaths true`
@@ -24,7 +24,7 @@ WINDOWSSDKDIR=C:\Program Files (x86)\Windows Kits\10
 - _**Note:** Use command prompt, not powershell as it will cause problems._
 - cd to the folder you will use for build
 - unzip the depot_tools here
-- download build script to this folder from: https://github.com/unfoldingWord/electronite/blob/v17.3.1-graphite/docs/development/Electronite/electronite-tools.bat
+- download build script to this folder from: [electronite-tools](electronite-tools.bat)
 - before build do: `set PATH=%cd%\depot_tools;%PATH%`
 - get source files (this can take several hours the first time as the git cache is loaded): `.\electronite-tools.bat get <<build-tag>>`
 - builds can take over 20 hours on a VM.

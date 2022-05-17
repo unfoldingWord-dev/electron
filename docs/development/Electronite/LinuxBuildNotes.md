@@ -1,8 +1,8 @@
 ## Building Electronite on Linux
 ### Setup on Clean Linux VM
-- Configured my VM using these notes as a reference: https://github.com/unfoldingWord/electronite/blob/v18.2.1-graphite/docs/development/build-instructions-linux.md
+- Configured my VM using these notes as a reference: [build-instructions-linux](../build-instructions-linux.md)
 - Make sure the VM has a lot of disk space - I ran out of disk space with 60GB of storage configured.  Rather than starting over with a new VM.  I added a second Virtual Hard Drive with 100GB and then used that drive for the builds.
-- if you have trouble building with these notes, you could try the older Chromium Build tools: https://github.com/unfoldingWord/electronite/blob/v18.2.1-graphite/docs/development/Electronite/LinuxBuildNotesChromeTools.md
+- if you have trouble building with these notes, you could try the older Chromium Build tools: [LinuxBuildNotesChromeTools](LinuxBuildNotesChromeTools.md)
 - if you get warning that you need to upgrade to newer g++, here's an example of how to upgrade to g++ 10:
 ```
 sudo apt install build-essential
