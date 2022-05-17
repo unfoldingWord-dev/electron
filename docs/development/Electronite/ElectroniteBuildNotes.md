@@ -34,7 +34,7 @@ Updating Electronite is pretty straight forward.
 
 # Building
 
-[Build Notes](https://github.com/unfoldingWord/electronite/blob/v17.4.4-graphite-beta/docs/development/Electronite/ElectroniteCurrentVersionBuildNotes.md)
+[Build Notes](ElectroniteCurrentVersionBuildNotes.md)
 
 # Other Electronite Steps
 
