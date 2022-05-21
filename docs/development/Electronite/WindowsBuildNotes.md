@@ -88,6 +88,8 @@ e init --root=.\Build-Electron -o x86 x86 -i release --goma cache-only --fork un
 - edit `~\.electron_build_tools\configs\evm.x86.json`
   and add option to args:       `"target_cpu = \"x86\""`
 
+- if Electronite source already checked out, then skip to `Do build` step:
+
 - get the base Electron source code (this can take many hours the first time as the git cache is loaded):
 ```
 e sync
@@ -126,6 +128,8 @@ e init --root=.\Build-Electron -o arm64 arm64 -i release --goma cache-only --for
 
 - edit `~\.electron_build_tools\configs\evm.arm64.json`
   and add option to args:       `"target_cpu = \"arm64\""`
+
+- if Electronite source already checked out, then skip to `Do build` step:
 
 - get the base Electron source code (this can take many hours the first time as the git cache is loaded):
 ```
