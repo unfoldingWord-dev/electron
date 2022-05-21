@@ -36,6 +36,44 @@ git clone https://github.com/electron/build-tools ~/.electron_build_tools && (cd
 
 
 ### Build Electronite
+#### Build Arm64
+- open terminal and initialize build (on M1 Mac, had to use `--goma none`, and it may be faster if you have a slow or unreliable internet connection):
+```
+e init --root=~/Develop/Electronite-Build -o arm64 arm64 -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
+```
+
+- edit `~/.electron_build_tools/configs/evm.arm64.json`
+and add option to args:       `"target_cpu = \"arm64\""`
+- get the base Electron source code (this can take many hours the first time as the git cache is loaded):
+```
+e sync
+```
+
+- checkout the correct Electronite tag
+```
+cd ~/Develop/Electronite-Build/src/electron
+git fetch --all
+git checkout tags/v17.4.4-graphite-beta -b v17.4.4-graphite-beta
+cd ../..
+```
+
+- now get the Electronite sources
+```
+e sync
+```
+
+- Do build (takes a long time)
+```
+e use arm64
+export NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
+e build electron
+```
+
+- Make the release to ~/Develop/Electronite-Build/src/out/arm64/dist.zip
+```
+e build electron:dist
+```
+
 #### Build Intel x64
 - open terminal and initialize build (on M1 Mac, had to use `--goma none`):
 ```
@@ -44,19 +82,27 @@ e init --root=~/Develop/Electronite-Build -o x64 x64 -i release --goma cache-onl
 
 - edit `~/.electron_build_tools/configs/evm.x64.json`
   and add option to args:       `"target_cpu = \"x64\""`
-
-- get the Electronite source code (this can take many hours the first time as the git cache is loaded):
+- get the base Electron source code (this can take many hours the first time as the git cache is loaded):
 ```
-cd ~/Develop/Electronite-Build
-git clone https://github.com/unfoldingword/electronite ./src/electron
-cd ./src/electron
-git checkout electronite-v17.4.4-beta
+e sync
+```
+
+- checkout the correct Electronite tag
+```
+cd ~/Develop/Electronite-Build/src/electron
+git fetch --all
+git checkout tags/v17.4.4-graphite-beta -b v17.4.4-graphite-beta
 cd ../..
+```
+
+- now get the Electronite sources
+```
 e sync
 ```
 
 - Do build (takes a long time)
 ```
+e use x64
 export NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
 e build electron
 ```
@@ -66,32 +112,3 @@ e build electron
 e build electron:dist
 ```
 
-#### Build Arm64
-- open terminal and initialize build (on M1 Mac, had to use `--goma none`, and it may be faster if you have a slow or unreliable internet connection):
-```
-e init --root=~/Develop/Electronite-Build -o arm64 arm64 -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
-```
-
-- edit `~/.electron_build_tools/configs/evm.arm64.json`
-and add option to args:       `"target_cpu = \"arm64\""`
-
-- if you haven't done this already, get the Electronite source code (this can take many hours the first time as the git cache is loaded):
-```
-cd ~/Develop/Electronite-Build
-git clone https://github.com/unfoldingword/electronite ./src/electron
-cd ./src/electron
-git checkout electronite-v17.4.4-beta
-cd ../..
-e sync
-```
-
-- Do build (takes a long time)
-```
-export NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
-e build electron
-```
-
-- Make the release to ~/Develop/Electronite-Build/src/out/arm64/dist.zip
-```
-e build electron:dist
-```

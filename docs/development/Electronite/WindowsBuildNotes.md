@@ -49,18 +49,27 @@ e init --root=.\Build-Electron -o x64 x64 -i release --goma cache-only --fork un
 - edit `~\.electron_build_tools\configs\evm.x64.json`
 and add option to args:       `"target_cpu = \"x64\""`
 
-- get the Electronite source code (this can take many hours the first time as the git cache is loaded):
+- get the base Electron source code (this can take many hours the first time as the git cache is loaded):
 ```
-cd .\Build-Electron
-git clone https://github.com/unfoldingword/electronite ./src/electron
-cd ./src/electron
-git checkout electronite-v17.4.4-beta
-cd ../..
+e sync
+```
+
+- checkout the correct Electronite tag
+```
+cd .\Build-Electron\src\electron
+git fetch --all
+git checkout tags/v17.4.4-graphite-beta -b v17.4.4-graphite-beta
+cd ..\..
+```
+
+- now get the Electronite sources
+```
 e sync
 ```
 
 - Do build (takes a long time)
 ```
+e use x64
 set NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
 e build electron
 ```
@@ -79,18 +88,27 @@ e init --root=.\Build-Electron -o x86 x86 -i release --goma cache-only --fork un
 - edit `~\.electron_build_tools\configs\evm.x86.json`
   and add option to args:       `"target_cpu = \"x86\""`
 
-- if you haven't done this, get the Electronite source code (this can take many hours the first time as the git cache is loaded):
+- get the base Electron source code (this can take many hours the first time as the git cache is loaded):
 ```
-cd .\Build-Electron
-git clone https://github.com/unfoldingword/electronite ./src/electron
-cd ./src/electron
-git checkout electronite-v17.4.4-beta
-cd ../..
+e sync
+```
+
+- checkout the correct Electronite tag
+```
+cd .\Build-Electron\src\electron
+git fetch --all
+git checkout tags/v17.4.4-graphite-beta -b v17.4.4-graphite-beta
+cd ..\..
+```
+
+- now get the Electronite sources
+```
 e sync
 ```
 
 - Do build (takes a long time)
 ```
+e use x86
 set NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
 e build electron
 ```
@@ -100,7 +118,7 @@ e build electron
 e build electron:dist
 ```
 
-#### Build Intel Arm64
+#### Build Intel arm64
 - open command prompt and initialize build configuration (note that if you have a slow or unreliable internet connection, it is better to change the goma setting from `cache-only` to `none`):
 ```
 e init --root=.\Build-Electron -o arm64 arm64 -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
@@ -109,18 +127,27 @@ e init --root=.\Build-Electron -o arm64 arm64 -i release --goma cache-only --for
 - edit `~\.electron_build_tools\configs\evm.arm64.json`
   and add option to args:       `"target_cpu = \"arm64\""`
 
-- if you haven't done this, get the Electronite source code (this can take many hours the first time as the git cache is loaded):
+- get the base Electron source code (this can take many hours the first time as the git cache is loaded):
 ```
-cd .\Build-Electron
-git clone https://github.com/unfoldingword/electronite ./src/electron
-cd ./src/electron
-git checkout electronite-v17.4.4-beta
-cd ../..
+e sync
+```
+
+- checkout the correct Electronite tag
+```
+cd .\Build-Electron\src\electron
+git fetch --all
+git checkout tags/v17.4.4-graphite-beta -b v17.4.4-graphite-beta
+cd ..\..
+```
+
+- now get the Electronite sources
+```
 e sync
 ```
 
 - Do build (takes a long time)
 ```
+e use arm64
 set NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
 e build electron
 ```
