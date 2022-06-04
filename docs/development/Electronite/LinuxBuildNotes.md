@@ -49,7 +49,7 @@ e sync
 ```
 cd ~/Develop/Electronite-Build/src/electron
 git fetch --all
-git checkout tags/v18.2.1-graphite -b v18.2.1-graphite
+git checkout tags/v18.3.2-graphite-beta -b v18.3.2-graphite-beta
 cd ../..
 ```
 
@@ -60,7 +60,6 @@ e sync
 
 - Do build (takes a long time)
 ```
-e use x64
 export NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
 e build electron
 ```
@@ -80,23 +79,19 @@ e init --root=~/Develop/Electronite-Build -o x86 x86 -i release --goma cache-onl
 
 - edit `~/.electron_build_tools/configs/evm.x86.json`
   and add option to args:       `"target_cpu = \"x86\""`
+
+- if Electronite source already checked out, then skip to `Build Init` step:
+
 - get the base Electron source code (this can take many hours the first time as the git cache is loaded):
 ```
 e sync
-```
-
-- to create `x86` builds, you must have installed the x86 dependencies mentioned in the Linux build instructions above.  Then run:
-```
-cd ./src
-build/linux/sysroot_scripts/install-sysroot.py --arch=x86
-cd ..
 ```
 
 - checkout the correct Electronite tag
 ```
 cd ~/Develop/Electronite-Build/src/electron
 git fetch --all
-git checkout tags/v18.2.1-graphite -b v18.2.1-graphite
+git checkout tags/v18.3.2-graphite-beta -b v18.3.2-graphite-beta
 cd ../..
 ```
 
@@ -105,9 +100,15 @@ cd ../..
 e sync
 ```
 
+- Build Init: to create `x86` builds, you must have installed the x86 dependencies mentioned in the Linux build instructions above.  Then run:
+```
+cd ./src
+build/linux/sysroot_scripts/install-sysroot.py --arch=x86
+cd ..
+```
+
 - Do build (takes a long time)
 ```
-e use x86
 export NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
 e build electron
 ```
@@ -127,23 +128,19 @@ e init --root=~/Develop/Electronite-Build -o arm64 arm64 -i release --goma cache
 
 - edit `~/.electron_build_tools/configs/evm.arm64.json`
   and add option to args:       `"target_cpu = \"arm64\""`
+
+- if Electronite source already checked out, then skip to `Build Init` step:
+
 - get the base Electron source code (this can take many hours the first time as the git cache is loaded):
 ```
 e sync
-```
-
-- to create `arm64` builds, you must have installed the arm64 dependencies mentioned in the Linux build instructions above.  Then run:
-```
-cd ./src
-build/linux/sysroot_scripts/install-sysroot.py --arch=arm64
-cd ..
 ```
 
 - checkout the correct Electronite tag
 ```
 cd ~/Develop/Electronite-Build/src/electron
 git fetch --all
-git checkout tags/v18.2.1-graphite -b v18.2.1-graphite
+git checkout tags/v18.3.2-graphite-beta -b v18.3.2-graphite-beta
 cd ../..
 ```
 
@@ -152,9 +149,15 @@ cd ../..
 e sync
 ```
 
+- Build Init: to create `arm64` builds, you must have installed the arm64 dependencies mentioned in the Linux build instructions above.  Then run:
+```
+cd ./src
+build/linux/sysroot_scripts/install-sysroot.py --arch=arm64
+cd ..
+```
+
 - Do build (takes a long time)
 ```
-e use arm64
 export NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
 e build electron
 ```
