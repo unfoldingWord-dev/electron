@@ -1,6 +1,7 @@
 ## Building Electronite on MacOS
-### Setup on MacOS Monterey
+### Setup on MacOS Big Sur
 - Configured using these notes as a reference: [build-instructions-macos](../build-instructions-macos.md)
+- Can build on Catalina by changing the build config. Change `~/Develop/Electronite-Build/src/electron/.circleci/config/base.yml` by setting `macos/parameters/xcode/default` to 12.4.0 (but will not get any speed up from goma, so probably best to set goma to `none`)
 - Building for x64 does not work on M1 Silicon Macs, only for Arm64.  On Intel based Macs can build for both Arm64 and Intel x64
 - Make sure you have a lot of free disk space - need over 150GB free.
 - if you have trouble building with these notes, you could try the older Chromium Build tools: [MacBuildNotesChromeTools](MacBuildNotesChromeTools.md)
@@ -67,6 +68,14 @@ e sync
 export NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
 e build electron
 ```
+
+- Test the build. 
+  - Do `e start`.
+  - Open the developer console by typing`Command-I`.
+  - in console execute `window.location="https://scripts.sil.org/cms/scripts/page.php?site_id=projects&item_id=graphite_fontdemo"`
+  - Ensure all the tests pass by visually inspecting the rendered fonts and comparing against the image samples on the site.
+  - The example for Padauk from server will not be correct with the triangles.  So need to:
+Open elements tab, select body of html, do command-F to search, and search for `padauk_ttf`, and apply attribute `font-feature-settings: "wtri" 1;`.  The triangles should now be rendered correctly.
 
 - Make the release to ~/Develop/Electronite-Build/src/out/x64/dist.zip
 ```
