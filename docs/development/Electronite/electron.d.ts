@@ -17862,34 +17862,34 @@ declare namespace Electron {
 
 }
 
-declare module 'electron' {
+declare module 'electronite' {
   export = Electron.CrossProcessExports;
 }
 
-declare module 'electron/main' {
+declare module 'electronite/main' {
   export = Electron.Main
 }
 
-declare module 'electron/common' {
+declare module 'electronite/common' {
   export = Electron.Common
 }
 
-declare module 'electron/renderer' {
+declare module 'electronite/renderer' {
   export = Electron.Renderer
 }
 
 interface NodeRequireFunction {
-  (moduleName: 'electron'): typeof Electron.CrossProcessExports;
-  (moduleName: 'electron/main'): typeof Electron.Main;
-  (moduleName: 'electron/common'): typeof Electron.Common;
-  (moduleName: 'electron/renderer'): typeof Electron.Renderer;
+  (moduleName: 'electronite'): typeof Electron.CrossProcessExports;
+  (moduleName: 'electronite/main'): typeof Electron.Main;
+  (moduleName: 'electronite/common'): typeof Electron.Common;
+  (moduleName: 'electronite/renderer'): typeof Electron.Renderer;
 }
 
 interface NodeRequire {
-  (moduleName: 'electron'): typeof Electron.CrossProcessExports;
-  (moduleName: 'electron/main'): typeof Electron.Main;
-  (moduleName: 'electron/common'): typeof Electron.Common;
-  (moduleName: 'electron/renderer'): typeof Electron.Renderer;
+  (moduleName: 'electronite'): typeof Electron.CrossProcessExports;
+  (moduleName: 'electronite/main'): typeof Electron.Main;
+  (moduleName: 'electronite/common'): typeof Electron.Common;
+  (moduleName: 'electronite/renderer'): typeof Electron.Renderer;
 }
 
 interface File {
