@@ -71,7 +71,7 @@ e build electron
 
 - Test the build. 
   - Do `e start`.
-  - Open the developer console by typing`Command-Shift-I`.
+  - Open the developer console by typing`Command-Alt-I`.
   - in console execute `window.location="https://scripts.sil.org/cms/scripts/page.php?site_id=projects&item_id=graphite_fontdemo"`
   - Ensure all the tests pass by visually inspecting the rendered fonts and comparing against the image samples on the site.
   - The example for Padauk from server will not be correct with the triangles.  So need to:
