@@ -26,7 +26,7 @@ WINDOWSSDKDIR=C:\Program Files (x86)\Windows Kits\10
 
 - installed: https://chocolatey.org/install
 	
-- Setup Build tools (using command prompt, not powershell).  Install using didn't work for me:
+- Setup Build tools (using command prompt, not powershell).  Install using powershell didn't work for me:
 ```
 npm i -g @electron/build-tools
 C:
