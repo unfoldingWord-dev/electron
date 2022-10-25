@@ -2,7 +2,7 @@ diff --git a/DEPS b/DEPS
 index 5047b6b16..3c928c079 100644
 --- a/DEPS
 +++ b/DEPS
-@@ -27,12 +27,14 @@ vars = {
+@@ -11,12 +11,14 @@ vars = {
      '0e5d146ba13101a1302d59ea6e6e0b3cace4ae38',
  
    'pyyaml_version': '3.12',
@@ -17,7 +17,7 @@ index 5047b6b16..3c928c079 100644
  
    # KEEP IN SYNC WITH utils.js FILE
    'yarn_version': '1.15.2',
-@@ -48,6 +50,7 @@ vars = {
+@@ -32,6 +34,7 @@ vars = {
    'checkout_node': True,
    'checkout_nan': True,
    'checkout_pgo_profiles': True,
@@ -25,7 +25,7 @@ index 5047b6b16..3c928c079 100644
  
    # It's only needed to parse the native tests configurations.
    'checkout_pyyaml': False,
-@@ -98,6 +101,10 @@ deps = {
+@@ -82,6 +85,10 @@ deps = {
      'url': (Var("yaml_git")) + '/pyyaml.git@' + (Var("pyyaml_version")),
      'condition': 'checkout_pyyaml and process_deps',
    },
@@ -36,7 +36,7 @@ index 5047b6b16..3c928c079 100644
    'src/third_party/squirrel.mac': {
      'url': Var("squirrel_git") + '/Squirrel.Mac.git@' + Var("squirrel.mac_version"),
      'condition': 'process_deps',
-@@ -127,6 +134,16 @@ pre_deps_hooks = [
+@@ -111,6 +118,16 @@ pre_deps_hooks = [
        'src/electron/patches/config.json',
      ],
    },
@@ -57,8 +57,8 @@ diff --git a/patches/chromium/.patches b/patches/chromium/.patches
 index c7311e348..7f9c36e22 100644
 --- a/patches/chromium/.patches
 +++ b/patches/chromium/.patches
-@@ -115,3 +115,4 @@ fix_non-client_mouse_tracking_and_message_bubbling_on_windows.patch
- remove_incorrect_width_height_adjustments.patch
+@@ -105,3 +105,4 @@ fix_non-client_mouse_tracking_and_message_bubbling_on_windows.patch
+ build_make_libcxx_abi_unstable_false_for_electron.patch
  introduce_ozoneplatform_electron_can_call_x11_property.patch
  make_gtk_getlibgtk_public.patch
 +add_graphite.patch
