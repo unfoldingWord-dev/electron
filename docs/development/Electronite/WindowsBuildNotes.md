@@ -43,6 +43,7 @@ npm i
 #### Build Intel x64
 - open command prompt and initialize build configuration (note that if you have a slow or unreliable internet connection, it is better to change the goma setting from `cache-only` to `none`):
 ```
+rem - first cd to the base build directory and run:
 e init --root=.\Build-Electron -o x64 x64 -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
 ```
 
