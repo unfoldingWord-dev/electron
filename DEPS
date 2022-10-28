@@ -89,7 +89,7 @@ deps = {
     'condition': 'checkout_pyyaml and process_deps',
   },
   'src/third_party/graphite/graphite2': {
-    'url': (Var("graphite_git")) + '/graphite.git@'  (Var("graphite_version")),
+    'url': (Var("graphite_git")) + '/graphite.git@' + (Var("graphite_version")),
     'condition': 'checkout_graphite and process_deps',
   },
   'src/third_party/squirrel.mac': {
