@@ -25,7 +25,12 @@ cd ../..
 - builds can take over 20 hours on a VM.
 - build Electronite for Intel 64-bit:
     - build for 64-bit: `./electronite-tools.sh build x64`
-    - create release for 32-bit: `./electronite-tools.sh release x64`
+    - create release for 64-bit: `./electronite-tools.sh release x64`
+
+- build Electronite for Intel 32-bit:
+    - initialize build configuration: `sudo apt-get install ia32-libs-gtk ia32-libs`
+    - build for 32-bit: `./electronite-tools-2.sh build x86`
+    - create release for 32-bit: `./electronite-tools-2.sh release x86`
 
 - build Electronite for Arm 64-bit:
     - build for arm 64-bit: `./electronite-tools.sh build arm64`
