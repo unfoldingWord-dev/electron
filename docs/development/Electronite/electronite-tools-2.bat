@@ -106,7 +106,7 @@ set build_x64=false
 if "%2" == "" set build_x64=true
 
 echo Making release
-cd electron-gn\src
+cd src
 
 if %build_x64% == false (
     echo Creating %2 distributable

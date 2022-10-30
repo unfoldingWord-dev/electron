@@ -29,7 +29,7 @@ if [ "$COMMAND" == "get" ]; then
     exit 0
   fi
 
-  if [ -f ./src ]; then
+  if [ -d ./src ]; then
     echo "Deleting old work folders in the background. This may take a long time with about 49GB and 850K files."
     mv src src.old
     # run in background
