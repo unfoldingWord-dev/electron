@@ -50,28 +50,19 @@ e init --root=.\Build-Electron -o x64 x64 -i release --goma cache-only --fork un
 - edit `~\.electron_build_tools\configs\evm.x64.json`
 and add option to args:       `"target_cpu = \"x64\""`
 
-- get the base Electron source code (this can take many hours the first time as the git cache is loaded):
+- get the Electron source code (this can take many hours the first time as the git cache is loaded), checkout the correct Electronite tag and get build sources
 ```
 e sync
-```
-
-- checkout the correct Electronite tag
-```
 cd .\Build-Electron\src\electron
 git fetch --all
-git checkout tags/v18.3.2-graphite-beta -b v18.3.2-graphite-beta
+git checkout tags/electronite-v20.3.3-beta -b electronite-v20.3.3-beta
 cd ..\..
-```
-
-- now get the Electronite sources
-```
 e sync
 ```
 
 - Do build (takes a long time)
 ```
-set NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
-e build electron
+.\electronite-tools-2.bat build x64
 ```
 
 - Test the build.
@@ -82,88 +73,54 @@ e build electron
     - The example for Padauk from server will not be correct with the triangles.  So need to:
       Open elements tab, select body of html, do Control-F to search, and search for `padauk_ttf`, and apply attribute `font-feature-settings: "wtri" 1;`.  The triangles should now be rendered correctly.
 
-- Make the release to .\Build-Electron\src\out\x64\dist.zip
+- Make the release to .\Build-Electron\src\out\Release-x64\dist.zip
 ```
-e build electron:dist
+.\electronite-tools-2.bat release x64
 ```
 
 #### Build Intel x86 (32 bit)
-- open command prompt and initialize build configuration (note that if you have a slow or unreliable internet connection, it is better to change the goma setting from `cache-only` to `none`):
-```
-e init --root=.\Build-Electron -o x86 x86 -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
-```
+- if Electronite source already checked out, then skip to `Do build` step.
 
-- edit `~\.electron_build_tools\configs\evm.x86.json`
-  and add option to args:       `"target_cpu = \"x86\""`
-
-- if Electronite source already checked out, then skip to `Do build` step:
-
-- get the base Electron source code (this can take many hours the first time as the git cache is loaded):
+- get the Electron source code (this can take many hours the first time as the git cache is loaded), checkout the correct Electronite tag and get build sources
 ```
 e sync
-```
-
-- checkout the correct Electronite tag
-```
 cd .\Build-Electron\src\electron
 git fetch --all
-git checkout tags/v18.3.2-graphite-beta -b v18.3.2-graphite-beta
+git checkout tags/electronite-v20.3.3-beta -b electronite-v20.3.3-beta
 cd ..\..
-```
-
-- now get the Electronite sources
-```
 e sync
 ```
 
 - Do build (takes a long time)
 ```
-set NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
-e build electron
+.\electronite-tools-2.bat build x86
 ```
 
-- Make the release to .\Build-Electron\src\out\x86\dist.zip
+- Make the release to .\Build-Electron\src\out\Release-x86\dist.zip
 ```
-e build electron:dist
+.\electronite-tools-2.bat release x86
 ```
 
 #### Build Intel arm64
-- open command prompt and initialize build configuration (note that if you have a slow or unreliable internet connection, it is better to change the goma setting from `cache-only` to `none`):
-```
-e init --root=.\Build-Electron -o arm64 arm64 -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
-```
+- if Electronite source already checked out, then skip to `Do build` step.
 
-- edit `~\.electron_build_tools\configs\evm.arm64.json`
-  and add option to args:       `"target_cpu = \"arm64\""`
-
-- if Electronite source already checked out, then skip to `Do build` step:
-
-- get the base Electron source code (this can take many hours the first time as the git cache is loaded):
+- get the Electron source code (this can take many hours the first time as the git cache is loaded), checkout the correct Electronite tag and get build sources
 ```
 e sync
-```
-
-- checkout the correct Electronite tag
-```
 cd .\Build-Electron\src\electron
 git fetch --all
-git checkout tags/v18.3.2-graphite-beta -b v18.3.2-graphite-beta
+git checkout tags/electronite-v20.3.3-beta -b electronite-v20.3.3-beta
 cd ..\..
-```
-
-- now get the Electronite sources
-```
 e sync
 ```
 
 - Do build (takes a long time)
 ```
-set NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
-e build electron
+.\electronite-tools-2.bat build arm64
 ```
 
-- Make the release to .\Build-Electron\src\out\arm64\dist.zip
+- Make the release to .\Build-Electron\src\out\Release-arm64\dist.zip
 ```
-e build electron:dist
+.\electronite-tools-2.bat release arm64
 ```
 

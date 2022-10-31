@@ -54,7 +54,7 @@ e sync
 ```
 cd ~/Develop/Electronite-Build/src/electron
 git fetch --all
-git checkout tags/v18.3.2-graphite-beta -b v18.3.2-graphite-beta
+git checkout tags/electronite-v20.3.3-beta -b electronite-v20.3.3-beta
 cd ../..
 ```
 
@@ -102,7 +102,7 @@ e sync
 ```
 cd ~/Develop/Electronite-Build/src/electron
 git fetch --all
-git checkout tags/v18.3.2-graphite-beta -b v18.3.2-graphite-beta
+git checkout tags/electronite-v20.3.3-beta -b electronite-v20.3.3-beta
 cd ../..
 ```
 
