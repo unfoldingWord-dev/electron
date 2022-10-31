@@ -1,5 +1,6 @@
 echo off
 set ELECTRONITE_REPO="https://github.com/unfoldingWord/electronite"
+set Path=%Path%;%HOMEDRIVE%%HOMEPATH%\.electron_build_tools\third_party\depot_tools
 echo "Path = %Path%"
 set working_dir=%cd%
 set GIT_CACHE_PATH=%working_dir%\git_cache
@@ -50,11 +51,10 @@ cd %working_dir%
 
 rem fetch code
 echo Fetching code. This will take a long time and download up to 16GB.
-echo Deleting electron-gn folder.
-if exist electron-gn rmdir /Q /S electron-gn
-echo Deleted electron-gn folder.
-mkdir electron-gn
-cd electron-gn
+echo Deleting src folder.
+if exist src rmdir /Q /S src
+echo Deleted src folder.
+
 call gclient config --name "src/electron" --unmanaged %ELECTRONITE_REPO%
 call gclient sync --with_branch_heads --with_tags --nohooks --noprehooks
 cd src\electron
@@ -68,7 +68,7 @@ echo Commit all Changes so sync with patches will not fail?
 rem this is a hack so that Windows sync will not fail when there are uncommitted changes after git checkout
 call git add -A
 call git commit -m "commit changes" --author="A U Thor <author@example.com>"
-cd..
+cd ..
 
 echo Applying electron patches
 call gclient sync --with_branch_heads --with_tags
