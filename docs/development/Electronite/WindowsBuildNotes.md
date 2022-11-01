@@ -11,7 +11,7 @@
   - Add folder `.\Build-Electron` (which is the default build folder used below, or the build folder you actually use).
 - Add to git support for long file names: `git config --system core.longpaths true`
 - Installed VS 2019 Community edition and Windows SDK 10.0.19041.0.
-- Installed Python 3.9.11 (Python 3.10 has breaking changes that broke compile) from https://www.python.org/downloads/windows/
+- Installed Python 3.10 from Windows Store
 - configured Python:
 ```
 python3 -m pip install --upgrade pip setuptools wheel
@@ -41,23 +41,13 @@ npm i
 
 ### Build Electronite
 #### Build Intel x64
-- open command prompt and initialize build configuration (note that if you have a slow or unreliable internet connection, it is better to change the goma setting from `cache-only` to `none`):
+- open command prompt, cd to the build directory, and initialize build configuration:
 ```
-rem - first cd to the base build directory and run:
-e init --root=.\Build-Electron -o x64 x64 -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
+e init --root=. -o x64 x64 -i release --goma none --fork unfoldingWord/electronite --use-https -f
 ```
-
-- edit `~\.electron_build_tools\configs\evm.x64.json`
-and add option to args:       `"target_cpu = \"x64\""`
-
 - get the Electron source code (this can take many hours the first time as the git cache is loaded), checkout the correct Electronite tag and get build sources
 ```
-e sync
-cd .\Build-Electron\src\electron
-git fetch --all
-git checkout tags/electronite-v20.3.3-beta -b electronite-v20.3.3-beta
-cd ..\..
-e sync
+.\electronite-tools-2.bat get electronite-v20.3.3-beta
 ```
 
 - Do build (takes a long time)
