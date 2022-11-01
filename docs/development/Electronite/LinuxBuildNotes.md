@@ -61,7 +61,7 @@ sudo apt-get install ia32-libs-gtk ia32-libs
 
 - if Electronite source already checked out, then skip to `Build Init` step.
 
-- get source files for branch (this can take several hours the first time as the git cache is loaded): `./electronite-tools-2.sh get <<build-tag>>`
+- get source files for branch (this can take several hours the first time as the git cache is loaded): `./electronite-tools-2.sh get electronite-v20.3.3-beta`
 
 - Build Init: to create `x86` builds, you must have installed the x86 dependencies mentioned in the Linux build instructions above.  Then run:
 ```
