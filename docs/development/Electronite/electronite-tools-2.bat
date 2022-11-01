@@ -1,6 +1,6 @@
 echo off
 set ELECTRONITE_REPO="https://github.com/unfoldingWord/electronite"
-set Path=%Path%;%HOMEDRIVE%%HOMEPATH%\.electron_build_tools\third_party\depot_tools
+set Path=%Path%;%HOMEDRIVE%%HOMEPATH%\.electron_build_tools\third_party\depot_tools;%HOMEDRIVE%%HOMEPATH%\.electron_build_tools\src
 echo "Path = %Path%"
 set working_dir=%cd%
 set GIT_CACHE_PATH=%working_dir%\git_cache
