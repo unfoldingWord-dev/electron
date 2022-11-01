@@ -5,7 +5,8 @@ ELECTRONITE_REPO="https://github.com/unfoldingWord/electronite"
 COMMAND=$1
 
 # Configure environment variables and paths
-export PATH=$PATH:~/.electron_build_tools/third_party/depot_tools
+export PATH=$PATH:~/.electron_build_tools/third_party/depot_tools:~/.electron_build_tools/src
+echo "PATH = $PATH"
 export GIT_CACHE_PATH=`pwd`/git_cache
 mkdir -p "${GIT_CACHE_PATH}"
 

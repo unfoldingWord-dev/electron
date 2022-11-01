@@ -31,8 +31,9 @@ git clone https://github.com/electron/build-tools ~/.electron_build_tools && (cd
 #### Build x64
 - get source files for branch (this can take several hours the first time as the git cache is loaded):
 ```
+export PATH=$PATH:~/.electron_build_tools/third_party/depot_tools:~/.electron_build_tools/src
 e init --root=~/Develop/Electronite-Build -o x64 x64 -i release --goma none --fork unfoldingWord/electronite --use-https -f
-./electronite-tools-2.sh get <<build-tag>>
+./electronite-tools-2.sh get electronite-v20.3.3-beta
 ```
 
 - Do build (takes a long time)
