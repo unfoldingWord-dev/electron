@@ -62,7 +62,12 @@ sudo apt-get install ia32-libs-gtk ia32-libs
 
 - if Electronite source already checked out, then skip to `Build Init` step.
 
-- get source files for branch (this can take several hours the first time as the git cache is loaded): `./electronite-tools-2.sh get electronite-v20.3.3-beta`
+- get source files for branch (this can take several hours the first time as the git cache is loaded):
+```
+export PATH=$PATH:~/.electron_build_tools/third_party/depot_tools:~/.electron_build_tools/src
+e init --root=~/Develop/Electronite-Build -o x64 x64 -i release --goma none --fork unfoldingWord/electronite --use-https -f
+./electronite-tools-2.sh get electronite-v20.3.3-beta
+```
 
 - Build Init: to create `x86` builds, you must have installed the x86 dependencies mentioned in the Linux build instructions above.  Then run:
 ```
@@ -89,7 +94,12 @@ sudo apt-get install binutils-aarch64-linux-gnu
 
 - if Electronite source already checked out, then skip to `Build Init` step.
 
-- get source files for branch (this can take several hours the first time as the git cache is loaded): `./electronite-tools-2.sh get electronite-v20.3.3-beta`
+- get source files for branch (this can take several hours the first time as the git cache is loaded):
+```
+export PATH=$PATH:~/.electron_build_tools/third_party/depot_tools:~/.electron_build_tools/src
+e init --root=~/Develop/Electronite-Build -o x64 x64 -i release --goma none --fork unfoldingWord/electronite --use-https -f
+./electronite-tools-2.sh get electronite-v20.3.3-beta
+```
 
 - Build Init: to create `arm64` builds, you must have installed the arm64 dependencies mentioned in the Linux build instructions above.  Then run:
 ```
