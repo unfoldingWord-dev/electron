@@ -13,7 +13,7 @@ g++ --version
 - to create `arm64` and `arm` builds, you must have installed the arm dependencies mentioned in the Linux build instructions above.  Then run:
 - install and configure python:
 ```
-sudo apt install python python3.9
+sudo apt install python python3.10
 pip3 install --user --upgrade pip
 pip3 install --user pyobjc
 ```
