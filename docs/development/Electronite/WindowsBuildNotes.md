@@ -49,7 +49,7 @@ e init --root=. -o x64 x64 -i release --goma none --fork unfoldingWord/electroni
 - get the Electronite source code (this can take many hours the first time as the git cache is loaded), checkout the correct Electronite tag and get build sources
 ```
 .\electronite-tools-2.bat get electronite-v20.3.3-beta
-git apply ./src/electronite/docs/development/Electronite/add_graphite_cpp_std_iterator.patch
+git apply .\src\electron\docs\development\Electronite\add_graphite_cpp_std_iterator.patch
 ```
 
 - Do build (takes a long time)
@@ -76,7 +76,7 @@ git apply ./src/electronite/docs/development/Electronite/add_graphite_cpp_std_it
 - get the Electronite source code (this can take many hours the first time as the git cache is loaded), checkout the correct Electronite tag and get build sources
 ```
 .\electronite-tools-2.bat get electronite-v20.3.3-beta
-git apply ./src/electronite/docs/development/Electronite/add_graphite_cpp_std_iterator.patch
+git apply .\src\electron\docs\development\Electronite\add_graphite_cpp_std_iterator.patch
 ```
 
 - Do build (takes a long time)
@@ -95,7 +95,7 @@ git apply ./src/electronite/docs/development/Electronite/add_graphite_cpp_std_it
 - get the Electronite source code (this can take many hours the first time as the git cache is loaded), checkout the correct Electronite tag and get build sources
 ```
 .\electronite-tools-2.bat get electronite-v20.3.3-beta
-git apply ./src/electronite/docs/development/Electronite/add_graphite_cpp_std_iterator.patch
+git apply .\src\electron\docs\development\Electronite\add_graphite_cpp_std_iterator.patch
 ```
 
 - Do build (takes a long time)
