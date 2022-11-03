@@ -45,22 +45,16 @@ e init --root=~/Develop/Electronite-Build -o x64 x64 -i release --goma cache-onl
 
 - edit `~/.electron_build_tools/configs/evm.x64.json`
   and add option to args:       `"target_cpu = \"x64\""`
-- get the base Electron source code (this can take many hours the first time as the git cache is loaded):
+
+- get the Electronite source code for branch (this can take many hours the first time as the git cache is loaded):
 ```
 e sync
-```
-
-- checkout the correct Electronite tag
-```
 cd ~/Develop/Electronite-Build/src/electron
 git fetch --all
 git checkout tags/electronite-v20.3.3-beta -b electronite-v20.3.3-beta
 cd ../..
-```
-
-- now get the Electronite sources
-```
 e sync
+git apply ~/Develop/Electronite-Build/src/electronite/docs/development/Electronite/add_graphite_cpp_std_iterator.patch
 ```
 
 - Do build (takes a long time)
@@ -93,22 +87,15 @@ and add option to args:       `"target_cpu = \"arm64\""`
 
 - if Electronite source already checked out, then skip to `Do build` step:
 
-- get the base Electron source code (this can take many hours the first time as the git cache is loaded):
+- get the Electronite source code for branch (this can take many hours the first time as the git cache is loaded):
 ```
 e sync
-```
-
-- checkout the correct Electronite tag
-```
 cd ~/Develop/Electronite-Build/src/electron
 git fetch --all
 git checkout tags/electronite-v20.3.3-beta -b electronite-v20.3.3-beta
 cd ../..
-```
-
-- now get the Electronite sources
-```
 e sync
+git apply ~/Develop/Electronite-Build/src/electronite/docs/development/Electronite/add_graphite_cpp_std_iterator.patch
 ```
 
 - Do build (takes a long time)

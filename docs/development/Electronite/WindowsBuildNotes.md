@@ -45,9 +45,11 @@ npm i
 ```
 e init --root=. -o x64 x64 -i release --goma none --fork unfoldingWord/electronite --use-https -f
 ```
-- get the Electron source code (this can take many hours the first time as the git cache is loaded), checkout the correct Electronite tag and get build sources
+
+- get the Electronite source code (this can take many hours the first time as the git cache is loaded), checkout the correct Electronite tag and get build sources
 ```
 .\electronite-tools-2.bat get electronite-v20.3.3-beta
+git apply ./src/electronite/docs/development/Electronite/add_graphite_cpp_std_iterator.patch
 ```
 
 - Do build (takes a long time)
@@ -71,14 +73,10 @@ e init --root=. -o x64 x64 -i release --goma none --fork unfoldingWord/electroni
 #### Build Intel x86 (32 bit)
 - if Electronite source already checked out, then skip to `Do build` step.
 
-- get the Electron source code (this can take many hours the first time as the git cache is loaded), checkout the correct Electronite tag and get build sources
+- get the Electronite source code (this can take many hours the first time as the git cache is loaded), checkout the correct Electronite tag and get build sources
 ```
-e sync
-cd .\Build-Electron\src\electron
-git fetch --all
-git checkout tags/electronite-v20.3.3-beta -b electronite-v20.3.3-beta
-cd ..\..
-e sync
+.\electronite-tools-2.bat get electronite-v20.3.3-beta
+git apply ./src/electronite/docs/development/Electronite/add_graphite_cpp_std_iterator.patch
 ```
 
 - Do build (takes a long time)
@@ -94,14 +92,10 @@ e sync
 #### Build Intel arm64
 - if Electronite source already checked out, then skip to `Do build` step.
 
-- get the Electron source code (this can take many hours the first time as the git cache is loaded), checkout the correct Electronite tag and get build sources
+- get the Electronite source code (this can take many hours the first time as the git cache is loaded), checkout the correct Electronite tag and get build sources
 ```
-e sync
-cd .\Build-Electron\src\electron
-git fetch --all
-git checkout tags/electronite-v20.3.3-beta -b electronite-v20.3.3-beta
-cd ..\..
-e sync
+.\electronite-tools-2.bat get electronite-v20.3.3-beta
+git apply ./src/electronite/docs/development/Electronite/add_graphite_cpp_std_iterator.patch
 ```
 
 - Do build (takes a long time)
