@@ -68,7 +68,7 @@ sudo apt-get install ia32-libs-gtk ia32-libs
 export PATH=$PATH:~/.electron_build_tools/third_party/depot_tools:~/.electron_build_tools/src
 e init --root=~/Develop/Electronite-Build -o x64 x64 -i release --goma none --fork unfoldingWord/electronite --use-https -f
 ./electronite-tools-2.sh get electronite-v20.3.3-beta
-git apply ./src/electron/src/electronite/docs/development/Electronite/add_graphite_cpp_std_iterator.patch
+git apply ./src/electron/docs/development/Electronite/add_graphite_cpp_std_iterator.patch
 ```
 
 - Build Init: to create `x86` builds, you must have installed the x86 dependencies mentioned in the Linux build instructions above.  Then run:
