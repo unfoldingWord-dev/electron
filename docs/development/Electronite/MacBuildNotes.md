@@ -54,7 +54,9 @@ git fetch --all
 git checkout tags/electronite-v20.3.3-beta -b electronite-v20.3.3-beta
 cd ../..
 e sync
-git apply ./src/electron/docs/development/Electronite/add_graphite_cpp_std_iterator.patch
+cd ./src
+git apply ./electron/docs/development/Electronite/add_graphite_cpp_std_iterator.patch
+cd ..
 ```
 
 - Do build (takes a long time)
@@ -95,7 +97,9 @@ git fetch --all
 git checkout tags/electronite-v20.3.3-beta -b electronite-v20.3.3-beta
 cd ../..
 e sync
-git apply ./src/electron/docs/development/Electronite/add_graphite_cpp_std_iterator.patch
+cd ./src
+git apply ./electron/docs/development/Electronite/add_graphite_cpp_std_iterator.patch
+cd ..
 ```
 
 - Do build (takes a long time)
