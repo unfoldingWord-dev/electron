@@ -139,9 +139,11 @@ rem ####################
     echo For detailed instructions on building Electron
     echo see https://github.com/electron/electron/blob/master/docs/development/build-instructions-gn.md
     goto End
+
 :MissingTag
     echo Missing the ^<ref^> to checkout. Please specify a tag or branch name.
     goto End
+
 :End
 
 cd %working_dir%
