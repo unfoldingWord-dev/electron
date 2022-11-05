@@ -43,7 +43,7 @@ e init --root=~/Develop/Electronite-Build -o x64 x64 -i release --goma none --fo
 ```
 
 - Test the build.
-    - Do `cd src/out/Release-x64 && electron`.
+    - Do `cd src/out/Release-x64 && ./electron`.
     - Open the developer console by typing`Control-Shift-I`.
     - in console execute `window.location="https://scripts.sil.org/cms/scripts/page.php?site_id=projects&item_id=graphite_fontdemo"`
     - Ensure all the tests pass by visually inspecting the rendered fonts and comparing against the image samples on the site.
