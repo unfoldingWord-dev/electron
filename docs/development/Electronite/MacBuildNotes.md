@@ -1,7 +1,7 @@
 ## Building Electronite on MacOS
 ### Setup on MacOS Big Sur
 - Configured using these notes as a reference: [build-instructions-macos](../build-instructions-macos.md)
-- Can build on Catalina by changing the build config. Change `~/Develop/Electronite-Build/src/electron/.circleci/config/base.yml` by setting `macos/parameters/xcode/default` to 12.4.0 (but will not get any speed up from goma, so probably best to set goma to `none`)
+- Can build on Monterey
 - Building for x64 does not work on M1 Silicon Macs, only for Arm64.  On Intel based Macs can build for both Arm64 and Intel x64
 - Make sure you have a lot of free disk space - need over 150GB free.
 - if you have trouble building with these notes, you could try the older Chromium Build tools: [MacBuildNotesChromeTools](MacBuildNotesChromeTools.md)
@@ -21,6 +21,7 @@ node --version
 ```
 pip3 install --user --upgrade pip
 pip3 install --user pyobjc
+pip3 install importlib-metadata
 ```
 - installed electron build-tools (https://github.com/electron/build-tools):
 ``` 
