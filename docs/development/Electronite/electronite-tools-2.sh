@@ -41,6 +41,9 @@ if [ "$COMMAND" == "get" ] || [ "$COMMAND" == "switch" ]; then
     echo "Fetching code. This will take a long time and download up to 16GB."
     gclient config --name "src/electron" --unmanaged $ELECTRONITE_REPO
     gclient sync --with_branch_heads --with_tags --nohooks --noprehooks
+  else
+    echo "Deleting old graphite"
+    rm -rf ./src/electron/third_party/graphite
   fi
   
   cd src/electron

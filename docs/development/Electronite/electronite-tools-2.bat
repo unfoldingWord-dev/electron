@@ -59,6 +59,9 @@ if "%1" == "get" (
     
     call gclient config --name "src/electron" --unmanaged %ELECTRONITE_REPO%
     call gclient sync --with_branch_heads --with_tags --nohooks --noprehooks
+) else (
+  echo Deleting old graphite
+  rmdir /Q /S .\src\electron\third_party\graphite
 )
 
 rem change to needed branch
