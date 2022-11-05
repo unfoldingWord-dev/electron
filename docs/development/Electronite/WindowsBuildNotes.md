@@ -48,7 +48,7 @@ e init --root=. -o x64 x64 -i release --goma none --fork unfoldingWord/electroni
 
 - get the Electronite source code (this can take many hours the first time as the git cache is loaded), checkout the correct Electronite tag and get build sources
 ```
-.\electronite-tools-2.bat get electronite-v20.3.3-beta
+.\electronite-tools-2.bat get electronite-v21.2.0-beta
 ```
 
 - Do build (takes a long time)
@@ -74,7 +74,7 @@ e init --root=. -o x64 x64 -i release --goma none --fork unfoldingWord/electroni
 
 - get the Electronite source code (this can take many hours the first time as the git cache is loaded), checkout the correct Electronite tag and get build sources
 ```
-.\electronite-tools-2.bat get electronite-v20.3.3-beta
+.\electronite-tools-2.bat get electronite-v21.2.0-beta
 ```
 
 - Do build (takes a long time)
@@ -92,7 +92,7 @@ e init --root=. -o x64 x64 -i release --goma none --fork unfoldingWord/electroni
 
 -- get the Electronite source code (this can take many hours the first time as the git cache is loaded), checkout the correct Electronite tag and get build sources
 ```
-.\electronite-tools-2.bat get electronite-v20.3.3-beta
+.\electronite-tools-2.bat get electronite-v21.2.0-beta
 ```
 - 
 - Do build (takes a long time)

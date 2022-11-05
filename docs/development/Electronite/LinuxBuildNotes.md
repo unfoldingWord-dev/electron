@@ -34,7 +34,7 @@ git clone https://github.com/electron/build-tools ~/.electron_build_tools && (cd
 ```
 export PATH=$PATH:~/.electron_build_tools/third_party/depot_tools:~/.electron_build_tools/src
 e init --root=~/Develop/Electronite-Build -o x64 x64 -i release --goma none --fork unfoldingWord/electronite --use-https -f
-./electronite-tools-2.sh get electronite-v20.3.3-beta
+./electronite-tools-2.sh get electronite-v21.2.0-beta
 ```
 
 - Do build (takes a long time)
@@ -67,7 +67,7 @@ sudo apt-get install ia32-libs-gtk ia32-libs
 ```
 export PATH=$PATH:~/.electron_build_tools/third_party/depot_tools:~/.electron_build_tools/src
 e init --root=~/Develop/Electronite-Build -o x64 x64 -i release --goma none --fork unfoldingWord/electronite --use-https -f
-./electronite-tools-2.sh get electronite-v20.3.3-beta
+./electronite-tools-2.sh get electronite-v21.2.0-beta
 ```
 
 - Build Init: to create `x86` builds, you must have installed the x86 dependencies mentioned in the Linux build instructions above.  Then run:
@@ -99,7 +99,7 @@ sudo apt-get install binutils-aarch64-linux-gnu
 ```
 export PATH=$PATH:~/.electron_build_tools/third_party/depot_tools:~/.electron_build_tools/src
 e init --root=~/Develop/Electronite-Build -o x64 x64 -i release --goma none --fork unfoldingWord/electronite --use-https -f
-./electronite-tools-2.sh get electronite-v20.3.3-beta
+./electronite-tools-2.sh get electronite-v21.2.0-beta
 ```
 
 - Build Init: to create `arm64` builds, you must have installed the arm64 dependencies mentioned in the Linux build instructions above.  Then run:
