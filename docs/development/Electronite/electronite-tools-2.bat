@@ -67,6 +67,7 @@ if "%1" == "get" (
 rem change to needed branch
 cd src\electron
 echo Checking out %checkout_tag% in %cd%
+call git fetch --all
 call git checkout %checkout_tag%
 cd ..
 
