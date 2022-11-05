@@ -38,22 +38,11 @@ git clone https://github.com/electron/build-tools ~/.electron_build_tools && (cd
 
 ### Build Electronite
 #### Build Intel x64
-- open terminal and initialize build (on M1 Mac, had to use `--goma none`):
-```
-e init --root=~/Develop/Electronite-Build -o x64 x64 -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
-```
-
-- edit `~/.electron_build_tools/configs/evm.x64.json`
-  and add option to args:       `"target_cpu = \"x64\""`
-
 - get the Electronite source code for branch (this can take many hours the first time as the git cache is loaded):
 ```
-e sync
-cd ~/Develop/Electronite-Build/src/electron
-git fetch --all
-git checkout tags/electronite-v20.3.3-beta -b electronite-v20.3.3-beta
-cd ../..
-e sync
+export PATH=$PATH:~/.electron_build_tools/third_party/depot_tools:~/.electron_build_tools/src
+e init --root=~/Develop/Electronite-Build -o x64 x64 -i release --goma none --fork unfoldingWord/electronite --use-https -f
+./electronite-tools-2.sh get electronite-v20.3.3-beta
 cd ./src
 git apply ./electron/docs/development/Electronite/add_graphite_cpp_std_iterator.patch
 cd ..
@@ -61,8 +50,7 @@ cd ..
 
 - Do build (takes a long time)
 ```
-export NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
-e build electron
+./electronite-tools-2.sh build x64
 ```
 
 - Test the build. 
@@ -75,28 +63,17 @@ Open elements tab, select body of html, do command-F to search, and search for `
 
 - Make the release to ~/Develop/Electronite-Build/src/out/x64/dist.zip
 ```
-e build electron:dist
+./electronite-tools-2.sh release x64
 ```
 
 #### Build Arm64
-- open terminal and initialize build (on M1 Mac, had to use `--goma none`, and it may be faster if you have a slow or unreliable internet connection):
-```
-e init --root=~/Develop/Electronite-Build -o arm64 arm64 -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
-```
-
-- edit `~/.electron_build_tools/configs/evm.arm64.json`
-and add option to args:       `"target_cpu = \"arm64\""`
-
 - if Electronite source already checked out, then skip to `Do build` step:
 
 - get the Electronite source code for branch (this can take many hours the first time as the git cache is loaded):
 ```
-e sync
-cd ~/Develop/Electronite-Build/src/electron
-git fetch --all
-git checkout tags/electronite-v20.3.3-beta -b electronite-v20.3.3-beta
-cd ../..
-e sync
+export PATH=$PATH:~/.electron_build_tools/third_party/depot_tools:~/.electron_build_tools/src
+e init --root=~/Develop/Electronite-Build -o x64 x64 -i release --goma none --fork unfoldingWord/electronite --use-https -f
+./electronite-tools-2.sh get electronite-v20.3.3-beta
 cd ./src
 git apply ./electron/docs/development/Electronite/add_graphite_cpp_std_iterator.patch
 cd ..
@@ -104,11 +81,10 @@ cd ..
 
 - Do build (takes a long time)
 ```
-export NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
-e build electron
+./electronite-tools-2.sh build arm64
 ```
 
 - Make the release to ~/Develop/Electronite-Build/src/out/arm64/dist.zip
 ```
-e build electron:dist
+./electronite-tools-2.sh release arm64
 ```
