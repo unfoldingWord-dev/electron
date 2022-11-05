@@ -16,6 +16,7 @@ g++ --version
 sudo apt install python python3 python3-pip
 pip3 install --user --upgrade pip
 pip3 install --user pyobjc
+pip3 install importlib-metadata
 ```
 
 - installed electron build-tools (https://github.com/electron/build-tools):
