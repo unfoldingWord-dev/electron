@@ -38,39 +38,20 @@ git clone https://github.com/electron/build-tools ~/.electron_build_tools && (cd
 
 ### Build Electronite
 #### Build Intel x64
-- open terminal and initialize build (on M1 Mac, had to use `--goma none`):
+- get the Electronite source code for branch (this can take many hours the first time as the git cache is loaded):
 ```
-e init --root=~/Develop/Electronite-Build -o x64 x64 -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
-```
-
-- edit `~/.electron_build_tools/configs/evm.x64.json`
-  and add option to args:       `"target_cpu = \"x64\""`
-- get the base Electron source code (this can take many hours the first time as the git cache is loaded):
-```
-e sync
-```
-
-- checkout the correct Electronite tag
-```
-cd ~/Develop/Electronite-Build/src/electron
-git fetch --all
-git checkout tags/v18.3.2-graphite-beta -b v18.3.2-graphite-beta
-cd ../..
-```
-
-- now get the Electronite sources
-```
-e sync
+export PATH=$PATH:~/.electron_build_tools/third_party/depot_tools:~/.electron_build_tools/src
+e init --root=~/Develop/Electronite-Build -o x64 x64 -i release --goma none --fork unfoldingWord/electronite --use-https -f
+./electronite-tools-2.sh get electronite-v20.3.3-beta
 ```
 
 - Do build (takes a long time)
 ```
-export NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
-e build electron
+./electronite-tools-2.sh build x64
 ```
 
 - Test the build. 
-  - Do `e start`.
+  - Do `e start`. (or `open /src/out/Release-x64/Electron.app`)
   - Open the developer console by typing`Command-Alt-I`.
   - in console execute `window.location="https://scripts.sil.org/cms/scripts/page.php?site_id=projects&item_id=graphite_fontdemo"`
   - Ensure all the tests pass by visually inspecting the rendered fonts and comparing against the image samples on the site.
@@ -79,45 +60,25 @@ Open elements tab, select body of html, do command-F to search, and search for `
 
 - Make the release to ~/Develop/Electronite-Build/src/out/x64/dist.zip
 ```
-e build electron:dist
+./electronite-tools-2.sh release x64
 ```
 
 #### Build Arm64
-- open terminal and initialize build (on M1 Mac, had to use `--goma none`, and it may be faster if you have a slow or unreliable internet connection):
-```
-e init --root=~/Develop/Electronite-Build -o arm64 arm64 -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
-```
-
-- edit `~/.electron_build_tools/configs/evm.arm64.json`
-and add option to args:       `"target_cpu = \"arm64\""`
-
 - if Electronite source already checked out, then skip to `Do build` step:
 
-- get the base Electron source code (this can take many hours the first time as the git cache is loaded):
+- get the Electronite source code for branch (this can take many hours the first time as the git cache is loaded):
 ```
-e sync
-```
-
-- checkout the correct Electronite tag
-```
-cd ~/Develop/Electronite-Build/src/electron
-git fetch --all
-git checkout tags/v18.3.2-graphite-beta -b v18.3.2-graphite-beta
-cd ../..
-```
-
-- now get the Electronite sources
-```
-e sync
+export PATH=$PATH:~/.electron_build_tools/third_party/depot_tools:~/.electron_build_tools/src
+e init --root=~/Develop/Electronite-Build -o x64 x64 -i release --goma none --fork unfoldingWord/electronite --use-https -f
+./electronite-tools-2.sh get electronite-v20.3.3-beta
 ```
 
 - Do build (takes a long time)
 ```
-export NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
-e build electron
+./electronite-tools-2.sh build arm64
 ```
 
 - Make the release to ~/Develop/Electronite-Build/src/out/arm64/dist.zip
 ```
-e build electron:dist
+./electronite-tools-2.sh release arm64
 ```
