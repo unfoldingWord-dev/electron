@@ -29,7 +29,6 @@ rem -------------
 rem start command
 rem -------------
 if "%1" == "get" goto Get
-if "%1" == "switch" goto Get
 if "%1" == "build" goto Build
 if "%1" == "release" goto Release
 goto MissingTag
@@ -50,21 +49,14 @@ echo depot_tools_dir=%depot_tools_dir%"
 cd %depot_tools_dir% && call git reset HEAD --hard && echo depot_tools is ready
 cd %working_dir%
 
-if "%1" == "get" (
-    rem fetch the repo
-    echo Fetching code. This will take a long time and download up to 16GB.
-    echo Deleting src folder.
-    if exist src rmdir /Q /S src
-    echo Deleted src folder.
-    
-    call gclient config --name "src/electron" --unmanaged %ELECTRONITE_REPO%
-    call gclient sync --with_branch_heads --with_tags --nohooks --noprehooks
-) else (
-  echo Deleting old graphite
-  rmdir /Q /S .\src\electron\third_party\graphite
-)
+rem fetch code
+echo Fetching code. This will take a long time and download up to 16GB.
+echo Deleting src folder.
+if exist src rmdir /Q /S src
+echo Deleted src folder.
 
-rem change to needed branch
+call gclient config --name "src/electron" --unmanaged %ELECTRONITE_REPO%
+call gclient sync --with_branch_heads --with_tags --nohooks --noprehooks
 cd src\electron
 echo Checking out %checkout_tag% in %cd%
 call git fetch --all

@@ -22,7 +22,7 @@ echo "SCCACHE_BUCKET=${SCCACHE_BUCKET}"
 ##########################
 # fetch code
 ##########################
-if [ "$COMMAND" == "get" ] || [ "$COMMAND" == "switch" ]; then
+if [ "$COMMAND" == "get" ]; then
   if [ $# -ge 2 ]; then
     BRANCH=$2
   else
@@ -30,22 +30,16 @@ if [ "$COMMAND" == "get" ] || [ "$COMMAND" == "switch" ]; then
     exit 0
   fi
 
-  if [ "$COMMAND" == "get" ]; then
-    if [ -d ./src ]; then
-      echo "Deleting old work folders in the background. This may take a long time with about 49GB and 850K files."
-      mv src src.old
-      # run in background
-      rm -rf src.old&
-    fi  
-  
-    echo "Fetching code. This will take a long time and download up to 16GB."
-    gclient config --name "src/electron" --unmanaged $ELECTRONITE_REPO
-    gclient sync --with_branch_heads --with_tags --nohooks --noprehooks
-  else
-    echo "Deleting old graphite"
-    rm -rf ./src/electron/third_party/graphite
-  fi
-  
+  if [ -d ./src ]; then
+    echo "Deleting old work folders in the background. This may take a long time with about 49GB and 850K files."
+    mv src src.old
+    # run in background
+    rm -rf src.old&
+  fi  
+
+  echo "Fetching code. This will take a long time and download up to 16GB."
+  gclient config --name "src/electron" --unmanaged $ELECTRONITE_REPO
+  gclient sync --with_branch_heads --with_tags --nohooks --noprehooks
   cd src/electron
   echo "Checking out $BRANCH"
   git fetch --all
@@ -133,9 +127,6 @@ where <command> is one of:
 
     get <ref> - fetches all of the code.
                 Where <ref> is a branch or tag.
-
-    switch <ref> - changes the checked out tag/branch and then updates the code to match that.
-                   Where <ref> is a branch or tag.
 
     build <target> - compiles Electronite, target is optional, defaults to x64,
                        Could be arm64.
