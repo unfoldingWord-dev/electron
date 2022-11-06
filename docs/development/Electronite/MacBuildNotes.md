@@ -60,7 +60,7 @@ e init --root=~/Develop/Electronite-Build -o x64 x64 -i release --goma none --fo
   - The example for Padauk from server will not be correct with the triangles.  So need to:
 Open elements tab, select body of html, do command-F to search, and search for `padauk_ttf`, and apply attribute `font-feature-settings: "wtri" 1;`.  The triangles should now be rendered correctly.
 
-- The release is at ~/Develop/Electronite-Build/src/out/x64/dist.zip
+- The release is at ~/Develop/Electronite-Build/src/out/Release-x64/dist.zip
 
 #### Build Arm64
 - if Electronite source already checked out, then skip to `Do build` step:
@@ -78,4 +78,4 @@ e init --root=~/Develop/Electronite-Build -o x64 x64 -i release --goma none --fo
 ./electronite-tools-2.sh release arm64
 ```
 
-- The release is at ~/Develop/Electronite-Build/src/out/arm64/dist.zip
+- The release is at ~/Develop/Electronite-Build/src/out/Release-arm64/dist.zip

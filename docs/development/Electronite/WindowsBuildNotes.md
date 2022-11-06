@@ -58,7 +58,7 @@ e init --root=. -o x64 x64 -i release --goma none --fork unfoldingWord/electroni
 ```
 
 - Test the build.
-    - Do `e start`.
+    - Do `e start`.  Or open electron.exe in finder.
     - Open the developer console by typing`Control-Shift-I`.
     - in console execute `window.location="https://scripts.sil.org/cms/scripts/page.php?site_id=projects&item_id=graphite_fontdemo"`
     - Ensure all the tests pass by visually inspecting the rendered fonts and comparing against the image samples on the site.
