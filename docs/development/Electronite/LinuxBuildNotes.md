@@ -40,6 +40,7 @@ e init --root=~/Develop/Electronite-Build -o x64 x64 -i release --goma none --fo
 - Do build (takes a long time)
 ```
 ./electronite-tools-2.sh build x64
+./electronite-tools-2.sh release x64
 ```
 
 - Test the build.
@@ -50,10 +51,7 @@ e init --root=~/Develop/Electronite-Build -o x64 x64 -i release --goma none --fo
     - The example for Padauk from server will not be correct with the triangles.  So need to:
       Open elements tab, select body of html, do Control-F to search, and search for `padauk_ttf`, and apply attribute `font-feature-settings: "wtri" 1;`.  The triangles should now be rendered correctly.
 
-- Make the release to ~/Develop/Electronite-Build/src/out/Release-x64/dist.zip
-```
-./electronite-tools-2.sh release x64
-```
+- The release is at ~/Develop/Electronite-Build/src/out/Release-x64/dist.zip
 
 #### Build x86
 - open terminal and initialize build configuration (note that if you have a slow or unreliable internet connection, it is better to change the goma setting from `cache-only` to `none`):
@@ -80,12 +78,10 @@ cd ..
 - Do build (takes a long time)
 ```
 ./electronite-tools-2.sh build x86
-```
-
-- Make the release to ~/Develop/Electronite-Build/src/out/Release-x86/dist.zip
-```
 ./electronite-tools-2.sh release x86
 ```
+
+- The release is at ~/Develop/Electronite-Build/src/out/Release-x86/dist.zip
 
 #### Build Arm64
 - open terminal and initialize build configuration (note that if you have a slow or unreliable internet connection, it is better to change the goma setting from `cache-only` to `none`):
@@ -112,9 +108,7 @@ cd ..
 - Do build (takes a long time)
 ```
 ./electronite-tools-2.sh build arm64
-```
-
-- Make the release to ~/Develop/Electronite-Build/src/out/Release-arm64/dist.zip
-```
 ./electronite-tools-2.sh release arm64
 ```
+
+- The release is at ~/Develop/Electronite-Build/src/out/Release-arm64/dist.zip

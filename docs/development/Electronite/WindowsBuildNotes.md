@@ -54,6 +54,7 @@ e init --root=. -o x64 x64 -i release --goma none --fork unfoldingWord/electroni
 - Do build (takes a long time)
 ```
 .\electronite-tools-2.bat build x64
+.\electronite-tools-2.bat release x64
 ```
 
 - Test the build.
@@ -64,10 +65,7 @@ e init --root=. -o x64 x64 -i release --goma none --fork unfoldingWord/electroni
     - The example for Padauk from server will not be correct with the triangles.  So need to:
       Open elements tab, select body of html, do Control-F to search, and search for `padauk_ttf`, and apply attribute `font-feature-settings: "wtri" 1;`.  The triangles should now be rendered correctly.
 
-- Make the release to .\Build-Electron\src\out\Release-x64\dist.zip
-```
-.\electronite-tools-2.bat release x64
-```
+- The release is at .\Build-Electron\src\out\Release-x64\dist.zip
 
 #### Build Intel x86 (32 bit)
 - if Electronite source already checked out, then skip to `Do build` step.
@@ -80,12 +78,10 @@ e init --root=. -o x64 x64 -i release --goma none --fork unfoldingWord/electroni
 - Do build (takes a long time)
 ```
 .\electronite-tools-2.bat build x86
-```
-
-- Make the release to .\Build-Electron\src\out\Release-x86\dist.zip
-```
 .\electronite-tools-2.bat release x86
 ```
+
+- The release is at .\Build-Electron\src\out\Release-x86\dist.zip
 
 #### Build Intel arm64
 - if Electronite source already checked out, then skip to `Do build` step.
@@ -94,14 +90,13 @@ e init --root=. -o x64 x64 -i release --goma none --fork unfoldingWord/electroni
 ```
 .\electronite-tools-2.bat get electronite-v21.2.0-beta
 ```
-- 
+
 - Do build (takes a long time)
 ```
 .\electronite-tools-2.bat build arm64
-```
-
-- Make the release to .\Build-Electron\src\out\Release-arm64\dist.zip
-```
 .\electronite-tools-2.bat release arm64
 ```
+
+- The release is at .\Build-Electron\src\out\Release-arm64\dist.zip
+
 
