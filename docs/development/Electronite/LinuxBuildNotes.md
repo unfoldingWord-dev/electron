@@ -32,6 +32,8 @@ git clone https://github.com/electron/build-tools ~/.electron_build_tools && (cd
 
 
 ### Build Electronite
+- first make sure you have downloaded the current version of electronite-tools-2.sh.  There may have been changes from other electronite versions.
+
 #### Build x64
 - get the Electronite source code for branch (this can take many hours the first time as the git cache is loaded):
 ```

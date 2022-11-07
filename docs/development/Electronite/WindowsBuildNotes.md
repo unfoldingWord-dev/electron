@@ -40,6 +40,8 @@ npm i
 - if you browse to http://localhost:8088 on your local machine you can monitor compile jobs as they flow through the goma system.
 
 ### Build Electronite
+- first make sure you have downloaded the current version of electronite-tools-2.bat.  There may have been changes from other electronite versions.
+
 #### Build Intel x64
 - open command prompt, cd to the build directory, and initialize build configuration:
 ```
