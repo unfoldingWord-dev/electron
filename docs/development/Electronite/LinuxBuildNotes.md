@@ -28,6 +28,9 @@ npm i -g @electron/build-tools
 git clone https://github.com/electron/build-tools ~/.electron_build_tools && (cd ~/.electron_build_tools && npm install)
 ``` 
 
+- note 32-bit builds for Linux no longer supported.
+
+
 ### Build Electronite
 #### Build x64
 - get the Electronite source code for branch (this can take many hours the first time as the git cache is loaded):
@@ -52,36 +55,6 @@ e init --root=~/Develop/Electronite-Build -o x64 x64 -i release --goma none --fo
       Open elements tab, select body of html, do Control-F to search, and search for `padauk_ttf`, and apply attribute `font-feature-settings: "wtri" 1;`.  The triangles should now be rendered correctly.
 
 - The release is at ~/Develop/Electronite-Build/src/out/Release-x64/dist.zip
-
-#### Build x86
-- open terminal and initialize build configuration (note that if you have a slow or unreliable internet connection, it is better to change the goma setting from `cache-only` to `none`):
-```
-sudo apt-get install ia32-libs-gtk ia32-libs
-```
-
-- if Electronite source already checked out, then skip to `Build Init` step.
-
-- get the Electronite source code for branch (this can take many hours the first time as the git cache is loaded):
-```
-export PATH=$PATH:~/.electron_build_tools/third_party/depot_tools:~/.electron_build_tools/src
-e init --root=~/Develop/Electronite-Build -o x64 x64 -i release --goma none --fork unfoldingWord/electronite --use-https -f
-./electronite-tools-2.sh get electronite-v21.2.0-beta
-```
-
-- Build Init: to create `x86` builds, you must have installed the x86 dependencies mentioned in the Linux build instructions above.  Then run:
-```
-cd ./src
-build/linux/sysroot_scripts/install-sysroot.py --arch=x86
-cd ..
-```
-
-- Do build (takes a long time)
-```
-./electronite-tools-2.sh build x86
-./electronite-tools-2.sh release x86
-```
-
-- The release is at ~/Develop/Electronite-Build/src/out/Release-x86/dist.zip
 
 #### Build Arm64
 - open terminal and initialize build configuration (note that if you have a slow or unreliable internet connection, it is better to change the goma setting from `cache-only` to `none`):
