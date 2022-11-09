@@ -9,10 +9,10 @@
 - installed node using nvm
   - install nvm: `curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.37.2/install.sh | bash`
   - restart terminal
-  - install latest stable node:
+  - install v16 (had build problems with latest v18):
 ```
-nvm install --lts
-nvm use --lts
+nvm install v16
+nvm use v16
 node --version
 ```
 - installed homebrew: `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"`

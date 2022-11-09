@@ -19,6 +19,7 @@ pip3 install --user pyobjc
 pip3 install importlib-metadata
 ```
 
+- use node v16 (had build problems with latest v18)
 - installed electron build-tools (https://github.com/electron/build-tools):
 ```
 npm i -g yarn
