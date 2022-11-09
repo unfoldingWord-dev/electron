@@ -25,6 +25,7 @@ pip3 install importlib-metadata
 ```
 - installed electron build-tools (https://github.com/electron/build-tools):
 ``` 
+npm i -g yarn
 sudo npm i -g @electron/build-tools
 ```
 

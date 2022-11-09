@@ -21,6 +21,7 @@ pip3 install importlib-metadata
 
 - installed electron build-tools (https://github.com/electron/build-tools):
 ```
+npm i -g yarn
 npm i -g @electron/build-tools
 ```
 - if e commands don’t work, try this and then initialization seemed to work:
