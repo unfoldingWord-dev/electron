@@ -17,7 +17,8 @@ nvm use v16
 node --version
 ```
 - installed homebrew: `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"`
-- Installed Python 3.9 (Python 3.10 has breaking changes that broke the compile) `brew install python@3.9`
+- Installed Python 3.9 (Python 3.10 has breaking changes that broke the compile) `brew install python@3.9`.  Check by `python3 --version`
+- make sure there is a Python 2 installed by `python --version` (should report 2.x.x)
 - configured Python:
 ```
 pip3 install --user --upgrade pip

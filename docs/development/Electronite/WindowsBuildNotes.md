@@ -10,8 +10,9 @@
   - Under Virus & threat protection settings, select Manage settings, and then under Exclusions, select Add or remove exclusions.
   - Add folder `.\Build-Electron` (which is the default build folder used below, or the build folder you actually use).
 - Add to git support for long file names: `git config --system core.longpaths true`
-- Installed VS 2019 Community edition and Windows SDK 10.0.19041.0.
-- Installed Python 3.9.11 (Python 3.10 has breaking changes that broke compile) from `https://www.python.org/downloads/windows/`.  Had problem at run time that `python3` could not be found.  So I found the path to the python3 installation.  When I looked in there it only had a `python.exe`, so I just copied it and renamed the copy to be `python3.exe`.
+- Installed VS 2019 Community edition and Windows SDKs 10.0.19041.0 and 10.0.20348.0.  Some Electron build will pick the one it needs.
+- Installed Python 3.9.11 (Python 3.10 has breaking changes that broke compile) from `https://www.python.org/downloads/windows/`.  Check by `python3 --version`.
+- make sure there is a Python 2 installed by `python --version` (should report 2.x.x)
 - configured Python:
 ```
 python3 -m pip install --upgrade pip setuptools wheel
