@@ -37,7 +37,7 @@ if [ "$COMMAND" == "get" ]; then
     rm -rf src.old&
   fi  
 
-  echo "Fetching code. This will take a long time and download up to 16GB."
+  echo "Fetching code. This can take hours and download over 20GB."
   gclient config --name "src/electron" --unmanaged $ELECTRONITE_REPO
   gclient sync --with_branch_heads --with_tags --nohooks --noprehooks
   cd src/electron

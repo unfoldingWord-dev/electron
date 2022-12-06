@@ -50,7 +50,7 @@ cd %depot_tools_dir% && call git reset HEAD --hard && echo depot_tools is ready
 cd %working_dir%
 
 rem fetch code
-echo Fetching code. This will take a long time and download up to 16GB.
+echo Fetching code. This can take hours and download over 20GB.
 echo Deleting src folder.
 if exist src rmdir /Q /S src
 echo Deleted src folder.
