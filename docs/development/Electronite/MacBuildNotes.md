@@ -31,19 +31,19 @@ git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
 ```
 
 ### Build Electronite
-- first make sure you have downloaded the current version of electronite-tools-2.sh.  There may have been changes from other electronite versions.
+- first make sure you have downloaded the current version of electronite-tools-3.sh.  There may have been changes from other electronite versions.
 
 #### Build Intel x64
 - get the Electronite source code for branch (this can take many hours the first time as the git cache is loaded). Open new terminal window , cd to the build folder and then run:
 ```
 export PATH=$(pwd)/depot_tools:$PATH
-./electronite-tools-2.sh get electronite-v22.0.0-beta
+./electronite-tools-3.sh get electronite-v22.0.0-beta
 ```
 
 - Do build (takes a long time)
 ```
-./electronite-tools-2.sh build x64
-./electronite-tools-2.sh release x64
+./electronite-tools-3.sh build x64
+./electronite-tools-3.sh release x64
 ```
 
 - Test the build. 
@@ -62,13 +62,13 @@ Open elements tab, select body of html, do command-F to search, and search for `
 - get the Electronite source code for branch (this can take many hours the first time as the git cache is loaded):
 ```
 export PATH=$(pwd)/depot_tools:$PATH
-./electronite-tools-2.sh get electronite-v22.0.0-beta
+./electronite-tools-3.sh get electronite-v22.0.0-beta
 ```
 
 - Do build (takes a long time)
 ```
-./electronite-tools-2.sh build arm64
-./electronite-tools-2.sh release arm64
+./electronite-tools-3.sh build arm64
+./electronite-tools-3.sh release arm64
 ```
 
 - The release is at ~/Develop/Electronite-Build/src/out/Release-arm64/dist.zip

@@ -33,19 +33,19 @@ git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
 ```
 
 ### Build Electronite
-- first make sure you have downloaded the current version of electronite-tools-2.bat.  There may have been changes from other electronite versions.
+- first make sure you have downloaded the current version of electronite-tools-3.bat.  There may have been changes from other electronite versions.
 
 #### Build Intel x64
 - open command prompt, cd to the build directory, and initialize build configuration:
 ```
 set Path=%cd%\depot_tools;%Path%; 
-.\electronite-tools-2.bat get electronite-v22.0.0-beta; 
+.\electronite-tools-3.bat get electronite-v22.0.0-beta; 
 ```
 
 - Do build (takes a long time)
 ```
-.\electronite-tools-2.bat build x64; 
-.\electronite-tools-2.bat release x64; 
+.\electronite-tools-3.bat build x64; 
+.\electronite-tools-3.bat release x64; 
 ```
 
 - Test the build.
@@ -64,13 +64,13 @@ set Path=%cd%\depot_tools;%Path%;
 - get the Electronite source code (this can take many hours the first time as the git cache is loaded), checkout the correct Electronite tag and get build sources
 ```
 set Path=%cd%\depot_tools;%Path%; 
-.\electronite-tools-2.bat get electronite-v22.0.0-beta; 
+.\electronite-tools-3.bat get electronite-v22.0.0-beta; 
 ```
 
 - Do build (takes a long time)
 ```
-.\electronite-tools-2.bat build x86; 
-.\electronite-tools-2.bat release x86; 
+.\electronite-tools-3.bat build x86; 
+.\electronite-tools-3.bat release x86; 
 ```
 
 - The release is at .\Build-Electron\src\out\Release-x86\dist.zip
@@ -81,13 +81,13 @@ set Path=%cd%\depot_tools;%Path%;
 -- get the Electronite source code (this can take many hours the first time as the git cache is loaded), checkout the correct Electronite tag and get build sources
 ```
 set Path=%cd%\depot_tools;%Path%; 
-.\electronite-tools-2.bat get electronite-v22.0.0-beta; 
+.\electronite-tools-3.bat get electronite-v22.0.0-beta; 
 ```
 
 - Do build (takes a long time)
 ```
-.\electronite-tools-2.bat build arm64; 
-.\electronite-tools-2.bat release arm64; 
+.\electronite-tools-3.bat build arm64; 
+.\electronite-tools-3.bat release arm64; 
 ```
 
 - The release is at .\Build-Electron\src\out\Release-arm64\dist.zip
