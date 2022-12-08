@@ -3,15 +3,12 @@
   "productName": "Electron Test",
   "main": "static/main.js",
   "version": "0.1.0",
-  "scripts": {
-    "postinstall": "node ../script/run-if-exists.js node_modules/robotjs node-gyp rebuild"
-  },
   "devDependencies": {
     "basic-auth": "^2.0.1",
     "chai": "^4.2.0",
     "chai-as-promised": "^7.1.1",
     "coffeescript": "^2.4.1",
-    "dbus-native": "github:jkleinsc/dbus-native#master",
+    "dbus-native": "github:nornagon/dbus-native#master",
     "dirty-chai": "^2.0.1",
     "graceful-fs": "^4.1.15",
     "is-valid-window": "0.0.5",
@@ -30,5 +27,8 @@
   },
   "dependencies": {
     "mocha-appveyor-reporter": "^0.4.2"
+  },
+  "resolutions": {
+    "nan": "github:jkleinsc/nan#remove_accessor_signature"
   }
 }

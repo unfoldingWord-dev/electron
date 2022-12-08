@@ -21,8 +21,6 @@ LINUX_BINARIES = [
   'libGLESv2.so',
   'libffmpeg.so',
   'libvk_swiftshader.so',
-  'swiftshader/libEGL.so',
-  'swiftshader/libGLESv2.so',
 ]
 
 verbose_mode = False
@@ -31,8 +29,8 @@ verbose_mode = False
 def get_platform_key():
   if 'MAS_BUILD' in os.environ:
     return 'mas'
-  else:
-    return PLATFORM
+
+  return PLATFORM
 
 
 def get_target_arch():
@@ -51,17 +49,6 @@ def get_env_var(name):
       print('Warning: Use $ELECTRON_' + name +
             ' instead of $ATOM_SHELL_' + name)
   return value
-
-
-def s3_config():
-  config = (get_env_var('S3_BUCKET'),
-            get_env_var('S3_ACCESS_KEY'),
-            get_env_var('S3_SECRET_KEY'))
-  message = ('Error: Please set the $ELECTRON_S3_BUCKET, '
-             '$ELECTRON_S3_ACCESS_KEY, and '
-             '$ELECTRON_S3_SECRET_KEY environment variables')
-  assert all(len(c) for c in config), message
-  return config
 
 
 def enable_verbose_mode():

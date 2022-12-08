@@ -14,6 +14,7 @@
 #include "gin/wrappable.h"
 #include "shell/common/gin_helper/error_thrower.h"
 #include "ui/gfx/image/image.h"
+#include "ui/gfx/image/image_skia_rep.h"
 
 #if BUILDFLAG(IS_WIN)
 #include "base/files/file_path.h"
@@ -39,9 +40,7 @@ namespace gin {
 class Arguments;
 }
 
-namespace electron {
-
-namespace api {
+namespace electron::api {
 
 class NativeImage : public gin::Wrappable<NativeImage> {
  public:
@@ -113,7 +112,7 @@ class NativeImage : public gin::Wrappable<NativeImage> {
   v8::Local<v8::Value> GetBitmap(gin::Arguments* args);
   v8::Local<v8::Value> GetNativeHandle(gin_helper::ErrorThrower thrower);
   gin::Handle<NativeImage> Resize(gin::Arguments* args,
-                                  base::DictionaryValue options);
+                                  base::Value::Dict options);
   gin::Handle<NativeImage> Crop(v8::Isolate* isolate, const gfx::Rect& rect);
   std::string ToDataURL(gin::Arguments* args);
   bool IsEmpty();
@@ -139,8 +138,6 @@ class NativeImage : public gin::Wrappable<NativeImage> {
   int32_t memory_usage_ = 0;
 };
 
-}  // namespace api
-
-}  // namespace electron
+}  // namespace electron::api
 
 #endif  // ELECTRON_SHELL_COMMON_API_ELECTRON_API_NATIVE_IMAGE_H_

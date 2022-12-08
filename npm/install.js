@@ -71,15 +71,28 @@ function isInstalled () {
 // unzips and makes path.txt point at the correct executable
 function extractFile (zipPath) {
   return new Promise((resolve, reject) => {
-    extract(zipPath, { dir: path.join(__dirname, 'dist') }, err => {
-      if (err) return reject(err);
+    const distPath = process.env.ELECTRON_OVERRIDE_DIST_PATH || path.join(__dirname, 'dist');
 
-      fs.writeFile(path.join(__dirname, 'path.txt'), platformPath, err => {
-        if (err) return reject(err);
+    extract(zipPath, { dir: path.join(__dirname, 'dist') })
+      .then(() => {
+        // If the zip contains an "electron.d.ts" file,
+        // move that up
+        const srcTypeDefPath = path.join(distPath, 'electron.d.ts');
+        const targetTypeDefPath = path.join(__dirname, 'electron.d.ts');
+        const hasTypeDefinitions = fs.existsSync(srcTypeDefPath);
 
-        resolve();
-      });
-    });
+        if (hasTypeDefinitions) {
+          try {
+            fs.renameSync(srcTypeDefPath, targetTypeDefPath);
+          } catch (err) {
+            reject(err);
+          }
+        }
+
+        // Write a "path.txt" file.
+        return fs.promises.writeFile(path.join(__dirname, 'path.txt'), platformPath);
+      })
+      .catch((err) => reject(err));
   });
 }
 

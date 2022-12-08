@@ -10,7 +10,6 @@
 #include <string>
 #include <vector>
 
-#include "base/task/post_task.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "gin/handle.h"
@@ -20,9 +19,7 @@
 #include "shell/common/gin_helper/error_thrower.h"
 #include "shell/common/gin_helper/trackable_object.h"
 
-namespace electron {
-
-namespace api {
+namespace electron::api {
 
 class View;
 
@@ -83,7 +80,7 @@ class BaseWindow : public gin_helper::TrackableObject<BaseWindow>,
   void OnWindowAlwaysOnTopChanged() override;
   void OnExecuteAppCommand(const std::string& command_name) override;
   void OnTouchBarItemResult(const std::string& item_id,
-                            const base::DictionaryValue& details) override;
+                            const base::Value::Dict& details) override;
   void OnNewWindowForTab() override;
   void OnSystemContextMenu(int x, int y, bool* prevent_default) override;
 #if BUILDFLAG(IS_WIN)
@@ -258,8 +255,8 @@ class BaseWindow : public gin_helper::TrackableObject<BaseWindow>,
 
   template <typename... Args>
   void EmitEventSoon(base::StringPiece eventName) {
-    base::PostTask(
-        FROM_HERE, {content::BrowserThread::UI},
+    content::GetUIThreadTaskRunner({})->PostTask(
+        FROM_HERE,
         base::BindOnce(base::IgnoreResult(&BaseWindow::Emit<Args...>),
                        weak_factory_.GetWeakPtr(), eventName));
   }
@@ -283,8 +280,6 @@ class BaseWindow : public gin_helper::TrackableObject<BaseWindow>,
   base::WeakPtrFactory<BaseWindow> weak_factory_{this};
 };
 
-}  // namespace api
-
-}  // namespace electron
+}  // namespace electron::api
 
 #endif  // ELECTRON_SHELL_BROWSER_API_ELECTRON_API_BASE_WINDOW_H_

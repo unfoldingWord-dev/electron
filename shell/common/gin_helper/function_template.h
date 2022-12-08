@@ -208,7 +208,7 @@ class Invoker<IndicesHolder<indices...>, ArgTypes...>
     // GCC thinks that create_flags is going unused, even though the
     // expansion above clearly makes use of it. Per jyasskin@, casting
     // to void is the commonly accepted way to convince the compiler
-    // that you're actually using a parameter/varible.
+    // that you're actually using a parameter/variable.
     (void)create_flags;
   }
 
@@ -313,7 +313,7 @@ struct CallbackTraits<base::RepeatingCallback<T>> {
 
 // Specialization for member function pointers. We need to handle this case
 // specially because the first parameter for callbacks to MFP should typically
-// come from the the JavaScript "this" object the function was called on, not
+// come from the JavaScript "this" object the function was called on, not
 // from the first normal parameter.
 template <typename T>
 struct CallbackTraits<

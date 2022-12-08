@@ -11,12 +11,14 @@
 #include "base/base_switches.h"
 #include "base/command_line.h"
 #include "base/feature_list.h"
+#include "base/i18n/rtl.h"
 #include "base/metrics/field_trial.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/icon_manager.h"
+#include "chrome/browser/ui/color/chrome_color_mixers.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_switches.h"
 #include "components/os_crypt/key_storage_config_linux.h"
@@ -25,6 +27,7 @@
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/child_process_security_policy.h"
 #include "content/public/browser/device_service.h"
+#include "content/public/browser/first_party_sets_handler.h"
 #include "content/public/browser/web_ui_controller_factory.h"
 #include "content/public/common/content_features.h"
 #include "content/public/common/content_switches.h"
@@ -73,14 +76,15 @@
 #include "ui/base/cursor/cursor_factory.h"
 #include "ui/base/ime/linux/linux_input_method_context_factory.h"
 #include "ui/gfx/color_utils.h"
-#include "ui/gtk/gtk_compat.h"      // nogncheck
-#include "ui/gtk/gtk_ui_factory.h"  // nogncheck
-#include "ui/gtk/gtk_util.h"        // nogncheck
+#include "ui/gtk/gtk_compat.h"  // nogncheck
+#include "ui/gtk/gtk_util.h"    // nogncheck
+#include "ui/linux/linux_ui.h"
+#include "ui/linux/linux_ui_factory.h"
 #include "ui/ozone/public/ozone_platform.h"
-#include "ui/views/linux_ui/linux_ui.h"
 #endif
 
 #if BUILDFLAG(IS_WIN)
+#include "base/win/dark_mode_support.h"
 #include "ui/base/l10n/l10n_util_win.h"
 #include "ui/display/win/dpi.h"
 #include "ui/gfx/system_fonts_win.h"
@@ -178,8 +182,7 @@ class DarkThemeObserver : public ui::NativeThemeObserver {
 // static
 ElectronBrowserMainParts* ElectronBrowserMainParts::self_ = nullptr;
 
-ElectronBrowserMainParts::ElectronBrowserMainParts(
-    const content::MainFunctionParams& params)
+ElectronBrowserMainParts::ElectronBrowserMainParts()
     : fake_browser_process_(std::make_unique<BrowserProcessImpl>()),
       browser_(std::make_unique<Browser>()),
       node_bindings_(
@@ -217,8 +220,15 @@ int ElectronBrowserMainParts::PreEarlyInitialization() {
   HandleSIGCHLD();
 #endif
 #if BUILDFLAG(IS_LINUX)
+  DetectOzonePlatform();
   ui::OzonePlatform::PreEarlyInitialization();
 #endif
+#if BUILDFLAG(IS_MAC)
+  screen_ = std::make_unique<display::ScopedNativeScreen>();
+#endif
+
+  ui::ColorProviderManager::Get().AppendColorProviderInitializer(
+      base::BindRepeating(AddChromeColorMixers));
 
   return GetExitCode();
 }
@@ -274,16 +284,16 @@ void ElectronBrowserMainParts::PostEarlyInitialization() {
 }
 
 int ElectronBrowserMainParts::PreCreateThreads() {
-#if defined(USE_AURA)
-  screen_ = views::CreateDesktopScreen();
-  display::Screen::SetScreenInstance(screen_.get());
-#if BUILDFLAG(IS_LINUX)
-  views::LinuxUI::instance()->UpdateDeviceScaleFactor();
-#endif
-#endif
-
-  if (!views::LayoutProvider::Get())
+  if (!views::LayoutProvider::Get()) {
     layout_provider_ = std::make_unique<views::LayoutProvider>();
+  }
+
+  // Fetch the system locale for Electron.
+#if BUILDFLAG(IS_MAC)
+  fake_browser_process_->SetSystemLocale(GetCurrentSystemLocale());
+#else
+  fake_browser_process_->SetSystemLocale(base::i18n::GetConfiguredLocale());
+#endif
 
   auto* command_line = base::CommandLine::ForCurrentProcess();
   std::string locale = command_line->GetSwitchValueASCII(::switches::kLang);
@@ -312,7 +322,15 @@ int ElectronBrowserMainParts::PreCreateThreads() {
   // Load resources bundle according to locale.
   std::string loaded_locale = LoadResourceBundle(locale);
 
-  // Initialize the app locale.
+#if defined(USE_AURA)
+  // NB: must be called _after_ locale resource bundle is loaded,
+  // because ui lib makes use of it in X11
+  if (!display::Screen::GetScreen()) {
+    screen_ = views::CreateDesktopScreen();
+  }
+#endif
+
+  // Initialize the app locale for Electron and Chromium.
   std::string app_locale = l10n_util::GetApplicationLocale(loaded_locale);
   ElectronBrowserClient::SetApplicationLocale(app_locale);
   fake_browser_process_->SetApplicationLocale(app_locale);
@@ -346,8 +364,8 @@ int ElectronBrowserMainParts::PreCreateThreads() {
 }
 
 void ElectronBrowserMainParts::PostCreateThreads() {
-  base::PostTask(
-      FROM_HERE, {content::BrowserThread::IO},
+  content::GetIOThreadTaskRunner({})->PostTask(
+      FROM_HERE,
       base::BindOnce(&tracing::TracingSamplerProfiler::CreateOnChildThread));
 }
 
@@ -365,15 +383,17 @@ void ElectronBrowserMainParts::PostDestroyThreads() {
 
 void ElectronBrowserMainParts::ToolkitInitialized() {
 #if BUILDFLAG(IS_LINUX)
-  auto linux_ui = BuildGtkUi();
-  linux_ui->Initialize();
-  DCHECK(ui::LinuxInputMethodContextFactory::instance());
+  auto linux_ui = ui::CreateLinuxUi();
 
   // Try loading gtk symbols used by Electron.
   electron::InitializeElectron_gtk(gtk::GetLibGtk());
   if (!electron::IsElectron_gtkInitialized()) {
     electron::UninitializeElectron_gtk();
   }
+
+  electron::InitializeElectron_gdk_pixbuf(gtk::GetLibGdkPixbuf());
+  CHECK(electron::IsElectron_gdk_pixbufInitialized())
+      << "Failed to initialize libgdk_pixbuf-2.0.so.0";
 
   // Chromium does not respect GTK dark theme setting, but they may change
   // in future and this code might be no longer needed. Check the Chromium
@@ -384,7 +404,7 @@ void ElectronBrowserMainParts::ToolkitInitialized() {
   // here returns a NativeThemeGtk, which monitors GTK settings.
   dark_theme_observer_ = std::make_unique<DarkThemeObserver>();
   linux_ui->GetNativeTheme(nullptr)->AddObserver(dark_theme_observer_.get());
-  views::LinuxUI::SetInstance(std::move(linux_ui));
+  ui::LinuxUi::SetInstance(std::move(linux_ui));
 
   // Cursor theme changes are tracked by LinuxUI (via a CursorThemeManager
   // implementation). Start observing them once it's initialized.
@@ -410,8 +430,8 @@ void ElectronBrowserMainParts::ToolkitInitialized() {
 int ElectronBrowserMainParts::PreMainMessageLoopRun() {
   // Run user's main script before most things get initialized, so we can have
   // a chance to setup everything.
-  node_bindings_->PrepareMessageLoop();
-  node_bindings_->RunMessageLoop();
+  node_bindings_->PrepareEmbedThread();
+  node_bindings_->StartPolling();
 
   // url::Add*Scheme are not threadsafe, this helps prevent data races.
   url::LockSchemeRegistries();
@@ -433,6 +453,11 @@ int ElectronBrowserMainParts::PreMainMessageLoopRun() {
   SpellcheckServiceFactory::GetInstance();
 #endif
 
+#if BUILDFLAG(IS_WIN)
+  // access ui native theme here to prevent blocking calls later
+  base::win::AllowDarkModeForApp(true);
+#endif
+
   content::WebUIControllerFactory::RegisterFactory(
       ElectronWebUIControllerFactory::GetInstance());
 
@@ -440,8 +465,8 @@ int ElectronBrowserMainParts::PreMainMessageLoopRun() {
   if (command_line->HasSwitch(switches::kRemoteDebuggingPipe)) {
     // --remote-debugging-pipe
     auto on_disconnect = base::BindOnce([]() {
-      base::PostTask(FROM_HERE, {content::BrowserThread::UI},
-                     base::BindOnce([]() { Browser::Get()->Quit(); }));
+      content::GetUIThreadTaskRunner({})->PostTask(
+          FROM_HERE, base::BindOnce([]() { Browser::Get()->Quit(); }));
     });
     content::DevToolsAgentHost::StartRemoteDebuggingPipeHandler(
         std::move(on_disconnect));
@@ -453,7 +478,7 @@ int ElectronBrowserMainParts::PreMainMessageLoopRun() {
 #if !BUILDFLAG(IS_MAC)
   // The corresponding call in macOS is in ElectronApplicationDelegate.
   Browser::Get()->WillFinishLaunching();
-  Browser::Get()->DidFinishLaunching(base::DictionaryValue());
+  Browser::Get()->DidFinishLaunching(base::Value::Dict());
 #endif
 
   // Notify observers that main thread message loop was initialized.
@@ -495,7 +520,7 @@ void ElectronBrowserMainParts::PostCreateMainMessageLoop() {
   // https://source.chromium.org/chromium/chromium/src/+/master:chrome/common/chrome_switches.cc;l=689;drc=9d82515060b9b75fa941986f5db7390299669ef1
   config->should_use_preference =
       command_line.HasSwitch(::switches::kEnableEncryptionSelection);
-  base::PathService::Get(chrome::DIR_USER_DATA, &config->user_data_path);
+  base::PathService::Get(DIR_SESSION_DATA, &config->user_data_path);
   OSCrypt::SetConfig(std::move(config));
 #endif
 #if BUILDFLAG(IS_POSIX)

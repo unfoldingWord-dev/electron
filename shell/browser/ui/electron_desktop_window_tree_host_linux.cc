@@ -16,8 +16,8 @@
 #include "shell/browser/ui/views/client_frame_view_linux.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/skia_conversions.h"
+#include "ui/linux/linux_ui.h"
 #include "ui/platform_window/platform_window.h"
-#include "ui/views/linux_ui/linux_ui.h"
 #include "ui/views/widget/desktop_aura/desktop_window_tree_host.h"
 #include "ui/views/widget/desktop_aura/desktop_window_tree_host_linux.h"
 #include "ui/views/window/non_client_view.h"
@@ -148,7 +148,7 @@ void ElectronDesktopWindowTreeHostLinux::UpdateClientDecorationHints(
   if (showing_frame) {
     insets = view->GetBorderDecorationInsets();
     if (base::i18n::IsRTL()) {
-      insets.Set(insets.top(), insets.right(), insets.bottom(), insets.left());
+      insets.set_left_right(insets.right(), insets.left());
     }
 
     input_insets = view->GetInputInsets();

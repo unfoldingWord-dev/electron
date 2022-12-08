@@ -14,7 +14,6 @@
 #include "base/memory/ptr_util.h"
 #include "base/stl_util.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/browser_task_traits.h"
@@ -40,7 +39,7 @@ ElectronExtensionMessageFilter::ElectronExtensionMessageFilter(
     int render_process_id,
     content::BrowserContext* browser_context)
     : BrowserMessageFilter(kExtensionFilteredMessageClasses,
-                           base::size(kExtensionFilteredMessageClasses)),
+                           std::size(kExtensionFilteredMessageClasses)),
       render_process_id_(render_process_id),
       browser_context_(browser_context) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
@@ -78,7 +77,7 @@ void ElectronExtensionMessageFilter::OnDestruct() const {
   if (BrowserThread::CurrentlyOn(BrowserThread::UI)) {
     delete this;
   } else {
-    base::DeleteSoon(FROM_HERE, {BrowserThread::UI}, this);
+    content::GetUIThreadTaskRunner({})->DeleteSoon(FROM_HERE, this);
   }
 }
 

@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import * as qs from 'querystring';
 import * as stream from 'stream';
 import { EventEmitter } from 'events';
-import { closeWindow } from './window-helpers';
+import { closeAllWindows, closeWindow } from './window-helpers';
 import { emittedOnce } from './events-helpers';
 import { WebmGenerator } from './video-helpers';
 import { delay } from './spec-helpers';
@@ -216,6 +216,8 @@ describe('protocol module', () => {
     const normalPath = path.join(fixturesPath, 'pages', 'a.html');
     const normalContent = fs.readFileSync(normalPath);
 
+    afterEach(closeAllWindows);
+
     it('sends file path as response', async () => {
       registerFileProtocol(protocolName, (request, callback) => callback(filePath));
       const r = await ajax(protocolName + '://fake-host');
@@ -237,6 +239,25 @@ describe('protocol module', () => {
       const r = await ajax(protocolName + '://fake-host');
       expect(r.data).to.equal(String(fileContent));
       expect(r.headers).to.have.property('x-great-header', 'sogreat');
+    });
+
+    it('can load iframes with custom protocols', (done) => {
+      registerFileProtocol('custom', (request, callback) => {
+        const filename = request.url.substring(9);
+        const p = path.join(__dirname, 'fixtures', 'pages', filename);
+        callback({ path: p });
+      });
+
+      const w = new BrowserWindow({
+        show: false,
+        webPreferences: {
+          nodeIntegration: true,
+          contextIsolation: false
+        }
+      });
+
+      w.loadFile(path.join(__dirname, 'fixtures', 'pages', 'iframe-protocol.html'));
+      ipcMain.once('loaded-iframe-custom-protocol', () => done());
     });
 
     it.skip('throws an error when custom headers are invalid', (done) => {
@@ -764,10 +785,7 @@ describe('protocol module', () => {
       await expect(contents.executeJavaScript(`navigator.serviceWorker.register('${v4()}.notjs', {scope: './'})`)).to.be.rejected();
     });
 
-    // TODO(nornagon): I'm not sure why this isn't working, but I'm choosing to
-    // disable this test for now to land the roll. See
-    // https://github.com/electron/electron/issues/32664.
-    it.skip('should be able to register service worker for custom scheme', async () => {
+    it('should be able to register service worker for custom scheme', async () => {
       await contents.loadURL(`${serviceWorkerScheme}://${v4()}.com`);
       await contents.executeJavaScript(`navigator.serviceWorker.register('${v4()}.js', {scope: './'})`);
     });

@@ -66,13 +66,11 @@ struct Converter<network::mojom::CredentialsMode> {
       return false;
     return true;
   }
-};  // namespace gin
+};
 
 }  // namespace gin
 
-namespace electron {
-
-namespace api {
+namespace electron::api {
 
 namespace {
 
@@ -491,7 +489,7 @@ gin::Handle<SimpleURLLoaderWrapper> SimpleURLLoaderWrapper::Create(
   int options = 0;
   if (!credentials_specified && !use_session_cookies) {
     // This is the default case, as well as the case when credentials is not
-    // specified and useSessionCoookies is false. credentials_mode will be
+    // specified and useSessionCookies is false. credentials_mode will be
     // kInclude, but cookies will be blocked.
     request->credentials_mode = network::mojom::CredentialsMode::kInclude;
     options |= network::mojom::kURLLoadOptionBlockAllCookies;
@@ -614,6 +612,4 @@ const char* SimpleURLLoaderWrapper::GetTypeName() {
   return "SimpleURLLoaderWrapper";
 }
 
-}  // namespace api
-
-}  // namespace electron
+}  // namespace electron::api

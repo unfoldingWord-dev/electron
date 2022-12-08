@@ -117,6 +117,10 @@ void Browser::Hide() {
   [[AtomApplication sharedApplication] hide:nil];
 }
 
+bool Browser::IsHidden() {
+  return [[AtomApplication sharedApplication] isHidden];
+}
+
 void Browser::Show() {
   [[AtomApplication sharedApplication] unhide:nil];
 }
@@ -231,14 +235,14 @@ bool Browser::SetBadgeCount(absl::optional<int> count) {
 }
 
 void Browser::SetUserActivity(const std::string& type,
-                              base::DictionaryValue user_info,
+                              base::Value::Dict user_info,
                               gin::Arguments* args) {
   std::string url_string;
   args->GetNext(&url_string);
 
   [[AtomApplication sharedApplication]
       setCurrentActivity:base::SysUTF8ToNSString(type)
-            withUserInfo:DictionaryValueToNSDictionary(user_info)
+            withUserInfo:DictionaryValueToNSDictionary(std::move(user_info))
           withWebpageURL:net::NSURLWithGURL(GURL(url_string))];
 }
 
@@ -257,10 +261,11 @@ void Browser::ResignCurrentActivity() {
 }
 
 void Browser::UpdateCurrentActivity(const std::string& type,
-                                    base::DictionaryValue user_info) {
+                                    base::Value::Dict user_info) {
   [[AtomApplication sharedApplication]
       updateCurrentActivity:base::SysUTF8ToNSString(type)
-               withUserInfo:DictionaryValueToNSDictionary(user_info)];
+               withUserInfo:DictionaryValueToNSDictionary(
+                                std::move(user_info))];
 }
 
 bool Browser::WillContinueUserActivity(const std::string& type) {
@@ -277,25 +282,27 @@ void Browser::DidFailToContinueUserActivity(const std::string& type,
 }
 
 bool Browser::ContinueUserActivity(const std::string& type,
-                                   base::DictionaryValue user_info,
-                                   base::DictionaryValue details) {
+                                   base::Value::Dict user_info,
+                                   base::Value::Dict details) {
   bool prevent_default = false;
   for (BrowserObserver& observer : observers_)
-    observer.OnContinueUserActivity(&prevent_default, type, user_info, details);
+    observer.OnContinueUserActivity(&prevent_default, type, user_info.Clone(),
+                                    details.Clone());
   return prevent_default;
 }
 
 void Browser::UserActivityWasContinued(const std::string& type,
-                                       base::DictionaryValue user_info) {
+                                       base::Value::Dict user_info) {
   for (BrowserObserver& observer : observers_)
-    observer.OnUserActivityWasContinued(type, user_info);
+    observer.OnUserActivityWasContinued(type, user_info.Clone());
 }
 
 bool Browser::UpdateUserActivityState(const std::string& type,
-                                      base::DictionaryValue user_info) {
+                                      base::Value::Dict user_info) {
   bool prevent_default = false;
   for (BrowserObserver& observer : observers_)
-    observer.OnUpdateUserActivityState(&prevent_default, type, user_info);
+    observer.OnUpdateUserActivityState(&prevent_default, type,
+                                       user_info.Clone());
   return prevent_default;
 }
 
@@ -314,37 +321,6 @@ Browser::LoginItemSettings Browser::GetLoginItemSettings(
   return settings;
 }
 
-void RemoveFromLoginItems() {
-#pragma clang diagnostic push  // https://crbug.com/1154377
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-  // logic to find the login item copied from GetLoginItemForApp in
-  // base/mac/mac_util.mm
-  base::ScopedCFTypeRef<LSSharedFileListRef> login_items(
-      LSSharedFileListCreate(NULL, kLSSharedFileListSessionLoginItems, NULL));
-  if (!login_items.get()) {
-    LOG(ERROR) << "Couldn't get a Login Items list.";
-    return;
-  }
-  base::scoped_nsobject<NSArray> login_items_array(
-      base::mac::CFToNSCast(LSSharedFileListCopySnapshot(login_items, NULL)));
-  NSURL* url = [NSURL fileURLWithPath:[base::mac::MainBundle() bundlePath]];
-  for (NSUInteger i = 0; i < [login_items_array count]; ++i) {
-    LSSharedFileListItemRef item =
-        reinterpret_cast<LSSharedFileListItemRef>(login_items_array[i]);
-    base::ScopedCFTypeRef<CFErrorRef> error;
-    CFURLRef item_url_ref =
-        LSSharedFileListItemCopyResolvedURL(item, 0, error.InitializeInto());
-    if (!error && item_url_ref) {
-      base::ScopedCFTypeRef<CFURLRef> item_url(item_url_ref);
-      if (CFEqual(item_url, url)) {
-        LSSharedFileListItemRemove(login_items, item);
-        return;
-      }
-    }
-  }
-#pragma clang diagnostic pop
-}
-
 void Browser::SetLoginItemSettings(LoginItemSettings settings) {
 #if defined(MAS_BUILD)
   if (!platform_util::SetLoginItemEnabled(settings.open_at_login)) {
@@ -354,7 +330,7 @@ void Browser::SetLoginItemSettings(LoginItemSettings settings) {
   if (settings.open_at_login) {
     base::mac::AddToLoginItems(settings.open_as_hidden);
   } else {
-    RemoveFromLoginItems();
+    base::mac::RemoveFromLoginItems();
   }
 #endif
 }
@@ -394,10 +370,10 @@ std::string Browser::DockGetBadgeText() {
 
 void Browser::DockHide() {
   // Transforming application state from UIElement to Foreground is an
-  // asyncronous operation, and unfortunately there is currently no way to know
+  // asynchronous operation, and unfortunately there is currently no way to know
   // when it is finished.
   // So if we call DockHide => DockShow => DockHide => DockShow in a very short
-  // time, we would triger a bug of macOS that, there would be multiple dock
+  // time, we would trigger a bug of macOS that, there would be multiple dock
   // icons of the app left in system.
   // To work around this, we make sure DockHide does nothing if it is called
   // immediately after DockShow. After some experiments, 1 second seems to be
@@ -476,7 +452,8 @@ void Browser::DockSetIcon(v8::Isolate* isolate, v8::Local<v8::Value> icon) {
 }
 
 void Browser::ShowAboutPanel() {
-  NSDictionary* options = DictionaryValueToNSDictionary(about_panel_options_);
+  NSDictionary* options =
+      DictionaryValueToNSDictionary(about_panel_options_.GetDict());
 
   // Credits must be a NSAttributedString instead of NSString
   NSString* credits = (NSString*)options[@"Credits"];
@@ -498,11 +475,11 @@ void Browser::ShowAboutPanel() {
       orderFrontStandardAboutPanelWithOptions:options];
 }
 
-void Browser::SetAboutPanelOptions(base::DictionaryValue options) {
+void Browser::SetAboutPanelOptions(base::Value::Dict options) {
   about_panel_options_.DictClear();
 
-  for (const auto pair : options.DictItems()) {
-    std::string key = std::string(pair.first);
+  for (const auto pair : options) {
+    std::string key = pair.first;
     if (!key.empty() && pair.second.is_string()) {
       key[0] = base::ToUpperASCII(key[0]);
       auto val = std::make_unique<base::Value>(pair.second.Clone());

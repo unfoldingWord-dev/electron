@@ -2,11 +2,11 @@ import { expect } from 'chai';
 import * as http from 'http';
 import * as path from 'path';
 import * as url from 'url';
-import { BrowserWindow, WebFrameMain, webFrameMain, ipcMain } from 'electron/main';
+import { BrowserWindow, WebFrameMain, webFrameMain, ipcMain, app, WebContents } from 'electron/main';
 import { closeAllWindows } from './window-helpers';
 import { emittedOnce, emittedNTimes } from './events-helpers';
 import { AddressInfo } from 'net';
-import { ifit, waitUntil } from './spec-helpers';
+import { defer, ifit, waitUntil } from './spec-helpers';
 
 describe('webFrameMain module', () => {
   const fixtures = path.resolve(__dirname, '..', 'spec-main', 'fixtures');
@@ -39,7 +39,7 @@ describe('webFrameMain module', () => {
     let webFrame: WebFrameMain;
 
     beforeEach(async () => {
-      w = new BrowserWindow({ show: false, webPreferences: { contextIsolation: true } });
+      w = new BrowserWindow({ show: false });
       await w.loadFile(path.join(subframesPath, 'frame-with-frame-container.html'));
       webFrame = w.webContents.mainFrame;
     });
@@ -88,8 +88,8 @@ describe('webFrameMain module', () => {
     });
 
     describe('cross-origin', () => {
-      let serverA = null as unknown as Server;
-      let serverB = null as unknown as Server;
+      let serverA: Server;
+      let serverB: Server;
 
       before(async () => {
         serverA = await createServer();
@@ -112,7 +112,7 @@ describe('webFrameMain module', () => {
 
   describe('WebFrame.url', () => {
     it('should report correct address for each subframe', async () => {
-      const w = new BrowserWindow({ show: false, webPreferences: { contextIsolation: true } });
+      const w = new BrowserWindow({ show: false });
       await w.loadFile(path.join(subframesPath, 'frame-with-frame-container.html'));
       const webFrame = w.webContents.mainFrame;
 
@@ -122,9 +122,59 @@ describe('webFrameMain module', () => {
     });
   });
 
+  describe('WebFrame.origin', () => {
+    it('should be null for a fresh WebContents', () => {
+      const w = new BrowserWindow({ show: false });
+      expect(w.webContents.mainFrame.origin).to.equal('null');
+    });
+
+    it('should be file:// for file frames', async () => {
+      const w = new BrowserWindow({ show: false });
+      await w.loadFile(path.join(fixtures, 'blank.html'));
+      expect(w.webContents.mainFrame.origin).to.equal('file://');
+    });
+
+    it('should be http:// for an http frame', async () => {
+      const w = new BrowserWindow({ show: false });
+      const s = await createServer();
+      defer(() => s.server.close());
+      await w.loadURL(s.url);
+      expect(w.webContents.mainFrame.origin).to.equal(s.url.replace(/\/$/, ''));
+    });
+
+    it('should show parent origin when child page is about:blank', async () => {
+      const w = new BrowserWindow({ show: false });
+      await w.loadFile(path.join(fixtures, 'blank.html'));
+      const webContentsCreated: Promise<[unknown, WebContents]> = emittedOnce(app, 'web-contents-created') as any;
+      expect(w.webContents.mainFrame.origin).to.equal('file://');
+      await w.webContents.executeJavaScript('window.open("", null, "show=false"), null');
+      const [, childWebContents] = await webContentsCreated;
+      expect(childWebContents.mainFrame.origin).to.equal('file://');
+    });
+
+    it('should show parent frame\'s origin when about:blank child window opened through cross-origin subframe', async () => {
+      const w = new BrowserWindow({ show: false });
+      const serverA = await createServer();
+      const serverB = await createServer();
+      defer(() => {
+        serverA.server.close();
+        serverB.server.close();
+      });
+      await w.loadURL(serverA.url + '?frameSrc=' + encodeURIComponent(serverB.url));
+      const { mainFrame } = w.webContents;
+      expect(mainFrame.origin).to.equal(serverA.url.replace(/\/$/, ''));
+      const [childFrame] = mainFrame.frames;
+      expect(childFrame.origin).to.equal(serverB.url.replace(/\/$/, ''));
+      const webContentsCreated: Promise<[unknown, WebContents]> = emittedOnce(app, 'web-contents-created') as any;
+      await childFrame.executeJavaScript('window.open("", null, "show=false"), null');
+      const [, childWebContents] = await webContentsCreated;
+      expect(childWebContents.mainFrame.origin).to.equal(childFrame.origin);
+    });
+  });
+
   describe('WebFrame IDs', () => {
     it('has properties for various identifiers', async () => {
-      const w = new BrowserWindow({ show: false, webPreferences: { contextIsolation: true } });
+      const w = new BrowserWindow({ show: false });
       await w.loadFile(path.join(subframesPath, 'frame.html'));
       const webFrame = w.webContents.mainFrame;
       expect(webFrame).to.have.ownProperty('url').that.is.a('string');
@@ -137,7 +187,9 @@ describe('webFrameMain module', () => {
   });
 
   describe('WebFrame.visibilityState', () => {
-    it('should match window state', async () => {
+    // TODO(MarshallOfSound): Fix flaky test
+    // @flaky-test
+    it.skip('should match window state', async () => {
       const w = new BrowserWindow({ show: true });
       await w.loadURL('about:blank');
       const webFrame = w.webContents.mainFrame;
@@ -152,7 +204,7 @@ describe('webFrameMain module', () => {
 
   describe('WebFrame.executeJavaScript', () => {
     it('can inject code into any subframe', async () => {
-      const w = new BrowserWindow({ show: false, webPreferences: { contextIsolation: true } });
+      const w = new BrowserWindow({ show: false });
       await w.loadFile(path.join(subframesPath, 'frame-with-frame-container.html'));
       const webFrame = w.webContents.mainFrame;
 
@@ -161,11 +213,49 @@ describe('webFrameMain module', () => {
       expect(await getUrl(webFrame.frames[0])).to.equal(fileUrl('frame-with-frame.html'));
       expect(await getUrl(webFrame.frames[0].frames[0])).to.equal(fileUrl('frame.html'));
     });
+
+    it('can resolve promise', async () => {
+      const w = new BrowserWindow({ show: false });
+      await w.loadFile(path.join(subframesPath, 'frame.html'));
+      const webFrame = w.webContents.mainFrame;
+      const p = () => webFrame.executeJavaScript('new Promise(resolve => setTimeout(resolve(42), 2000));');
+      const result = await p();
+      expect(result).to.equal(42);
+    });
+
+    it('can reject with error', async () => {
+      const w = new BrowserWindow({ show: false });
+      await w.loadFile(path.join(subframesPath, 'frame.html'));
+      const webFrame = w.webContents.mainFrame;
+      const p = () => webFrame.executeJavaScript('new Promise((r,e) => setTimeout(e("error!"), 500));');
+      await expect(p()).to.be.eventually.rejectedWith('error!');
+      const errorTypes = new Set([
+        Error,
+        ReferenceError,
+        EvalError,
+        RangeError,
+        SyntaxError,
+        TypeError,
+        URIError
+      ]);
+      for (const error of errorTypes) {
+        await expect(webFrame.executeJavaScript(`Promise.reject(new ${error.name}("Wamp-wamp"))`))
+          .to.eventually.be.rejectedWith(/Error/);
+      }
+    });
+
+    it('can reject when script execution fails', async () => {
+      const w = new BrowserWindow({ show: false });
+      await w.loadFile(path.join(subframesPath, 'frame.html'));
+      const webFrame = w.webContents.mainFrame;
+      const p = () => webFrame.executeJavaScript('console.log(test)');
+      await expect(p()).to.be.eventually.rejectedWith(/ReferenceError/);
+    });
   });
 
   describe('WebFrame.reload', () => {
     it('reloads a frame', async () => {
-      const w = new BrowserWindow({ show: false, webPreferences: { contextIsolation: true } });
+      const w = new BrowserWindow({ show: false });
       await w.loadFile(path.join(subframesPath, 'frame.html'));
       const webFrame = w.webContents.mainFrame;
 
@@ -198,7 +288,7 @@ describe('webFrameMain module', () => {
     let w: BrowserWindow;
 
     beforeEach(async () => {
-      w = new BrowserWindow({ show: false, webPreferences: { contextIsolation: true } });
+      w = new BrowserWindow({ show: false });
     });
 
     // TODO(jkleinsc) fix this flaky test on linux
@@ -222,6 +312,37 @@ describe('webFrameMain module', () => {
       expect(w.webContents.mainFrame).to.equal(mainFrame);
       expect(mainFrame.url).to.equal(crossOriginUrl);
     });
+
+    it('recovers from renderer crash on same-origin', async () => {
+      const server = await createServer();
+      // Keep reference to mainFrame alive throughout crash and recovery.
+      const { mainFrame } = w.webContents;
+      await w.webContents.loadURL(server.url);
+      const crashEvent = emittedOnce(w.webContents, 'render-process-gone');
+      w.webContents.forcefullyCrashRenderer();
+      await crashEvent;
+      await w.webContents.loadURL(server.url);
+      // Log just to keep mainFrame in scope.
+      console.log('mainFrame.url', mainFrame.url);
+    });
+
+    // Fixed by #34411
+    it('recovers from renderer crash on cross-origin', async () => {
+      const server = await createServer();
+      // 'localhost' is treated as a separate origin.
+      const crossOriginUrl = server.url.replace('127.0.0.1', 'localhost');
+      // Keep reference to mainFrame alive throughout crash and recovery.
+      const { mainFrame } = w.webContents;
+      await w.webContents.loadURL(server.url);
+      const crashEvent = emittedOnce(w.webContents, 'render-process-gone');
+      w.webContents.forcefullyCrashRenderer();
+      await crashEvent;
+      // A short wait seems to be required to reproduce the crash.
+      await new Promise(resolve => setTimeout(resolve, 100));
+      await w.webContents.loadURL(crossOriginUrl);
+      // Log just to keep mainFrame in scope.
+      console.log('mainFrame.url', mainFrame.url);
+    });
   });
 
   describe('webFrameMain.fromId', () => {
@@ -230,7 +351,7 @@ describe('webFrameMain module', () => {
     });
 
     it('can find each frame from navigation events', async () => {
-      const w = new BrowserWindow({ show: false, webPreferences: { contextIsolation: true } });
+      const w = new BrowserWindow({ show: false });
 
       // frame-with-frame-container.html, frame-with-frame.html, frame.html
       const didFrameFinishLoad = emittedNTimes(w.webContents, 'did-frame-finish-load', 3);

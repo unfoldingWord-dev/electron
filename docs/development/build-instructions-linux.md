@@ -47,10 +47,10 @@ $ sudo yum install clang dbus-devel gtk3-devel libnotify-devel \
 On Fedora, install the following libraries:
 
 ```sh
-$ sudo dnf install clang dbus-devel gtk3-devel libnotify-devel \
-                   libgnome-keyring-devel xorg-x11-server-utils libcap-devel \
+$ sudo dnf install clang dbus-devel gperf gtk3-devel \
+                   libnotify-devel libgnome-keyring-devel libcap-devel \
                    cups-devel libXtst-devel alsa-lib-devel libXrandr-devel \
-                   nss-devel python-dbusmock openjdk-8-jre
+                   nss-devel python-dbusmock
 ```
 
 On Arch Linux / Manjaro, install the following libraries:
@@ -82,7 +82,7 @@ $ sudo apt-get install libc6-dev-arm64-cross linux-libc-dev-arm64-cross \
                        g++-aarch64-linux-gnu
 ```
 
-And to cross-compile for `arm` or `ia32` targets, you should pass the
+And to cross-compile for `arm` or targets, you should pass the
 `target_cpu` parameter to `gn gen`:
 
 ```sh

@@ -35,7 +35,7 @@ for all windows, webviews, opened devtools, and devtools extension background pa
 
 ### `webContents.getFocusedWebContents()`
 
-Returns `WebContents` - The web contents that is focused in this application, otherwise
+Returns `WebContents` | null - The web contents that is focused in this application, otherwise
 returns `null`.
 
 ### `webContents.fromId(id)`
@@ -44,6 +44,13 @@ returns `null`.
 
 Returns `WebContents` | undefined - A WebContents instance with the given ID, or
 `undefined` if there is no WebContents associated with the given ID.
+
+### `webContents.fromFrame(frame)`
+
+* `frame` WebFrameMain
+
+Returns `WebContents` | undefined - A WebContents instance with the given WebFrameMain, or
+`undefined` if there is no WebContents associated with the given WebFrameMain.
 
 ### `webContents.fromDevToolsTargetId(targetId)`
 
@@ -92,7 +99,7 @@ Returns:
 * `frameRoutingId` Integer
 
 This event is like `did-finish-load` but emitted when the load failed.
-The full list of error codes and their meaning is available [here](https://source.chromium.org/chromium/chromium/src/+/master:net/base/net_error_list.h).
+The full list of error codes and their meaning is available [here](https://source.chromium.org/chromium/chromium/src/+/main:net/base/net_error_list.h).
 
 #### Event: 'did-fail-provisional-load'
 
@@ -820,9 +827,6 @@ This event can be used to configure `webPreferences` for the `webContents`
 of a `<webview>` before it's loaded, and provides the ability to set settings
 that can't be set via `<webview>` attributes.
 
-**Note:** The specified `preload` script option will appear as `preloadURL`
-(not `preload`) in the `webPreferences` object emitted with this event.
-
 #### Event: 'did-attach-webview'
 
 Returns:
@@ -865,6 +869,8 @@ Returns:
 
 Emitted when the renderer process sends an asynchronous message via `ipcRenderer.send()`.
 
+See also [`webContents.ipc`](#contentsipc-readonly), which provides an [`IpcMain`](ipc-main.md)-like interface for responding to IPC messages specifically from this WebContents.
+
 #### Event: 'ipc-message-sync'
 
 Returns:
@@ -874,6 +880,8 @@ Returns:
 * `...args` any[]
 
 Emitted when the renderer process sends a synchronous message via `ipcRenderer.sendSync()`.
+
+See also [`webContents.ipc`](#contentsipc-readonly), which provides an [`IpcMain`](ipc-main.md)-like interface for responding to IPC messages specifically from this WebContents.
 
 #### Event: 'preferred-size-changed'
 
@@ -1431,7 +1439,7 @@ Returns `Promise<PrinterInfo[]>` - Resolves with a [`PrinterInfo[]`](structures/
   * `header` string (optional) - string to be printed as page header.
   * `footer` string (optional) - string to be printed as page footer.
   * `pageSize` string | Size (optional) - Specify page size of the printed document. Can be `A3`,
-  `A4`, `A5`, `Legal`, `Letter`, `Tabloid` or an Object containing `height`.
+  `A4`, `A5`, `Legal`, `Letter`, `Tabloid` or an Object containing `height` and `width`.
 * `callback` Function (optional)
   * `success` boolean - Indicates success of the print call.
   * `failureReason` string - Error description called back if the print fails.
@@ -1462,42 +1470,27 @@ win.webContents.print(options, (success, errorType) => {
 #### `contents.printToPDF(options)`
 
 * `options` Object
-  * `headerFooter` Record<string, string> (optional) - the header and footer for the PDF.
-    * `title` string - The title for the PDF header.
-    * `url` string - the url for the PDF footer.
-  * `landscape` boolean (optional) - `true` for landscape, `false` for portrait.
-  * `marginsType` Integer (optional) - Specifies the type of margins to use. Uses 0 for
-    default margin, 1 for no margin, and 2 for minimum margin.
-  * `scaleFactor` number (optional) - The scale factor of the web page. Can range from 0 to 100.
-  * `pageRanges` Record<string, number> (optional) - The page range to print.
-    * `from` number - Index of the first page to print (0-based).
-    * `to` number - Index of the last page to print (inclusive) (0-based).
-  * `pageSize` string | Size (optional) - Specify page size of the generated PDF. Can be `A3`,
-  `A4`, `A5`, `Legal`, `Letter`, `Tabloid` or an Object containing `height` and `width` in microns.
-  * `printBackground` boolean (optional) - Whether to print CSS backgrounds.
-  * `printSelectionOnly` boolean (optional) - Whether to print selection only.
+  * `landscape` boolean (optional) - Paper orientation.`true` for landscape, `false` for portrait. Defaults to false.
+  * `displayHeaderFooter` boolean (optional) - Whether to display header and footer. Defaults to false.
+  * `printBackground` boolean (optional) - Whether to print background graphics. Defaults to false.
+  * `scale` number(optional)  - Scale of the webpage rendering. Defaults to 1.
+  * `pageSize` string | Size (optional) - Specify page size of the generated PDF. Can be `A0`, `A1`, `A2`, `A3`,
+  `A4`, `A5`, `A6`, `Legal`, `Letter`, `Tabloid`, `Ledger`, or an Object containing `height` and `width` in inches. Defaults to `Letter`.
+  * `margins` Object (optional)
+    * `top` number (optional) - Top margin in inches. Defaults to 1cm (~0.4 inches).
+    * `bottom` number (optional) - Bottom margin in inches. Defaults to 1cm (~0.4 inches).
+    * `left` number (optional) - Left margin in inches. Defaults to 1cm (~0.4 inches).
+    * `right` number (optional) - Right margin in inches. Defaults to 1cm (~0.4 inches).
+  * `pageRanges` string (optional) - Paper ranges to print, e.g., '1-5, 8, 11-13'. Defaults to the empty string, which means print all pages.
+  * `headerTemplate` string (optional) - HTML template for the print header. Should be valid HTML markup with following classes used to inject printing values into them: `date` (formatted print date), `title` (document title), `url` (document location), `pageNumber` (current page number) and `totalPages` (total pages in the document). For example, `<span class=title></span>` would generate span containing the title.
+  * `footerTemplate` string (optional) - HTML template for the print footer. Should use the same format as the `headerTemplate`.
+  * `preferCSSPageSize` boolean (optional) - Whether or not to prefer page size as defined by css. Defaults to false, in which case the content will be scaled to fit the paper size.
 
 Returns `Promise<Buffer>` - Resolves with the generated PDF data.
 
-Prints window's web page as PDF with Chromium's preview printing custom
-settings.
+Prints the window's web page as PDF.
 
 The `landscape` will be ignored if `@page` CSS at-rule is used in the web page.
-
-By default, an empty `options` will be regarded as:
-
-```javascript
-{
-  marginsType: 0,
-  printBackground: false,
-  printSelectionOnly: false,
-  landscape: false,
-  pageSize: 'A4',
-  scaleFactor: 100
-}
-```
-
-Use `page-break-before: always;` CSS style to force to print to a new page.
 
 An example of `webContents.printToPDF`:
 
@@ -1507,7 +1500,7 @@ const fs = require('fs')
 const path = require('path')
 const os = require('os')
 
-const win = new BrowserWindow({ width: 800, height: 600 })
+const win = new BrowserWindow()
 win.loadURL('http://github.com')
 
 win.webContents.on('did-finish-load', () => {
@@ -1523,6 +1516,8 @@ win.webContents.on('did-finish-load', () => {
   })
 })
 ```
+
+See [Page.printToPdf](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-printToPDF) for more information.
 
 #### `contents.addWorkSpace(path)`
 
@@ -1637,6 +1632,8 @@ Opens the devtools.
 
 When `contents` is a `<webview>` tag, the `mode` would be `detach` by default,
 explicitly passing an empty `mode` can force using last used dock state.
+
+On Windows, if Windows Control Overlay is enabled, Devtools will be opened with `mode: 'detach'`.
 
 #### `contents.closeDevTools()`
 
@@ -2001,6 +1998,35 @@ This corresponds to the [animationPolicy][] accessibility feature in Chromium.
 
 ### Instance Properties
 
+#### `contents.ipc` _Readonly_
+
+An [`IpcMain`](ipc-main.md) scoped to just IPC messages sent from this
+WebContents.
+
+IPC messages sent with `ipcRenderer.send`, `ipcRenderer.sendSync` or
+`ipcRenderer.postMessage` will be delivered in the following order:
+
+1. `contents.on('ipc-message')`
+2. `contents.mainFrame.on(channel)`
+3. `contents.ipc.on(channel)`
+4. `ipcMain.on(channel)`
+
+Handlers registered with `invoke` will be checked in the following order. The
+first one that is defined will be called, the rest will be ignored.
+
+1. `contents.mainFrame.handle(channel)`
+2. `contents.handle(channel)`
+3. `ipcMain.handle(channel)`
+
+A handler or event listener registered on the WebContents will receive IPC
+messages sent from any frame, including child frames. In most cases, only the
+main frame can send IPC messages. However, if the `nodeIntegrationInSubFrames`
+option is enabled, it is possible for child frames to send IPC messages also.
+In that case, handlers should check the `senderFrame` property of the IPC event
+to ensure that the message is coming from the expected frame. Alternatively,
+register handlers on the appropriate frame directly using the
+[`WebFrameMain.ipc`](web-frame-main.md#frameipc-readonly) interface.
+
 #### `contents.audioMuted`
 
 A `boolean` property that determines whether this page is muted.
@@ -2059,6 +2085,11 @@ when the page becomes backgrounded. This also affects the Page Visibility API.
 #### `contents.mainFrame` _Readonly_
 
 A [`WebFrameMain`](web-frame-main.md) property that represents the top frame of the page's frame hierarchy.
+
+#### `contents.opener` _Readonly_
+
+A [`WebFrameMain`](web-frame-main.md) property that represents the frame that opened this WebContents, either
+with open(), or by navigating a link with a target attribute.
 
 [keyboardevent]: https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent
 [event-emitter]: https://nodejs.org/api/events.html#events_class_eventemitter

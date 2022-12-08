@@ -8,26 +8,26 @@ This allows dragging and dropping between <webview>s.
 Originally landed in https://github.com/electron/libchromiumcontent/pull/267
 
 diff --git a/content/browser/web_contents/web_contents_view_aura.cc b/content/browser/web_contents/web_contents_view_aura.cc
-index eff6616ef019ea8b661b878cc5fccd1e4b9217aa..9aff1848395dc41311df575dd7cbf0771271ed03 100644
+index 3e2342d28760172bcfd765f7ac3733b4d89a1445..351bee9cfcc31dc6ca06f1fc502b70617105191a 100644
 --- a/content/browser/web_contents/web_contents_view_aura.cc
 +++ b/content/browser/web_contents/web_contents_view_aura.cc
-@@ -890,10 +890,7 @@ bool WebContentsViewAura::IsValidDragTarget(
-   // TODO(https://crbug.com/1266953): There are some known gaps caused by
-   // comparing `RenderViewHost` IDs, as `RenderViewHost` ID is not really a
-   // strong signal for page identity.
--  return !drag_start_ ||
--         target_rwh->GetProcess()->GetID() == drag_start_->process_id ||
--         GetRenderViewHostID(web_contents_->GetRenderViewHost()) !=
--             drag_start_->view_id;
+@@ -916,10 +916,7 @@ bool WebContentsViewAura::IsValidDragTarget(
+   // for the outermost view. Inner `WebContents` will have a
+   // `WebContentsViewChildFrame` so when dragging between an inner
+   // `WebContents` and its embedder the view IDs will be the same.
+-  bool cross_tab_drag =
+-      GetRenderViewHostID(web_contents_->GetRenderViewHost()) !=
+-      drag_start_->view_id;
+-  return cross_tab_drag;
 +  return true;
  }
  
  ////////////////////////////////////////////////////////////////////////////////
 diff --git a/content/browser/web_contents/web_drag_dest_mac.mm b/content/browser/web_contents/web_drag_dest_mac.mm
-index 6455404fdccab1fffceef4b8d291c137d3a448c4..483b0b5b689da03f0d7e43576fa73275197f5a95 100644
+index dab3703cc4469802bae9e4d45c3e7d0f0857f577..ecd8af37c681ae5c97060af00bbeb8ebddb72b26 100644
 --- a/content/browser/web_contents/web_drag_dest_mac.mm
 +++ b/content/browser/web_contents/web_drag_dest_mac.mm
-@@ -385,9 +385,7 @@ - (void)setDragStartTrackersForProcess:(int)processID {
+@@ -388,9 +388,7 @@ - (void)setDragStartTrackersForProcess:(int)processID {
  }
  
  - (bool)isValidDragTarget:(content::RenderWidgetHostImpl*)targetRWH {

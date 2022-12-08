@@ -14,8 +14,8 @@
 #include "base/files/file_path.h"
 #include "base/no_destructor.h"
 #include "base/path_service.h"
+#include "base/strings/escape.h"
 #include "base/strings/string_util.h"
-#include "base/task/post_task.h"
 #include "base/threading/sequenced_task_runner_handle.h"
 #include "base/threading/thread_restrictions.h"
 #include "chrome/common/chrome_paths.h"
@@ -33,7 +33,6 @@
 #include "content/public/browser/cors_origin_pattern_setter.h"
 #include "content/public/browser/shared_cors_origin_access_list.h"
 #include "content/public/browser/storage_partition.h"
-#include "net/base/escape.h"
 #include "services/network/public/cpp/features.h"
 #include "services/network/public/cpp/wrapper_shared_url_loader_factory.h"
 #include "services/network/public/mojom/network_context.mojom.h"
@@ -47,6 +46,7 @@
 #include "shell/browser/protocol_registry.h"
 #include "shell/browser/special_storage_policy.h"
 #include "shell/browser/ui/inspectable_web_contents.h"
+#include "shell/browser/web_contents_permission_helper.h"
 #include "shell/browser/web_view_manager.h"
 #include "shell/browser/zoom_level_delegate.h"
 #include "shell/common/application_info.h"
@@ -88,7 +88,7 @@ namespace {
 
 // Convert string to lower case and escape it.
 std::string MakePartitionName(const std::string& input) {
-  return net::EscapePath(base::ToLowerASCII(input));
+  return base::EscapePath(base::ToLowerASCII(input));
 }
 
 }  // namespace
@@ -103,25 +103,22 @@ ElectronBrowserContext::browser_context_map() {
 
 ElectronBrowserContext::ElectronBrowserContext(const std::string& partition,
                                                bool in_memory,
-                                               base::DictionaryValue options)
+                                               base::Value::Dict options)
     : storage_policy_(base::MakeRefCounted<SpecialStoragePolicy>()),
       protocol_registry_(base::WrapUnique(new ProtocolRegistry)),
       in_memory_(in_memory),
       ssl_config_(network::mojom::SSLConfig::New()) {
-  user_agent_ = ElectronBrowserClient::Get()->GetUserAgent();
-
   // Read options.
   base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
   use_cache_ = !command_line->HasSwitch(switches::kDisableHttpCache);
-  if (auto use_cache_opt = options.FindBoolKey("cache")) {
+  if (auto use_cache_opt = options.FindBool("cache")) {
     use_cache_ = use_cache_opt.value();
   }
 
   base::StringToInt(command_line->GetSwitchValueASCII(switches::kDiskCacheSize),
                     &max_cache_size_);
 
-  CHECK(base::PathService::Get(chrome::DIR_USER_DATA, &path_));
-
+  base::PathService::Get(DIR_SESSION_DATA, &path_);
   if (!in_memory && !partition.empty())
     path_ = path_.Append(FILE_PATH_LITERAL("Partitions"))
                 .Append(base::FilePath::FromUTF8Unsafe(
@@ -224,9 +221,10 @@ void ElectronBrowserContext::InitPrefs() {
     std::string default_code = spellcheck::GetCorrespondingSpellCheckLanguage(
         base::i18n::GetConfiguredLocale());
     if (!default_code.empty()) {
-      base::ListValue language_codes;
+      base::Value::List language_codes;
       language_codes.Append(default_code);
-      prefs()->Set(spellcheck::prefs::kSpellCheckDictionaries, language_codes);
+      prefs()->Set(spellcheck::prefs::kSpellCheckDictionaries,
+                   base::Value(std::move(language_codes)));
     }
   }
 #endif
@@ -307,7 +305,7 @@ ElectronBrowserContext::GetSpecialStoragePolicy() {
 }
 
 std::string ElectronBrowserContext::GetUserAgent() const {
-  return user_agent_;
+  return user_agent_.value_or(ElectronBrowserClient::Get()->GetUserAgent());
 }
 
 predictors::PreconnectManager* ElectronBrowserContext::GetPreconnectManager() {
@@ -348,8 +346,6 @@ ElectronBrowserContext::GetURLLoaderFactory() {
   params->disable_web_security = false;
 
   auto* storage_partition = GetDefaultStoragePartition();
-  params->url_loader_network_observer =
-      storage_partition->CreateURLLoaderNetworkObserverForNavigationRequest(-1);
   storage_partition->GetNetworkContext()->CreateURLLoaderFactory(
       std::move(factory_receiver), std::move(params));
   url_loader_factory_ =
@@ -393,6 +389,13 @@ ElectronBrowserContext::GetStorageNotificationService() {
   return nullptr;
 }
 
+content::ReduceAcceptLanguageControllerDelegate*
+ElectronBrowserContext::GetReduceAcceptLanguageControllerDelegate() {
+  // Needs implementation
+  // Refs https://chromium-review.googlesource.com/c/chromium/src/+/3687391
+  return nullptr;
+}
+
 ResolveProxyHelper* ElectronBrowserContext::GetResolveProxyHelper() {
   if (!resolve_proxy_helper_) {
     resolve_proxy_helper_ = base::MakeRefCounted<ResolveProxyHelper>(this);
@@ -416,11 +419,120 @@ void ElectronBrowserContext::SetSSLConfigClient(
   ssl_config_client_ = std::move(client);
 }
 
+void ElectronBrowserContext::GrantDevicePermission(
+    const url::Origin& origin,
+    const base::Value& device,
+    blink::PermissionType permission_type) {
+  granted_devices_[permission_type][origin].push_back(
+      std::make_unique<base::Value>(device.Clone()));
+}
+
+void ElectronBrowserContext::RevokeDevicePermission(
+    const url::Origin& origin,
+    const base::Value& device,
+    blink::PermissionType permission_type) {
+  const auto& current_devices_it = granted_devices_.find(permission_type);
+  if (current_devices_it == granted_devices_.end())
+    return;
+
+  const auto& origin_devices_it = current_devices_it->second.find(origin);
+  if (origin_devices_it == current_devices_it->second.end())
+    return;
+
+  for (auto it = origin_devices_it->second.begin();
+       it != origin_devices_it->second.end();) {
+    if (DoesDeviceMatch(device, it->get(), permission_type)) {
+      it = origin_devices_it->second.erase(it);
+    } else {
+      ++it;
+    }
+  }
+}
+
+bool ElectronBrowserContext::DoesDeviceMatch(
+    const base::Value& device,
+    const base::Value* device_to_compare,
+    blink::PermissionType permission_type) {
+  if (permission_type ==
+      static_cast<blink::PermissionType>(
+          WebContentsPermissionHelper::PermissionType::HID)) {
+    if (device.GetDict().FindInt(kHidVendorIdKey) !=
+            device_to_compare->GetDict().FindInt(kHidVendorIdKey) ||
+        device.GetDict().FindInt(kHidProductIdKey) !=
+            device_to_compare->GetDict().FindInt(kHidProductIdKey)) {
+      return false;
+    }
+
+    const auto* serial_number =
+        device_to_compare->GetDict().FindString(kHidSerialNumberKey);
+    const auto* device_serial_number =
+        device.GetDict().FindString(kHidSerialNumberKey);
+
+    if (serial_number && device_serial_number &&
+        *device_serial_number == *serial_number)
+      return true;
+  } else if (permission_type ==
+             static_cast<blink::PermissionType>(
+                 WebContentsPermissionHelper::PermissionType::SERIAL)) {
+#if BUILDFLAG(IS_WIN)
+    const auto* instance_id = device.GetDict().FindString(kDeviceInstanceIdKey);
+    const auto* port_instance_id =
+        device_to_compare->GetDict().FindString(kDeviceInstanceIdKey);
+    if (instance_id && port_instance_id && *instance_id == *port_instance_id)
+      return true;
+#else
+    const auto* serial_number = device.GetDict().FindString(kSerialNumberKey);
+    const auto* port_serial_number =
+        device_to_compare->GetDict().FindString(kSerialNumberKey);
+    if (device.GetDict().FindInt(kVendorIdKey) !=
+            device_to_compare->GetDict().FindInt(kVendorIdKey) ||
+        device.GetDict().FindInt(kProductIdKey) !=
+            device_to_compare->GetDict().FindInt(kProductIdKey) ||
+        (serial_number && port_serial_number &&
+         *port_serial_number != *serial_number)) {
+      return false;
+    }
+
+#if BUILDFLAG(IS_MAC)
+    const auto* usb_driver_key = device.GetDict().FindString(kUsbDriverKey);
+    const auto* port_usb_driver_key =
+        device_to_compare->GetDict().FindString(kUsbDriverKey);
+    if (usb_driver_key && port_usb_driver_key &&
+        *usb_driver_key != *port_usb_driver_key) {
+      return false;
+    }
+#endif  // BUILDFLAG(IS_MAC)
+    return true;
+#endif  // BUILDFLAG(IS_WIN)
+  }
+  return false;
+}
+
+bool ElectronBrowserContext::CheckDevicePermission(
+    const url::Origin& origin,
+    const base::Value& device,
+    blink::PermissionType permission_type) {
+  const auto& current_devices_it = granted_devices_.find(permission_type);
+  if (current_devices_it == granted_devices_.end())
+    return false;
+
+  const auto& origin_devices_it = current_devices_it->second.find(origin);
+  if (origin_devices_it == current_devices_it->second.end())
+    return false;
+
+  for (const auto& device_to_compare : origin_devices_it->second) {
+    if (DoesDeviceMatch(device, device_to_compare.get(), permission_type))
+      return true;
+  }
+
+  return false;
+}
+
 // static
 ElectronBrowserContext* ElectronBrowserContext::From(
     const std::string& partition,
     bool in_memory,
-    base::DictionaryValue options) {
+    base::Value::Dict options) {
   PartitionKey key(partition, in_memory);
   ElectronBrowserContext* browser_context = browser_context_map()[key].get();
   if (browser_context) {

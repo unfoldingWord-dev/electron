@@ -93,8 +93,14 @@ app.on('window-all-closed', function () {
   app.quit();
 });
 
-app.on('gpu-process-crashed', (event, killed) => {
-  console.log(`GPU process crashed (killed=${killed})`);
+app.on('child-process-gone', (event, details) => {
+  if (details.type === 'GPU' && details.reason !== 'clean-exit') {
+    if (details.reason === 'crashed') {
+      console.log('GPU process crashed');
+    } else {
+      console.log(`GPU process exited with code ${details.exitCode}`);
+    }
+  }
 });
 
 app.on('renderer-process-crashed', (event, contents, killed) => {
@@ -130,7 +136,7 @@ app.whenReady().then(async function () {
     const chosen = dialog.showMessageBox(window, {
       type: 'warning',
       buttons: ['Close', 'Keep Waiting'],
-      message: 'Window is not responsing',
+      message: 'Window is not responding',
       detail: 'The window is not responding. Would you like to force close it or just keep waiting?'
     });
     if (chosen === 0) window.destroy();
@@ -162,7 +168,6 @@ ipcMain.on('disable-preload-on-next-will-attach-webview', (event, id) => {
   event.sender.once('will-attach-webview', (event, webPreferences, params) => {
     params.src = `file://${path.join(__dirname, '..', 'fixtures', 'pages', 'webview-stripped-preload.html')}`;
     delete webPreferences.preload;
-    delete webPreferences.preloadURL;
   });
 });
 

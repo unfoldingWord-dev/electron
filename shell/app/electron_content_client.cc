@@ -18,26 +18,27 @@
 #include "content/public/common/content_switches.h"
 #include "electron/buildflags/buildflags.h"
 #include "extensions/common/constants.h"
+#include "pdf/buildflags.h"
 #include "ppapi/buildflags/buildflags.h"
 #include "shell/common/electron_paths.h"
 #include "shell/common/options_switches.h"
+#include "third_party/widevine/cdm/buildflags.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "url/url_constants.h"
 // In SHARED_INTERMEDIATE_DIR.
 #include "widevine_cdm_version.h"  // NOLINT(build/include_directory)
 
-#if defined(WIDEVINE_CDM_AVAILABLE)
+#if BUILDFLAG(ENABLE_WIDEVINE)
 #include "base/native_library.h"
 #include "content/public/common/cdm_info.h"
 #include "media/base/video_codecs.h"
-#endif  // defined(WIDEVINE_CDM_AVAILABLE)
+#endif  // BUILDFLAG(ENABLE_WIDEVINE)
 
 #if BUILDFLAG(ENABLE_PDF_VIEWER)
 #include "chrome/common/pdf_util.h"
 #include "components/pdf/common/internal_plugin_helpers.h"
-#include "pdf/pdf.h"        // nogncheck
-#include "pdf/pdf_ppapi.h"  // nogncheck
+#include "pdf/pdf.h"  // nogncheck
 #include "shell/common/electron_constants.h"
 #endif  // BUILDFLAG(ENABLE_PDF_VIEWER)
 
@@ -45,7 +46,8 @@
 #include "content/public/browser/plugin_service.h"
 #include "content/public/common/pepper_plugin_info.h"
 #include "ppapi/shared_impl/ppapi_permissions.h"
-#endif  // BUILDFLAG(ENABLE_PLUGINS)
+#include "ppapi/shared_impl/ppapi_switches.h"  // nogncheck crbug.com/1125897
+#endif                                         // BUILDFLAG(ENABLE_PLUGINS)
 
 namespace electron {
 
@@ -57,7 +59,7 @@ enum class WidevineCdmFileCheck {
   kNotFound,
 };
 
-#if defined(WIDEVINE_CDM_AVAILABLE)
+#if BUILDFLAG(ENABLE_WIDEVINE)
 bool IsWidevineAvailable(
     base::FilePath* cdm_path,
     std::vector<media::VideoCodec>* codecs_supported,
@@ -101,11 +103,13 @@ bool IsWidevineAvailable(
 
   return false;
 }
-#endif  // defined(WIDEVINE_CDM_AVAILABLE)
+#endif  // BUILDFLAG(ENABLE_WIDEVINE)
 
 #if BUILDFLAG(ENABLE_PLUGINS)
 void ComputeBuiltInPlugins(std::vector<content::PepperPluginInfo>* plugins) {
 #if BUILDFLAG(ENABLE_PDF_VIEWER)
+  // TODO(upstream/thestig): Figure out how to make the PDF Viewer work without
+  // this PPAPI plugin registration.
   content::PepperPluginInfo pdf_info;
   pdf_info.is_internal = true;
   pdf_info.is_out_of_process = true;
@@ -116,12 +120,6 @@ void ComputeBuiltInPlugins(std::vector<content::PepperPluginInfo>* plugins) {
   content::WebPluginMimeType pdf_mime_type(pdf::kInternalPluginMimeType, "pdf",
                                            "Portable Document Format");
   pdf_info.mime_types.push_back(pdf_mime_type);
-  pdf_info.internal_entry_points.get_interface = chrome_pdf::PPP_GetInterface;
-  pdf_info.internal_entry_points.initialize_module =
-      chrome_pdf::PPP_InitializeModule;
-  pdf_info.internal_entry_points.shutdown_module =
-      chrome_pdf::PPP_ShutdownModule;
-  pdf_info.permissions = ppapi::PERMISSION_PDF | ppapi::PERMISSION_DEV;
   plugins->push_back(pdf_info);
 
   // NB. in Chrome, this plugin isn't registered until the PDF extension is
@@ -230,7 +228,7 @@ void ElectronContentClient::AddContentDecryptionModules(
     std::vector<content::CdmInfo>* cdms,
     std::vector<media::CdmHostFilePath>* cdm_host_file_paths) {
   if (cdms) {
-#if defined(WIDEVINE_CDM_AVAILABLE)
+#if BUILDFLAG(ENABLE_WIDEVINE)
     base::FilePath cdm_path;
     std::vector<media::VideoCodec> video_codecs_supported;
     base::flat_set<media::CdmSessionType> session_types_supported;
@@ -255,7 +253,7 @@ void ElectronContentClient::AddContentDecryptionModules(
           kWidevineCdmDisplayName, kWidevineCdmGuid, version, cdm_path,
           kWidevineCdmFileSystemId, capability, kWidevineKeySystem, false));
     }
-#endif  // defined(WIDEVINE_CDM_AVAILABLE)
+#endif  // BUILDFLAG(ENABLE_WIDEVINE)
   }
 }
 

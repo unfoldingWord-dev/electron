@@ -7,7 +7,7 @@ const { emittedOnce, waitForEvent } = require('./events-helpers');
 const { ifdescribe, ifit, delay } = require('./spec-helpers');
 
 const features = process._linkedBinding('electron_common_features');
-const nativeModulesEnabled = process.env.ELECTRON_SKIP_NATIVE_MODULE_TESTS;
+const nativeModulesEnabled = !process.env.ELECTRON_SKIP_NATIVE_MODULE_TESTS;
 
 /* Most of the APIs here don't use standard callbacks */
 /* eslint-disable standard/no-callback-literal */
@@ -233,7 +233,7 @@ describe('<webview> tag', function () {
 
       const types = JSON.parse(message);
       expect(types).to.include({
-        require: 'function', // arguments passed to it should be availale
+        require: 'function', // arguments passed to it should be available
         electron: 'undefined', // objects from the scope it is called from should not be available
         window: 'object', // the window object should be available
         localVar: 'undefined' // but local variables should not be exposed to the window
@@ -243,6 +243,7 @@ describe('<webview> tag', function () {
     it('preload script can require modules that still use "process" and "Buffer" when nodeintegration is off', async () => {
       const message = await startLoadingWebViewAndWaitForMessage(webview, {
         preload: `${fixtures}/module/preload-node-off-wrapper.js`,
+        webpreferences: 'sandbox=no',
         src: `file://${fixtures}/api/blank.html`
       });
 
@@ -288,6 +289,7 @@ describe('<webview> tag', function () {
     it('works without script tag in page', async () => {
       const message = await startLoadingWebViewAndWaitForMessage(webview, {
         preload: `${fixtures}/module/preload.js`,
+        webpreferences: 'sandbox=no',
         src: `file://${fixtures}pages/base-page.html`
       });
 
@@ -303,6 +305,7 @@ describe('<webview> tag', function () {
     it('resolves relative URLs', async () => {
       const message = await startLoadingWebViewAndWaitForMessage(webview, {
         preload: '../fixtures/module/preload.js',
+        webpreferences: 'sandbox=no',
         src: `file://${fixtures}/pages/e.html`
       });
 
@@ -390,6 +393,7 @@ describe('<webview> tag', function () {
       const message = await startLoadingWebViewAndWaitForMessage(webview, {
         disablewebsecurity: '',
         preload: `${fixtures}/module/preload.js`,
+        webpreferences: 'sandbox=no',
         src: `file://${fixtures}/pages/e.html`
       });
 
@@ -554,12 +558,12 @@ describe('<webview> tag', function () {
     });
   });
 
-  describe('page-title-set event', () => {
+  describe('page-title-updated event', () => {
     it('emits when title is set', async () => {
       loadWebView(webview, {
         src: `file://${fixtures}/pages/a.html`
       });
-      const { title, explicitSet } = await waitForEvent(webview, 'page-title-set');
+      const { title, explicitSet } = await waitForEvent(webview, 'page-title-updated');
 
       expect(title).to.equal('test');
       expect(explicitSet).to.be.true();
@@ -622,7 +626,7 @@ describe('<webview> tag', function () {
   });
 
   describe('will-navigate event', () => {
-    it('emits when a url that leads to oustide of the page is clicked', async () => {
+    it('emits when a url that leads to outside of the page is clicked', async () => {
       loadWebView(webview, {
         src: `file://${fixtures}/pages/webview-will-navigate.html`
       });
@@ -910,20 +914,6 @@ describe('<webview> tag', function () {
   });
 
   describe('executeJavaScript', () => {
-    it('should support user gesture', async () => {
-      await loadWebView(webview, {
-        src: `file://${fixtures}/pages/fullscreen.html`
-      });
-
-      // Event handler has to be added before js execution.
-      const waitForEnterHtmlFullScreen = waitForEvent(webview, 'enter-html-full-screen');
-
-      const jsScript = "document.querySelector('video').webkitRequestFullscreen()";
-      webview.executeJavaScript(jsScript, true);
-
-      return waitForEnterHtmlFullScreen;
-    });
-
     it('can return the result of the executed script', async () => {
       await loadWebView(webview, {
         src: 'about:blank'
@@ -1110,14 +1100,16 @@ describe('<webview> tag', function () {
   ifdescribe(features.isPrintingEnabled())('<webview>.printToPDF()', () => {
     it('rejects on incorrectly typed parameters', async () => {
       const badTypes = {
-        marginsType: 'terrible',
-        scaleFactor: 'not-a-number',
         landscape: [],
-        pageRanges: { oops: 'im-not-the-right-key' },
-        headerFooter: '123',
-        printSelectionOnly: 1,
+        displayHeaderFooter: '123',
         printBackground: 2,
-        pageSize: 'IAmAPageSize'
+        scale: 'not-a-number',
+        pageSize: 'IAmAPageSize',
+        margins: 'terrible',
+        pageRanges: { oops: 'im-not-the-right-key' },
+        headerTemplate: [1, 2, 3],
+        footerTemplate: [4, 5, 6],
+        preferCSSPageSize: 'no'
       };
 
       // These will hard crash in Chromium unless we type-check

@@ -1,9 +1,10 @@
 import { expect } from 'chai';
 import * as path from 'path';
 import { emittedOnce } from './events-helpers';
-import { BrowserView, BrowserWindow, webContents } from 'electron/main';
+import { BrowserView, BrowserWindow, screen, webContents } from 'electron/main';
 import { closeWindow } from './window-helpers';
-import { defer, startRemoteControlApp } from './spec-helpers';
+import { defer, ifit, startRemoteControlApp } from './spec-helpers';
+import { areColorsSimilar, captureScreen, getPixelColor } from './screen-helpers';
 
 describe('BrowserView module', () => {
   const fixtures = path.resolve(__dirname, '..', 'spec', 'fixtures');
@@ -60,6 +61,56 @@ describe('BrowserView module', () => {
         view.setBackgroundColor(null as any);
       }).to.throw(/conversion failure/);
     });
+
+    // Linux and arm64 platforms (WOA and macOS) do not return any capture sources
+    ifit(process.platform !== 'linux' && process.arch !== 'arm64')('sets the background color to transparent if none is set', async () => {
+      const display = screen.getPrimaryDisplay();
+      const WINDOW_BACKGROUND_COLOR = '#55ccbb';
+
+      w.show();
+      w.setBounds(display.bounds);
+      w.setBackgroundColor(WINDOW_BACKGROUND_COLOR);
+      await w.loadURL('about:blank');
+
+      view = new BrowserView();
+      view.setBounds(display.bounds);
+      w.setBrowserView(view);
+      await view.webContents.loadURL('data:text/html,hello there');
+
+      const screenCapture = await captureScreen();
+      const centerColor = getPixelColor(screenCapture, {
+        x: display.size.width / 2,
+        y: display.size.height / 2
+      });
+
+      expect(areColorsSimilar(centerColor, WINDOW_BACKGROUND_COLOR)).to.be.true();
+    });
+
+    // Linux and arm64 platforms (WOA and macOS) do not return any capture sources
+    ifit(process.platform !== 'linux' && process.arch !== 'arm64')('successfully applies the background color', async () => {
+      const WINDOW_BACKGROUND_COLOR = '#55ccbb';
+      const VIEW_BACKGROUND_COLOR = '#ff00ff';
+      const display = screen.getPrimaryDisplay();
+
+      w.show();
+      w.setBounds(display.bounds);
+      w.setBackgroundColor(WINDOW_BACKGROUND_COLOR);
+      await w.loadURL('about:blank');
+
+      view = new BrowserView();
+      view.setBounds(display.bounds);
+      w.setBrowserView(view);
+      w.setBackgroundColor(VIEW_BACKGROUND_COLOR);
+      await view.webContents.loadURL('data:text/html,hello there');
+
+      const screenCapture = await captureScreen();
+      const centerColor = getPixelColor(screenCapture, {
+        x: display.size.width / 2,
+        y: display.size.height / 2
+      });
+
+      expect(areColorsSimilar(centerColor, VIEW_BACKGROUND_COLOR)).to.be.true();
+    });
   });
 
   describe('BrowserView.setAutoResize()', () => {
@@ -95,7 +146,14 @@ describe('BrowserView module', () => {
   });
 
   describe('BrowserView.getBounds()', () => {
-    it('returns the current bounds', () => {
+    it('returns correct bounds on a framed window', () => {
+      view = new BrowserView();
+      const bounds = { x: 10, y: 20, width: 30, height: 40 };
+      view.setBounds(bounds);
+      expect(view.getBounds()).to.deep.equal(bounds);
+    });
+
+    it('returns correct bounds on a frameless window', () => {
       view = new BrowserView();
       const bounds = { x: 10, y: 20, width: 30, height: 40 };
       view.setBounds(bounds);

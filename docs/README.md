@@ -64,15 +64,12 @@ an issue:
   * [Automated Testing](tutorial/automated-testing.md)
   * [REPL](tutorial/repl.md)
 * [Distribution](tutorial/application-distribution.md)
-  * [Supported Platforms](tutorial/support.md#supported-platforms)
   * [Code Signing](tutorial/code-signing.md)
   * [Mac App Store](tutorial/mac-app-store-submission-guide.md)
   * [Windows Store](tutorial/windows-store-guide.md)
   * [Snapcraft](tutorial/snapcraft.md)
+  * [ASAR Archives](tutorial/asar-archives.md)
 * [Updates](tutorial/updates.md)
-  * [Deploying an Update Server](tutorial/updates.md#deploying-an-update-server)
-  * [Implementing Updates in Your App](tutorial/updates.md#implementing-updates-in-your-app)
-  * [Applying Updates](tutorial/updates.md#applying-updates)
 * [Getting Support](tutorial/support.md)
 
 ## Detailed Tutorials
@@ -86,7 +83,6 @@ These individual tutorials expand on topics discussed in the guide above.
 * Electron Releases & Developer Feedback
   * [Versioning Policy](tutorial/electron-versioning.md)
   * [Release Timelines](tutorial/electron-timelines.md)
-* [Testing Widevine CDM](tutorial/testing-widevine-cdm.md)
 
 ---
 

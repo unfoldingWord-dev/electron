@@ -122,7 +122,7 @@ index c15f3a631292b538698625328fb429ee3c9964f5..37e038753ecf1b82ec92c06b2c0729b5
  }
  
 diff --git a/device/bluetooth/bluetooth_adapter_mac.mm b/device/bluetooth/bluetooth_adapter_mac.mm
-index 3f7dce0281f7b5a540d7b9377ef14a8a6aa9a2fa..11d8419791f3e45d5242081422d452d4fc703833 100644
+index 69e60d498941c34cfac9e79c7517765bf93849f5..b998ad7cf01c21e93c57e1283cfdcb1e02ac49cf 100644
 --- a/device/bluetooth/bluetooth_adapter_mac.mm
 +++ b/device/bluetooth/bluetooth_adapter_mac.mm
 @@ -42,6 +42,7 @@
@@ -141,8 +141,8 @@ index 3f7dce0281f7b5a540d7b9377ef14a8a6aa9a2fa..11d8419791f3e45d5242081422d452d4
  
  namespace {
  
-@@ -123,8 +125,10 @@ CBCentralManagerState GetCBManagerState(CBCentralManager* manager) {
-       controller_state_function_(
+@@ -114,8 +116,10 @@ bool IsDeviceSystemPaired(const std::string& device_address) {
+     : controller_state_function_(
            base::BindRepeating(&BluetoothAdapterMac::GetHostControllerState,
                                base::Unretained(this))),
 +#ifndef MAS_BUILD
@@ -152,7 +152,7 @@ index 3f7dce0281f7b5a540d7b9377ef14a8a6aa9a2fa..11d8419791f3e45d5242081422d452d4
        classic_discovery_manager_(
            BluetoothDiscoveryManagerMac::CreateClassic(this)),
        low_energy_discovery_manager_(
-@@ -365,8 +369,12 @@ CBCentralManagerState GetCBManagerState(CBCentralManager* manager) {
+@@ -356,8 +360,12 @@ bool IsDeviceSystemPaired(const std::string& device_address) {
  }
  
  bool BluetoothAdapterMac::SetPoweredImpl(bool powered) {
@@ -166,10 +166,10 @@ index 3f7dce0281f7b5a540d7b9377ef14a8a6aa9a2fa..11d8419791f3e45d5242081422d452d4
  
  void BluetoothAdapterMac::RemovePairingDelegateInternal(
 diff --git a/media/audio/BUILD.gn b/media/audio/BUILD.gn
-index 6ffc09426b92b0623957f4a5f547865f49e29546..45cf4e11a77c175d61c2ffe69009802596c97e25 100644
+index d872796dee0dee4aa14c238f788b962b3f1c9311..4d5f74c18d773755d5d8f7223bc0d5c944467d69 100644
 --- a/media/audio/BUILD.gn
 +++ b/media/audio/BUILD.gn
-@@ -175,6 +175,12 @@ source_set("audio") {
+@@ -176,6 +176,12 @@ source_set("audio") {
        "mac/scoped_audio_unit.cc",
        "mac/scoped_audio_unit.h",
      ]
@@ -183,10 +183,10 @@ index 6ffc09426b92b0623957f4a5f547865f49e29546..45cf4e11a77c175d61c2ffe690098025
        "AudioToolbox.framework",
        "AudioUnit.framework",
 diff --git a/media/audio/mac/audio_manager_mac.cc b/media/audio/mac/audio_manager_mac.cc
-index ebdc6364312ee710d416318836c03aeec9bfb65c..aa9b50de7efaf0e1b64effea93204984c91790b5 100644
+index eb0aff29b2f4fd2b035ef96186fd58d976876b05..8a68a8885ec42715c9b9dab0f04d1b90eb9baa6e 100644
 --- a/media/audio/mac/audio_manager_mac.cc
 +++ b/media/audio/mac/audio_manager_mac.cc
-@@ -886,7 +886,7 @@ AudioParameters AudioManagerMac::GetPreferredOutputStreamParameters(
+@@ -885,7 +885,7 @@ AudioParameters AudioManagerMac::GetPreferredOutputStreamParameters(
  
  void AudioManagerMac::InitializeOnAudioThread() {
    DCHECK(GetTaskRunner()->BelongsToCurrentThread());
@@ -196,10 +196,10 @@ index ebdc6364312ee710d416318836c03aeec9bfb65c..aa9b50de7efaf0e1b64effea93204984
  }
  
 diff --git a/net/dns/dns_config_service_posix.cc b/net/dns/dns_config_service_posix.cc
-index e59fec60e9d593d311b21c12daf2d611a36a2d6e..b812dee59b55edee6efe73ce4b1da0a89b45240e 100644
+index 025078e112683380b484b7c47f786862f4e48a74..11c81ec36a9793afab0da8578f85378f9ce3a446 100644
 --- a/net/dns/dns_config_service_posix.cc
 +++ b/net/dns/dns_config_service_posix.cc
-@@ -129,8 +129,8 @@ class DnsConfigServicePosix::Watcher : public DnsConfigService::Watcher {
+@@ -130,8 +130,8 @@ class DnsConfigServicePosix::Watcher : public DnsConfigService::Watcher {
  
    bool Watch() override {
      CheckOnCorrectSequence();
@@ -209,7 +209,7 @@ index e59fec60e9d593d311b21c12daf2d611a36a2d6e..b812dee59b55edee6efe73ce4b1da0a8
      if (!config_watcher_.Watch(base::BindRepeating(&Watcher::OnConfigChanged,
                                                     base::Unretained(this)))) {
        LOG(ERROR) << "DNS config watch failed to start.";
-@@ -147,6 +147,7 @@ class DnsConfigServicePosix::Watcher : public DnsConfigService::Watcher {
+@@ -148,6 +148,7 @@ class DnsConfigServicePosix::Watcher : public DnsConfigService::Watcher {
        success = false;
      }
  #endif  // !BUILDFLAG(IS_IOS)
@@ -313,10 +313,10 @@ index d59a16112d27e2696437163483c44eca414c225c..1ccd20fe7efa3cbae48f99d0660b0252
        NOTREACHED();
        return nullptr;
 diff --git a/ui/accessibility/platform/inspect/ax_transform_mac.mm b/ui/accessibility/platform/inspect/ax_transform_mac.mm
-index 7cb34e119cd30353fe56e7c71ed5e1d417896888..dbb6cc8e37eff9b30269687f29808ec3ca46b243 100644
+index 397f01d7249f491840e5953b65c2d54eb92dc638..a7279e44346cb5b0b26599bd62693ad40a59e84f 100644
 --- a/ui/accessibility/platform/inspect/ax_transform_mac.mm
 +++ b/ui/accessibility/platform/inspect/ax_transform_mac.mm
-@@ -86,6 +86,7 @@
+@@ -87,6 +87,7 @@
      }
    }
  
@@ -324,11 +324,11 @@ index 7cb34e119cd30353fe56e7c71ed5e1d417896888..dbb6cc8e37eff9b30269687f29808ec3
    // AXTextMarker
    if (IsAXTextMarker(value)) {
      return AXTextMarkerToBaseValue(value, indexer);
-@@ -94,6 +95,7 @@
+@@ -95,6 +96,7 @@
    // AXTextMarkerRange
    if (IsAXTextMarkerRange(value))
      return AXTextMarkerRangeToBaseValue(value, indexer);
 +#endif
  
    // Accessible object
-   if (IsNSAccessibilityElement(value) || IsAXUIElement(value)) {
+   if (AXElementWrapper::IsValidElement(value)) {
