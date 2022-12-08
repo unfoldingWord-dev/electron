@@ -2,9 +2,9 @@
 ### Setup on Clean Windows 10 VM
 - Configured my VM using these notes as a reference:
   - https://chromium.googlesource.com/chromium/src/+/main/docs/windows_build_instructions.md#visual-studio
-  - https://github.com/unfoldingWord/electronite/blob/v18.2.1-graphite/docs/development/build-instructions-windows.md
+  - [build-instructions-windows](../build-instructions-windows.md)
 - Make sure the VM has a lot of disk space - I configured with 220GB of storage.
-- if you have trouble building with these notes, you could try the older Chromium Build tools: https://github.com/unfoldingWord/electronite/blob/v18.2.1-graphite/docs/development/Electronite/WindowsBuildNotesChromeTools.md
+- if you have trouble building with these notes, you could try the older Chromium Build tools: [WindowsBuildNotesChromeTools](WindowsBuildNotesChromeTools.md) 
 - Make sure to add exception to the build folder for Windows defender, or it will delete a couple of the build files.
   - Go to Start button > Settings > Update & Security > Windows Security > Virus & threat protection.
   - Under Virus & threat protection settings, select Manage settings, and then under Exclusions, select Add or remove exclusions.
