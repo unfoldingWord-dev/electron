@@ -1,4 +1,2 @@
-fix_vector_allocation_for_raw_data_handling.patch
-acm_corrected_temporary_buffer_size.patch
 add_thread_local_to_x_error_trap_cc.patch
 cherry-pick-a18fddcb53e6.patch
