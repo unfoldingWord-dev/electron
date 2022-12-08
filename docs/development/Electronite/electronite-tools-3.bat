@@ -64,6 +64,7 @@ echo Identify checked out branch
 cd src\electron
 call git --version
 call git status
+call git describe --tags
 cd ..\..
 
 echo Applying graphite patches
