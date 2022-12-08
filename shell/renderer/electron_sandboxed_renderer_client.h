@@ -43,6 +43,11 @@ class ElectronSandboxedRendererClient : public RendererClientBase {
   void RenderFrameCreated(content::RenderFrame*) override;
   void RunScriptsAtDocumentStart(content::RenderFrame* render_frame) override;
   void RunScriptsAtDocumentEnd(content::RenderFrame* render_frame) override;
+  bool ShouldFork(blink::WebLocalFrame* frame,
+                  const GURL& url,
+                  const std::string& http_method,
+                  bool is_initial_navigation,
+                  bool is_server_redirect) override;
 
  private:
   std::unique_ptr<base::ProcessMetrics> metrics_;
