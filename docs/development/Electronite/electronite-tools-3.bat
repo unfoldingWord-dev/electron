@@ -55,6 +55,7 @@ echo Deleting src folder.
 if exist src rmdir /Q /S src
 echo Deleted src folder.
 
+echo Checking out %ELECTRONITE_REPO%.git@origin/%checkout_tag%
 call gclient config --name "src/electron" --unmanaged %ELECTRONITE_REPO%.git@origin/%checkout_tag%
 
 echo Checking out branch and Applying electronite patches

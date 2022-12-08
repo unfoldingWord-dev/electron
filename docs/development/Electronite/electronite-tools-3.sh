@@ -38,6 +38,7 @@ if [ "$COMMAND" == "get" ]; then
   fi  
 
   echo "Fetching code. This can take hours and download over 20GB."
+  echo "Checking out $ELECTRONITE_REPO.git@origin/$BRANCH"
   gclient config --name "src/electron" --unmanaged $ELECTRONITE_REPO.git@origin/$BRANCH
 
   echo "Checking out branch and Applying electronite patches"
