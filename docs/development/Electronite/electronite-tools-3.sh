@@ -44,11 +44,11 @@ if [ "$COMMAND" == "get" ]; then
   gclient sync --with_branch_heads --with_tags
   
   echo "Identify checked out branch"
-  cd src\electron
+  cd src/electron
   git --version
   git status
   git describe --tags
-  cd ..\..
+  cd ../..
   
   echo "Applying graphite patches"
   cd ./src
