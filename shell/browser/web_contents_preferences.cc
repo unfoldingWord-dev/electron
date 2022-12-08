@@ -176,11 +176,7 @@ void WebContentsPreferences::Clear() {
 void WebContentsPreferences::SetFromDictionary(
     const gin_helper::Dictionary& web_preferences) {
   Clear();
-  Merge(web_preferences);
-}
 
-void WebContentsPreferences::Merge(
-    const gin_helper::Dictionary& web_preferences) {
   web_preferences.Get(options::kPlugins, &plugins_);
   web_preferences.Get(options::kExperimentalFeatures, &experimental_features_);
   web_preferences.Get(options::kNodeIntegration, &node_integration_);
@@ -258,15 +254,6 @@ void WebContentsPreferences::Merge(
     } else {
       LOG(ERROR) << "preload script must have absolute path.";
     }
-  } else if (web_preferences.Get(options::kPreloadURL, &preload_url_str)) {
-    // Translate to file path if there is "preload-url" option.
-    base::FilePath preload;
-    GURL preload_url(preload_url_str);
-    if (net::FileURLToFilePath(preload_url, &preload)) {
-      preload_path_ = preload;
-    } else {
-      LOG(ERROR) << "preload url must be file:// protocol.";
-    }
   }
 
   std::string type;
@@ -325,9 +312,7 @@ bool WebContentsPreferences::IsSandboxed() const {
   if (sandbox_)
     return *sandbox_;
   bool sandbox_disabled_by_default =
-      node_integration_ || node_integration_in_worker_ || preload_path_ ||
-      !SessionPreferences::GetValidPreloads(web_contents_->GetBrowserContext())
-           .empty();
+      node_integration_ || node_integration_in_worker_;
   return !sandbox_disabled_by_default;
 }
 
@@ -336,7 +321,8 @@ content::WebContents* WebContentsPreferences::GetWebContentsFromProcessID(
     int process_id) {
   for (WebContentsPreferences* preferences : Instances()) {
     content::WebContents* web_contents = preferences->web_contents_;
-    if (web_contents->GetMainFrame()->GetProcess()->GetID() == process_id)
+    if (web_contents->GetPrimaryMainFrame()->GetProcess()->GetID() ==
+        process_id)
       return web_contents;
   }
   return nullptr;
@@ -397,7 +383,7 @@ void WebContentsPreferences::AppendCommandLineSwitches(
 
   // We are appending args to a webContents so let's save the current state
   // of our preferences object so that during the lifetime of the WebContents
-  // we can fetch the options used to initally configure the WebContents
+  // we can fetch the options used to initially configure the WebContents
   // last_preference_ = preference_.Clone();
   SaveLastPreferences();
 }
@@ -494,10 +480,6 @@ void WebContentsPreferences::OverrideWebkitPrefs(
   }
 
   prefs->offscreen = offscreen_;
-
-  // The preload script.
-  if (preload_path_)
-    prefs->preload = *preload_path_;
 
   prefs->node_integration = node_integration_;
   prefs->node_integration_in_worker = node_integration_in_worker_;

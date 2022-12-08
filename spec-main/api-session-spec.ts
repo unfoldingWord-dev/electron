@@ -4,7 +4,7 @@ import * as https from 'https';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as ChildProcess from 'child_process';
-import { app, session, BrowserWindow, net, ipcMain, Session } from 'electron/main';
+import { app, session, BrowserWindow, net, ipcMain, Session, webFrameMain, WebFrameMain } from 'electron/main';
 import * as send from 'send';
 import * as auth from 'basic-auth';
 import { closeAllWindows } from './window-helpers';
@@ -216,7 +216,8 @@ describe('session module', () => {
       });
     });
 
-    it('should survive an app restart for persistent partition', async () => {
+    it('should survive an app restart for persistent partition', async function () {
+      this.timeout(60000);
       const appPath = path.join(fixtures, 'api', 'cookie-app');
 
       const runAppWithPhase = (phase: string) => {
@@ -513,6 +514,50 @@ describe('session module', () => {
             session.defaultSession.getBlobData(uuid!).then(result => {
               try {
                 expect(result.toString()).to.equal(postData);
+                done();
+              } catch (e) {
+                done(e);
+              }
+            });
+          }
+        } catch (e) {
+          done(e);
+        }
+      });
+      const w = new BrowserWindow({ show: false });
+      w.loadURL(url);
+    });
+  });
+
+  describe('ses.getBlobData2()', () => {
+    const scheme = 'cors-blob';
+    const protocol = session.defaultSession.protocol;
+    const url = `${scheme}://host`;
+    after(async () => {
+      await protocol.unregisterProtocol(scheme);
+    });
+    afterEach(closeAllWindows);
+
+    it('returns blob data for uuid', (done) => {
+      const content = `<html>
+                       <script>
+                       let fd = new FormData();
+                       fd.append("data", new Blob(new Array(65_537).fill('a')));
+                       fetch('${url}', {method:'POST', body: fd });
+                       </script>
+                       </html>`;
+
+      protocol.registerStringProtocol(scheme, (request, callback) => {
+        try {
+          if (request.method === 'GET') {
+            callback({ data: content, mimeType: 'text/html' });
+          } else if (request.method === 'POST') {
+            const uuid = request.uploadData![1].blobUUID;
+            expect(uuid).to.be.a('string');
+            session.defaultSession.getBlobData(uuid!).then(result => {
+              try {
+                const data = new Array(65_537).fill('a');
+                expect(result.toString()).to.equal(data.join(''));
                 done();
               } catch (e) {
                 done(e);
@@ -1012,7 +1057,7 @@ describe('session module', () => {
       const w = new BrowserWindow({
         show: false,
         webPreferences: {
-          partition: 'very-temp-permision-handler',
+          partition: 'very-temp-permission-handler',
           nodeIntegration: true,
           contextIsolation: false
         }
@@ -1039,6 +1084,90 @@ describe('session module', () => {
 
       const [, name] = await result;
       expect(name).to.deep.equal('SecurityError');
+    });
+  });
+
+  describe('ses.setPermissionCheckHandler(handler)', () => {
+    afterEach(closeAllWindows);
+    it('details provides requestingURL for mainFrame', async () => {
+      const w = new BrowserWindow({
+        show: false,
+        webPreferences: {
+          partition: 'very-temp-permission-handler'
+        }
+      });
+      const ses = w.webContents.session;
+      const loadUrl = 'https://myfakesite/';
+      let handlerDetails : Electron.PermissionCheckHandlerHandlerDetails;
+
+      ses.protocol.interceptStringProtocol('https', (req, cb) => {
+        cb('<html><script>console.log(\'test\');</script></html>');
+      });
+
+      ses.setPermissionCheckHandler((wc, permission, requestingOrigin, details) => {
+        if (permission === 'clipboard-read') {
+          handlerDetails = details;
+          return true;
+        }
+        return false;
+      });
+
+      const readClipboardPermission: any = () => {
+        return w.webContents.executeJavaScript(`
+          navigator.permissions.query({name: 'clipboard-read'})
+              .then(permission => permission.state).catch(err => err.message);
+        `, true);
+      };
+
+      await w.loadURL(loadUrl);
+      const state = await readClipboardPermission();
+      expect(state).to.equal('granted');
+      expect(handlerDetails!.requestingUrl).to.equal(loadUrl);
+    });
+
+    it('details provides requestingURL for cross origin subFrame', async () => {
+      const w = new BrowserWindow({
+        show: false,
+        webPreferences: {
+          partition: 'very-temp-permission-handler'
+        }
+      });
+      const ses = w.webContents.session;
+      const loadUrl = 'https://myfakesite/';
+      let handlerDetails : Electron.PermissionCheckHandlerHandlerDetails;
+
+      ses.protocol.interceptStringProtocol('https', (req, cb) => {
+        cb('<html><script>console.log(\'test\');</script></html>');
+      });
+
+      ses.setPermissionCheckHandler((wc, permission, requestingOrigin, details) => {
+        if (permission === 'clipboard-read') {
+          handlerDetails = details;
+          return true;
+        }
+        return false;
+      });
+
+      const readClipboardPermission: any = (frame: WebFrameMain) => {
+        return frame.executeJavaScript(`
+          navigator.permissions.query({name: 'clipboard-read'})
+              .then(permission => permission.state).catch(err => err.message);
+        `, true);
+      };
+
+      await w.loadFile(path.join(fixtures, 'api', 'blank.html'));
+      w.webContents.executeJavaScript(`
+        var iframe = document.createElement('iframe');
+        iframe.src = '${loadUrl}';
+        document.body.appendChild(iframe);
+        null;
+      `);
+      const [,, frameProcessId, frameRoutingId] = await emittedOnce(w.webContents, 'did-frame-finish-load');
+      const state = await readClipboardPermission(webFrameMain.fromId(frameProcessId, frameRoutingId));
+      expect(state).to.equal('granted');
+      expect(handlerDetails!.requestingUrl).to.equal(loadUrl);
+      expect(handlerDetails!.isMainFrame).to.be.false();
+      expect(handlerDetails!.embeddingOrigin).to.equal('file:///');
     });
   });
 
@@ -1130,7 +1259,7 @@ describe('session module', () => {
         session.defaultSession.setCodeCachePath('');
       }).to.throw('Absolute path must be provided to store code cache.');
       expect(() => {
-        session.defaultSession.setCodeCachePath(path.join(app.getPath('userData'), 'test-code-cache'));
+        session.defaultSession.setCodeCachePath(path.join(app.getPath('userData'), 'electron-test-code-cache'));
       }).to.not.throw();
     });
   });

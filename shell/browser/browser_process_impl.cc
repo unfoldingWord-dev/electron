@@ -110,7 +110,7 @@ void BrowserProcessImpl::PostEarlyInitialization() {
   // Only use a persistent prefs store when cookie encryption is enabled as that
   // is the only key that needs it
   base::FilePath prefs_path;
-  CHECK(base::PathService::Get(chrome::DIR_USER_DATA, &prefs_path));
+  CHECK(base::PathService::Get(electron::DIR_SESSION_DATA, &prefs_path));
   prefs_path = prefs_path.Append(FILE_PATH_LITERAL("Local State"));
   base::ThreadRestrictions::ScopedAllowIO allow_io;
   scoped_refptr<JsonPrefStore> user_pref_store =
@@ -291,6 +291,14 @@ SerialPolicyAllowedPorts* BrowserProcessImpl::serial_policy_allowed_ports() {
 
 HidPolicyAllowedDevices* BrowserProcessImpl::hid_policy_allowed_devices() {
   return nullptr;
+}
+
+void BrowserProcessImpl::SetSystemLocale(const std::string& locale) {
+  system_locale_ = locale;
+}
+
+const std::string& BrowserProcessImpl::GetSystemLocale() const {
+  return system_locale_;
 }
 
 void BrowserProcessImpl::SetApplicationLocale(const std::string& locale) {

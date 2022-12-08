@@ -21,7 +21,6 @@
 #include "content/common/frame.mojom.h"
 #include "content/public/browser/devtools_agent_host.h"
 #include "content/public/browser/keyboard_event_processing_result.h"
-#include "content/public/browser/permission_type.h"
 #include "content/public/browser/render_widget_host.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_delegate.h"
@@ -47,7 +46,6 @@
 #include "ui/gfx/image/image.h"
 
 #if BUILDFLAG(ENABLE_PRINTING)
-#include "shell/browser/printing/print_preview_message_handler.h"
 #include "shell/browser/printing/print_view_manager_electron.h"
 #endif
 
@@ -61,7 +59,8 @@ class ScriptExecutor;
 
 namespace blink {
 struct DeviceEmulationParams;
-}
+// enum class PermissionType;
+}  // namespace blink
 
 namespace gin_helper {
 class Dictionary;
@@ -94,11 +93,6 @@ class OffScreenWebContentsView;
 #endif
 
 namespace api {
-
-using DevicePermissionMap = std::map<
-    int,
-    std::map<content::PermissionType,
-             std::map<url::Origin, std::vector<std::unique_ptr<base::Value>>>>>;
 
 // Wrapper around the content::WebContents.
 class WebContents : public ExclusiveAccessContext,
@@ -222,15 +216,17 @@ class WebContents : public ExclusiveAccessContext,
   void HandleNewRenderFrame(content::RenderFrameHost* render_frame_host);
 
 #if BUILDFLAG(ENABLE_PRINTING)
-  void OnGetDefaultPrinter(base::Value print_settings,
-                           printing::CompletionCallback print_callback,
-                           std::u16string device_name,
-                           bool silent,
-                           // <error, default_printer_name>
-                           std::pair<std::string, std::u16string> info);
+  void OnGetDeviceNameToUse(base::Value::Dict print_settings,
+                            printing::CompletionCallback print_callback,
+                            bool silent,
+                            // <error, device_name>
+                            std::pair<std::string, std::u16string> info);
   void Print(gin::Arguments* args);
   // Print current page as PDF.
-  v8::Local<v8::Promise> PrintToPDF(base::DictionaryValue settings);
+  v8::Local<v8::Promise> PrintToPDF(const base::Value& settings);
+  void OnPDFCreated(gin_helper::Promise<v8::Local<v8::Value>> promise,
+                    PrintViewManagerElectron::PrintResult print_result,
+                    scoped_refptr<base::RefCountedMemory> data);
 #endif
 
   void SetNextChildWebPreferences(const gin_helper::Dictionary);
@@ -336,6 +332,7 @@ class WebContents : public ExclusiveAccessContext,
   v8::Local<v8::Value> DevToolsWebContents(v8::Isolate* isolate);
   v8::Local<v8::Value> Debugger(v8::Isolate* isolate);
   content::RenderFrameHost* MainFrame();
+  content::RenderFrameHost* Opener();
 
   WebContentsZoomController* GetZoomController() { return zoom_controller_; }
 
@@ -434,21 +431,6 @@ class WebContents : public ExclusiveAccessContext,
           callback);
 
   void SetImageAnimationPolicy(const std::string& new_policy);
-
-  // Grants |origin| access to |device|.
-  // To be used in place of ObjectPermissionContextBase::GrantObjectPermission.
-  void GrantDevicePermission(const url::Origin& origin,
-                             const base::Value* device,
-                             content::PermissionType permissionType,
-                             content::RenderFrameHost* render_frame_host);
-
-  // Returns the list of devices that |origin| has been granted permission to
-  // access. To be used in place of
-  // ObjectPermissionContextBase::GetGrantedObjects.
-  std::vector<base::Value> GetGrantedDevices(
-      const url::Origin& origin,
-      content::PermissionType permissionType,
-      content::RenderFrameHost* render_frame_host);
 
   // disable copy
   WebContents(const WebContents&) = delete;
@@ -553,7 +535,6 @@ class WebContents : public ExclusiveAccessContext,
       content::RenderWidgetHost* render_widget_host) override;
   bool HandleContextMenu(content::RenderFrameHost& render_frame_host,
                          const content::ContextMenuParams& params) override;
-  bool OnGoToEntryOffset(int offset) override;
   void FindReply(content::WebContents* web_contents,
                  int request_id,
                  int number_of_matches,
@@ -684,6 +665,7 @@ class WebContents : public ExclusiveAccessContext,
       const GURL& url,
       ExclusiveAccessBubbleType bubble_type,
       ExclusiveAccessBubbleHideCallback bubble_first_hide_callback,
+      bool notify_download,
       bool force_update) override;
   void OnExclusiveAccessUserInput() override;
   content::WebContents* GetActiveWebContents() override;
@@ -828,9 +810,6 @@ class WebContents : public ExclusiveAccessContext,
 
   // Stores the frame thats currently in fullscreen, nullptr if there is none.
   content::RenderFrameHost* fullscreen_frame_ = nullptr;
-
-  // In-memory cache that holds objects that have been granted permissions.
-  DevicePermissionMap granted_devices_;
 
   base::WeakPtrFactory<WebContents> weak_factory_{this};
 };

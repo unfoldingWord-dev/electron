@@ -26,7 +26,7 @@ The simplest way to update Electronite is to pull down the branch from upstream 
 
 Updating Electronite is pretty straight forward.
 1. Get the version of Electron that you want to update to, e.g. `git checkout upstream v12.0.5`.
-2. Branch from Electron `git checkout -b electronite-12.0.5`
+2. Create new electronite branch from Electron `git checkout -b electronite-v12.0.5`
 3. Apply the [Graphite Patch](https://github.com/unfoldingWord/electronite/wiki/Graphite-Patch) `git am add-graphite-to-electron.patch` (you might need to manually apply it if there are conflicting changes from upstream).
 4. Build and test the Electronite branch (see below).
 5. If everything is working properly, push the branch and tag the release using the proper naming convention, and create a new release based on your new tag with the compiled binaries attached to it.
@@ -34,7 +34,7 @@ Updating Electronite is pretty straight forward.
 
 # Building
 
-[Build Notes](https://github.com/unfoldingWord/electronite/blob/v18.2.1-graphite/docs/development/Electronite/ElectroniteCurrentVersionBuildNotes.md)
+[Build Notes](ElectroniteCurrentVersionBuildNotes.md)
 
 # Other Electronite Steps
 

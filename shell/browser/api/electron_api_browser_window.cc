@@ -33,9 +33,7 @@
 #include "shell/browser/ui/views/win_frame_view.h"
 #endif
 
-namespace electron {
-
-namespace api {
+namespace electron::api {
 
 BrowserWindow::BrowserWindow(gin::Arguments* args,
                              const gin_helper::Dictionary& options)
@@ -290,7 +288,7 @@ void BrowserWindow::OnCloseButtonClicked(bool* prevent_default) {
   } else {
     web_contents()->Close();
   }
-}  // namespace api
+}
 
 void BrowserWindow::OnWindowBlur() {
   if (api_web_contents_)
@@ -349,7 +347,6 @@ void BrowserWindow::UpdateWindowControlsOverlay(
 
 void BrowserWindow::CloseImmediately() {
   // Close all child windows before closing current window.
-  v8::Locker locker(isolate());
   v8::HandleScope handle_scope(isolate());
   for (v8::Local<v8::Value> value : child_windows_.Values(isolate())) {
     gin::Handle<BrowserWindow> child;
@@ -608,9 +605,7 @@ v8::Local<v8::Value> BrowserWindow::From(v8::Isolate* isolate,
     return v8::Null(isolate);
 }
 
-}  // namespace api
-
-}  // namespace electron
+}  // namespace electron::api
 
 namespace {
 

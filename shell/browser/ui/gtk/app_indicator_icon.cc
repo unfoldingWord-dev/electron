@@ -20,7 +20,6 @@
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "content/public/browser/browser_thread.h"
 #include "shell/browser/ui/gtk/app_indicator_icon_menu.h"
@@ -153,9 +152,7 @@ void DeleteTempDirectory(const base::FilePath& dir_path) {
 
 }  // namespace
 
-namespace electron {
-
-namespace gtkui {
+namespace electron::gtkui {
 
 AppIndicatorIcon::AppIndicatorIcon(std::string id,
                                    const gfx::ImageSkia& image,
@@ -376,6 +373,4 @@ void AppIndicatorIcon::OnClickActionReplacementMenuItemActivated() {
     delegate()->OnClick();
 }
 
-}  // namespace gtkui
-
-}  // namespace electron
+}  // namespace electron::gtkui

@@ -1,18 +1,13 @@
 #!/usr/bin/env python3
 
 from __future__ import print_function
-import atexit
 import contextlib
 import errno
 import json
 import os
 import shutil
-import ssl
-import stat
 import subprocess
 import sys
-import tarfile
-import tempfile
 # Python 3 / 2 compat import
 try:
   from urllib.request import urlopen
@@ -20,7 +15,7 @@ except ImportError:
   from urllib2 import urlopen
 import zipfile
 
-from lib.config import is_verbose_mode, s3_config
+from lib.config import is_verbose_mode
 
 ELECTRON_DIR = os.path.abspath(
   os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -161,25 +156,8 @@ def get_electron_version():
     return 'v' + f.read().strip()
 
 def store_artifact(prefix, key_prefix, files):
-  # Legacy S3 Bucket
-  s3put(prefix, key_prefix, files)
-  # New AZ Storage
+  # Azure Storage
   azput(prefix, key_prefix, files)
-
-def s3put(prefix, key_prefix, files):
-  bucket, access_key, secret_key = s3_config()
-  env = os.environ.copy()
-  env['AWS_ACCESS_KEY_ID'] = access_key
-  env['AWS_SECRET_ACCESS_KEY'] = secret_key
-  output = execute([
-    'node',
-    os.path.join(os.path.dirname(__file__), 's3put.js'),
-    '--bucket', bucket,
-    '--prefix', prefix,
-    '--key_prefix', key_prefix,
-    '--grant', 'public-read',
-  ] + files, env)
-  print(output)
 
 def azput(prefix, key_prefix, files):
   env = os.environ.copy()
@@ -208,9 +186,9 @@ def get_electron_exec():
 
   if sys.platform == 'darwin':
     return '{0}/Electron.app/Contents/MacOS/Electron'.format(out_dir)
-  elif sys.platform == 'win32':
+  if sys.platform == 'win32':
     return '{0}/electron.exe'.format(out_dir)
-  elif sys.platform == 'linux':
+  if sys.platform == 'linux':
     return '{0}/electron'.format(out_dir)
 
   raise Exception(
@@ -223,6 +201,7 @@ def get_buildtools_executable(name):
     'linux': 'linux64',
     'linux2': 'linux64',
     'win32': 'win',
+    'cygwin': 'win',
   }[sys.platform]
   path = os.path.join(buildtools, chromium_platform, name)
   if sys.platform == 'win32':

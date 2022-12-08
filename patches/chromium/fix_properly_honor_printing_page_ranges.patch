@@ -62,10 +62,10 @@ index 9e351c7e80a135adf0ebe011763f5164e51981bb..b9fcb4d2a8c7a22ebc7cd8434636454e
    PMPrintSettings print_settings =
        static_cast<PMPrintSettings>([print_info_.get() PMPrintSettings]);
 diff --git a/printing/printing_context_system_dialog_win.cc b/printing/printing_context_system_dialog_win.cc
-index a964910a3b7e3bd225a3b8dc35ef9dc57c77248d..9f791d9ba5f0b540f5e3a67f5e1abb318ddb7680 100644
+index b7ba6ba4446963b08bce9fe416379169bd880378..7c621ea7a60725d08ee9ade68b65fd5bc88b0c2d 100644
 --- a/printing/printing_context_system_dialog_win.cc
 +++ b/printing/printing_context_system_dialog_win.cc
-@@ -54,14 +54,28 @@ void PrintingContextSystemDialogWin::AskUserForSettings(
+@@ -75,14 +75,28 @@ void PrintingContextSystemDialogWin::AskUserForSettings(
    PRINTPAGERANGE ranges[32];
    dialog_options.nStartPage = START_PAGE_GENERAL;
    if (max_pages) {
@@ -74,7 +74,7 @@ index a964910a3b7e3bd225a3b8dc35ef9dc57c77248d..9f791d9ba5f0b540f5e3a67f5e1abb31
 -    ranges[0].nFromPage = 1;
 -    ranges[0].nToPage = max_pages;
 -    dialog_options.nPageRanges = 1;
--    dialog_options.nMaxPageRanges = base::size(ranges);
+-    dialog_options.nMaxPageRanges = std::size(ranges);
 +
 +    auto page_ranges = settings_->ranges();
 +    if (!page_ranges.empty()) {
@@ -95,15 +95,15 @@ index a964910a3b7e3bd225a3b8dc35ef9dc57c77248d..9f791d9ba5f0b540f5e3a67f5e1abb31
 +
      dialog_options.nMinPage = 1;
      dialog_options.nMaxPage = max_pages;
-+    dialog_options.nMaxPageRanges = base::size(ranges);
++    dialog_options.nMaxPageRanges = std::size(ranges);
      dialog_options.lpPageRanges = ranges;
    } else {
      // No need to bother, we don't know how many pages are available.
 diff --git a/ui/gtk/printing/print_dialog_gtk.cc b/ui/gtk/printing/print_dialog_gtk.cc
-index aca31e17a90f95d6a4616fec5b33ce55cd136af0..e340cfae256797b7683fad8b32776a95889a8f46 100644
+index db23b214107c2b4a137e623e183ca08b409959fb..3f10aa71ad6fe698392228dd4b8a73eae7b1dbc6 100644
 --- a/ui/gtk/printing/print_dialog_gtk.cc
 +++ b/ui/gtk/printing/print_dialog_gtk.cc
-@@ -240,6 +240,24 @@ void PrintDialogGtk::UpdateSettings(
+@@ -243,6 +243,24 @@ void PrintDialogGtk::UpdateSettings(
  
    gtk_print_settings_set_n_copies(gtk_settings_, settings->copies());
    gtk_print_settings_set_collate(gtk_settings_, settings->collate());

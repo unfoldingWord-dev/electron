@@ -6,10 +6,10 @@ Subject: Export symbols needed for Windows build
 These symbols are required to build v8 with BUILD_V8_SHARED on Windows.
 
 diff --git a/src/objects/objects.h b/src/objects/objects.h
-index 48f595a24ec7ead3076e1d44afb4f18b7bb810c3..df7cb44387a42fa173ce68ee8464d6abc050986f 100644
+index ced30839aa8627b9b21eabea1a4a3b2574a906d8..f038aea4e2e105b711f4530a1c40d63ee340724f 100644
 --- a/src/objects/objects.h
 +++ b/src/objects/objects.h
-@@ -886,7 +886,7 @@ enum AccessorComponent { ACCESSOR_GETTER, ACCESSOR_SETTER };
+@@ -928,7 +928,7 @@ enum AccessorComponent { ACCESSOR_GETTER, ACCESSOR_SETTER };
  // Utility superclass for stack-allocated objects that must be updated
  // on gc.  It provides two ways for the gc to update instances, either
  // iterating or updating after gc.
@@ -19,7 +19,7 @@ index 48f595a24ec7ead3076e1d44afb4f18b7bb810c3..df7cb44387a42fa173ce68ee8464d6ab
    explicit inline Relocatable(Isolate* isolate);
    inline virtual ~Relocatable();
 diff --git a/src/objects/ordered-hash-table.h b/src/objects/ordered-hash-table.h
-index ec304170542f8a6053c60cbebb22c536cb56ac6c..be8f33d5e8bc2ff388f199dacebd408ccd32dda5 100644
+index 60a6343bb0698902074741c860f3af0f398a85a5..5699fd042e8e3fa19d155de5162a18e24b87f90c 100644
 --- a/src/objects/ordered-hash-table.h
 +++ b/src/objects/ordered-hash-table.h
 @@ -64,7 +64,7 @@ namespace internal {

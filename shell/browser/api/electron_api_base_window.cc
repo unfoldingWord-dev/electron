@@ -58,9 +58,7 @@ struct Converter<electron::TaskbarHost::ThumbarButton> {
 }  // namespace gin
 #endif
 
-namespace electron {
-
-namespace api {
+namespace electron::api {
 
 namespace {
 
@@ -209,7 +207,6 @@ void BaseWindow::OnWindowWillResize(const gfx::Rect& new_bounds,
                                     const gfx::ResizeEdge& edge,
                                     bool* prevent_default) {
   v8::Isolate* isolate = JavascriptEnvironment::GetIsolate();
-  v8::Locker locker(isolate);
   v8::HandleScope handle_scope(isolate);
   gin_helper::Dictionary info = gin::Dictionary::CreateEmpty(isolate);
   info.Set("edge", edge);
@@ -291,7 +288,7 @@ void BaseWindow::OnExecuteAppCommand(const std::string& command_name) {
 }
 
 void BaseWindow::OnTouchBarItemResult(const std::string& item_id,
-                                      const base::DictionaryValue& details) {
+                                      const base::Value::Dict& details) {
   Emit("-touch-bar-interaction", item_id, details);
 }
 
@@ -309,7 +306,6 @@ void BaseWindow::OnSystemContextMenu(int x, int y, bool* prevent_default) {
 void BaseWindow::OnWindowMessage(UINT message, WPARAM w_param, LPARAM l_param) {
   if (IsWindowMessageHooked(message)) {
     v8::Isolate* isolate = JavascriptEnvironment::GetIsolate();
-    v8::Locker locker(isolate);
     v8::HandleScope scope(isolate);
     messages_callback_map_[message].Run(
         ToBuffer(isolate, static_cast<void*>(&w_param), sizeof(WPARAM)),
@@ -1325,9 +1321,7 @@ void BaseWindow::BuildPrototype(v8::Isolate* isolate,
       .SetProperty("id", &BaseWindow::GetID);
 }
 
-}  // namespace api
-
-}  // namespace electron
+}  // namespace electron::api
 
 namespace {
 

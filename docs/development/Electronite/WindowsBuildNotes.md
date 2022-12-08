@@ -2,9 +2,9 @@
 ### Setup on Clean Windows 10 VM
 - Configured my VM using these notes as a reference:
   - https://chromium.googlesource.com/chromium/src/+/main/docs/windows_build_instructions.md#visual-studio
-  - https://github.com/unfoldingWord/electronite/blob/v18.2.1-graphite/docs/development/build-instructions-windows.md
+  - [build-instructions-windows](../build-instructions-windows.md)
 - Make sure the VM has a lot of disk space - I configured with 220GB of storage.
-- if you have trouble building with these notes, you could try the older Chromium Build tools: https://github.com/unfoldingWord/electronite/blob/v18.2.1-graphite/docs/development/Electronite/WindowsBuildNotesChromeTools.md
+- if you have trouble building with these notes, you could try the older Chromium Build tools: [WindowsBuildNotesChromeTools](WindowsBuildNotesChromeTools.md) 
 - Make sure to add exception to the build folder for Windows defender, or it will delete a couple of the build files.
   - Go to Start button > Settings > Update & Security > Windows Security > Virus & threat protection.
   - Under Virus & threat protection settings, select Manage settings, and then under Exclusions, select Add or remove exclusions.
@@ -26,7 +26,7 @@ WINDOWSSDKDIR=C:\Program Files (x86)\Windows Kits\10
 
 - installed: https://chocolatey.org/install
 	
-- Setup Build tools (using command prompt, not powershell).  Install using didn't work for me:
+- Setup Build tools (using command prompt, not powershell).  Install using powershell didn't work for me:
 ```
 npm i -g @electron/build-tools
 C:
@@ -40,120 +40,64 @@ npm i
 - if you browse to http://localhost:8088 on your local machine you can monitor compile jobs as they flow through the goma system.
 
 ### Build Electronite
+- first make sure you have downloaded the current version of electronite-tools-2.bat.  There may have been changes from other electronite versions.
+
 #### Build Intel x64
-- open command prompt and initialize build configuration (note that if you have a slow or unreliable internet connection, it is better to change the goma setting from `cache-only` to `none`):
+- open command prompt, cd to the build directory, and initialize build configuration:
 ```
-e init --root=.\Build-Electron -o x64 x64 -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
-```
-
-- edit `~\.electron_build_tools\configs\evm.x64.json`
-and add option to args:       `"target_cpu = \"x64\""`
-
-- get the base Electron source code (this can take many hours the first time as the git cache is loaded):
-```
-e sync
+e init --root=. -o x64 x64 -i release --goma none --fork unfoldingWord/electronite --use-https -f
 ```
 
-- checkout the correct Electronite tag
+- get the Electronite source code (this can take many hours the first time as the git cache is loaded), checkout the correct Electronite tag and get build sources
 ```
-cd .\Build-Electron\src\electron
-git fetch --all
-git checkout tags/v18.2.1-graphite -b v18.2.1-graphite
-cd ..\..
-```
-
-- now get the Electronite sources
-```
-e sync
+.\electronite-tools-2.bat get electronite-v21.2.0-beta
 ```
 
 - Do build (takes a long time)
 ```
-e use x64
-set NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
-e build electron
+.\electronite-tools-2.bat build x64
+.\electronite-tools-2.bat release x64
 ```
 
-- Make the release to .\Build-Electron\src\out\x64\dist.zip
-```
-e build electron:dist
-```
+- Test the build.
+    - Do `e start`.  Or open electron.exe in finder.
+    - Open the developer console by typing`Control-Shift-I`.
+    - in console execute `window.location="https://scripts.sil.org/cms/scripts/page.php?site_id=projects&item_id=graphite_fontdemo"`
+    - Ensure all the tests pass by visually inspecting the rendered fonts and comparing against the image samples on the site.
+    - The example for Padauk from server will not be correct with the triangles.  So need to:
+      Open elements tab, select body of html, do Control-F to search, and search for `padauk_ttf`, and apply attribute `font-feature-settings: "wtri" 1;`.  The triangles should now be rendered correctly.
+
+- The release is at .\Build-Electron\src\out\Release-x64\dist.zip
 
 #### Build Intel x86 (32 bit)
-- open command prompt and initialize build configuration (note that if you have a slow or unreliable internet connection, it is better to change the goma setting from `cache-only` to `none`):
-```
-e init --root=.\Build-Electron -o x86 x86 -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
-```
+- if Electronite source already checked out, then skip to `Do build` step.
 
-- edit `~\.electron_build_tools\configs\evm.x86.json`
-  and add option to args:       `"target_cpu = \"x86\""`
-
-- get the base Electron source code (this can take many hours the first time as the git cache is loaded):
+- get the Electronite source code (this can take many hours the first time as the git cache is loaded), checkout the correct Electronite tag and get build sources
 ```
-e sync
-```
-
-- checkout the correct Electronite tag
-```
-cd .\Build-Electron\src\electron
-git fetch --all
-git checkout tags/v18.2.1-graphite -b v18.2.1-graphite
-cd ..\..
-```
-
-- now get the Electronite sources
-```
-e sync
+.\electronite-tools-2.bat get electronite-v21.2.0-beta
 ```
 
 - Do build (takes a long time)
 ```
-e use x86
-set NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
-e build electron
+.\electronite-tools-2.bat build x86
+.\electronite-tools-2.bat release x86
 ```
 
-- Make the release to .\Build-Electron\src\out\x86\dist.zip
-```
-e build electron:dist
-```
+- The release is at .\Build-Electron\src\out\Release-x86\dist.zip
 
 #### Build Intel arm64
-- open command prompt and initialize build configuration (note that if you have a slow or unreliable internet connection, it is better to change the goma setting from `cache-only` to `none`):
-```
-e init --root=.\Build-Electron -o arm64 arm64 -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
-```
+- if Electronite source already checked out, then skip to `Do build` step.
 
-- edit `~\.electron_build_tools\configs\evm.arm64.json`
-  and add option to args:       `"target_cpu = \"arm64\""`
-
-- get the base Electron source code (this can take many hours the first time as the git cache is loaded):
+-- get the Electronite source code (this can take many hours the first time as the git cache is loaded), checkout the correct Electronite tag and get build sources
 ```
-e sync
-```
-
-- checkout the correct Electronite tag
-```
-cd .\Build-Electron\src\electron
-git fetch --all
-git checkout tags/v18.2.1-graphite -b v18.2.1-graphite
-cd ..\..
-```
-
-- now get the Electronite sources
-```
-e sync
+.\electronite-tools-2.bat get electronite-v21.2.0-beta
 ```
 
 - Do build (takes a long time)
 ```
-e use arm64
-set NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
-e build electron
+.\electronite-tools-2.bat build arm64
+.\electronite-tools-2.bat release arm64
 ```
 
-- Make the release to .\Build-Electron\src\out\arm64\dist.zip
-```
-e build electron:dist
-```
+- The release is at .\Build-Electron\src\out\Release-arm64\dist.zip
 

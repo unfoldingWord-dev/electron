@@ -10,9 +10,10 @@ import * as url from 'url';
 import * as ChildProcess from 'child_process';
 import { EventEmitter } from 'events';
 import { promisify } from 'util';
-import { ifit, ifdescribe, delay, defer } from './spec-helpers';
+import { ifit, ifdescribe, defer, delay } from './spec-helpers';
 import { AddressInfo } from 'net';
 import { PipeTransport } from './pipe-transport';
+import * as ws from 'ws';
 
 const features = process._linkedBinding('electron_common_features');
 
@@ -238,8 +239,7 @@ describe('web security', () => {
     await p;
   });
 
-  // TODO(codebytere): Re-enable after Chromium fixes upstream v8_scriptormodule_legacy_lifetime crash.
-  xit('bypasses CORB when web security is disabled', async () => {
+  it('bypasses CORB when web security is disabled', async () => {
     const w = new BrowserWindow({ show: false, webPreferences: { webSecurity: false, nodeIntegration: true, contextIsolation: false } });
     const p = emittedOnce(ipcMain, 'success');
     await w.loadURL(`data:text/html,
@@ -346,7 +346,7 @@ describe('web security', () => {
 
     it('wasm codegen is disallowed by default', async () => {
       const r = await loadWasm('');
-      expect(r).to.equal('WebAssembly.instantiate(): Wasm code generation disallowed by embedder');
+      expect(r).to.equal('WebAssembly.instantiate(): Refused to compile or instantiate WebAssembly module because \'unsafe-eval\' is not an allowed source of script in the following Content Security Policy directive: "script-src \'self\' \'unsafe-inline\'"');
     });
 
     it('wasm codegen is allowed with "wasm-unsafe-eval" csp', async () => {
@@ -374,6 +374,7 @@ describe('command line switches', () => {
   });
   describe('--lang switch', () => {
     const currentLocale = app.getLocale();
+    const currentSystemLocale = app.getSystemLocale();
     const testLocale = async (locale: string, result: string, printEnv: boolean = false) => {
       const appPath = path.join(fixturesPath, 'api', 'locale-check');
       const args = [appPath, `--set-lang=${locale}`];
@@ -396,8 +397,9 @@ describe('command line switches', () => {
       expect(output).to.equal(result);
     };
 
-    it('should set the locale', async () => testLocale('fr', 'fr'));
-    it('should not set an invalid locale', async () => testLocale('asdfkl', currentLocale));
+    it('should set the locale', async () => testLocale('fr', `fr|${currentSystemLocale}`));
+    it('should set the locale with country code', async () => testLocale('zh-CN', `zh-CN|${currentSystemLocale}`));
+    it('should not set an invalid locale', async () => testLocale('asdfkl', `${currentLocale}|${currentSystemLocale}`));
 
     const lcAll = String(process.env.LC_ALL);
     ifit(process.platform === 'linux')('current process has a valid LC_ALL env', async () => {
@@ -493,6 +495,37 @@ describe('chromium features', () => {
       w.webContents.once('did-finish-load', () => { done(); });
       w.webContents.once('crashed', () => done(new Error('WebContents crashed.')));
       w.loadFile(path.join(fixturesPath, 'pages', 'external-string.html'));
+    });
+  });
+
+  describe('first party sets', () => {
+    const fps = [
+      'https://fps-member1.glitch.me',
+      'https://fps-member2.glitch.me',
+      'https://fps-member3.glitch.me'
+    ];
+
+    it('loads first party sets', async () => {
+      const appPath = path.join(fixturesPath, 'api', 'first-party-sets', 'base');
+      const fpsProcess = ChildProcess.spawn(process.execPath, [appPath]);
+
+      let output = '';
+      fpsProcess.stdout.on('data', data => { output += data; });
+      await emittedOnce(fpsProcess, 'exit');
+
+      expect(output).to.include(fps.join(','));
+    });
+
+    it('loads sets from the command line', async () => {
+      const appPath = path.join(fixturesPath, 'api', 'first-party-sets', 'command-line');
+      const args = [appPath, `--use-first-party-set=${fps}`];
+      const fpsProcess = ChildProcess.spawn(process.execPath, args);
+
+      let output = '';
+      fpsProcess.stdout.on('data', data => { output += data; });
+      await emittedOnce(fpsProcess, 'exit');
+
+      expect(output).to.include(fps.join(','));
     });
   });
 
@@ -619,7 +652,7 @@ describe('chromium features', () => {
       w.loadFile(path.join(fixturesPath, 'pages', 'service-worker', 'custom-scheme-index.html'));
     });
 
-    it('should not crash when nodeIntegration is enabled', (done) => {
+    it('should not allow nodeIntegrationInWorker', async () => {
       const w = new BrowserWindow({
         show: false,
         webPreferences: {
@@ -630,31 +663,23 @@ describe('chromium features', () => {
         }
       });
 
-      w.webContents.on('ipc-message', (event, channel, message) => {
-        if (channel === 'reload') {
-          w.webContents.reload();
-        } else if (channel === 'error') {
-          done(`unexpected error : ${message}`);
-        } else if (channel === 'response') {
-          expect(message).to.equal('Hello from serviceWorker!');
-          session.fromPartition('sw-file-scheme-worker-spec').clearStorageData({
-            storages: ['serviceworkers']
-          }).then(() => done());
-        }
-      });
+      await w.loadURL(`file://${fixturesPath}/pages/service-worker/empty.html`);
 
-      w.webContents.on('crashed', () => done(new Error('WebContents crashed.')));
-      w.loadFile(path.join(fixturesPath, 'pages', 'service-worker', 'index.html'));
+      const data = await w.webContents.executeJavaScript(`
+        navigator.serviceWorker.register('worker-no-node.js', {
+          scope: './'
+        }).then(() => navigator.serviceWorker.ready)
+
+        new Promise((resolve) => {
+          navigator.serviceWorker.onmessage = event => resolve(event.data);
+        });
+      `);
+
+      expect(data).to.equal('undefined undefined undefined undefined');
     });
   });
 
-  describe('navigator.geolocation', () => {
-    before(function () {
-      if (!features.isFakeLocationProviderEnabled()) {
-        return this.skip();
-      }
-    });
-
+  ifdescribe(features.isFakeLocationProviderEnabled())('navigator.geolocation', () => {
     it('returns error when permission is denied', async () => {
       const w = new BrowserWindow({
         show: false,
@@ -676,6 +701,17 @@ describe('chromium features', () => {
       const [, channel] = await message;
       expect(channel).to.equal('success', 'unexpected response from geolocation api');
     });
+
+    it('returns position when permission is granted', async () => {
+      const w = new BrowserWindow({ show: false });
+      await w.loadURL(`file://${fixturesPath}/pages/blank.html`);
+      const position = await w.webContents.executeJavaScript(`new Promise((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(
+          x => resolve({coords: x.coords, timestamp: x.timestamp}),
+          reject))`);
+      expect(position).to.have.property('coords');
+      expect(position).to.have.property('timestamp');
+    });
   });
 
   describe('web workers', () => {
@@ -695,6 +731,79 @@ describe('chromium features', () => {
 
       const [code] = await emittedOnce(appProcess, 'exit');
       expect(code).to.equal(0);
+    });
+
+    it('Worker can work', async () => {
+      const w = new BrowserWindow({ show: false });
+      await w.loadURL(`file://${fixturesPath}/pages/blank.html`);
+      const data = await w.webContents.executeJavaScript(`
+        const worker = new Worker('../workers/worker.js');
+        const message = 'ping';
+        const eventPromise = new Promise((resolve) => { worker.onmessage = resolve; });
+        worker.postMessage(message);
+        eventPromise.then(t => t.data)
+      `);
+      expect(data).to.equal('ping');
+    });
+
+    it('Worker has no node integration by default', async () => {
+      const w = new BrowserWindow({ show: false });
+      await w.loadURL(`file://${fixturesPath}/pages/blank.html`);
+      const data = await w.webContents.executeJavaScript(`
+        const worker = new Worker('../workers/worker_node.js');
+        new Promise((resolve) => { worker.onmessage = e => resolve(e.data); })
+      `);
+      expect(data).to.equal('undefined undefined undefined undefined');
+    });
+
+    it('Worker has node integration with nodeIntegrationInWorker', async () => {
+      const w = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, nodeIntegrationInWorker: true, contextIsolation: false } });
+      w.loadURL(`file://${fixturesPath}/pages/worker.html`);
+      const [, data] = await emittedOnce(ipcMain, 'worker-result');
+      expect(data).to.equal('object function object function');
+    });
+
+    describe('SharedWorker', () => {
+      it('can work', async () => {
+        const w = new BrowserWindow({ show: false });
+        await w.loadURL(`file://${fixturesPath}/pages/blank.html`);
+        const data = await w.webContents.executeJavaScript(`
+          const worker = new SharedWorker('../workers/shared_worker.js');
+          const message = 'ping';
+          const eventPromise = new Promise((resolve) => { worker.port.onmessage = e => resolve(e.data); });
+          worker.port.postMessage(message);
+          eventPromise
+        `);
+        expect(data).to.equal('ping');
+      });
+
+      it('has no node integration by default', async () => {
+        const w = new BrowserWindow({ show: false });
+        await w.loadURL(`file://${fixturesPath}/pages/blank.html`);
+        const data = await w.webContents.executeJavaScript(`
+          const worker = new SharedWorker('../workers/shared_worker_node.js');
+          new Promise((resolve) => { worker.port.onmessage = e => resolve(e.data); })
+        `);
+        expect(data).to.equal('undefined undefined undefined undefined');
+      });
+
+      it('does not have node integration with nodeIntegrationInWorker', async () => {
+        const w = new BrowserWindow({
+          show: false,
+          webPreferences: {
+            nodeIntegration: true,
+            nodeIntegrationInWorker: true,
+            contextIsolation: false
+          }
+        });
+
+        await w.loadURL(`file://${fixturesPath}/pages/blank.html`);
+        const data = await w.webContents.executeJavaScript(`
+          const worker = new SharedWorker('../workers/shared_worker_node.js');
+          new Promise((resolve) => { worker.port.onmessage = e => resolve(e.data); })
+        `);
+        expect(data).to.equal('undefined undefined undefined undefined');
+      });
     });
   });
 
@@ -789,10 +898,10 @@ describe('chromium features', () => {
 
         defer(() => { w.close(); });
 
-        const newWindow = emittedOnce(w.webContents, 'new-window');
+        const promise = emittedOnce(app, 'browser-window-created');
         w.loadFile(path.join(fixturesPath, 'pages', 'window-open.html'));
-        const [,,,, options] = await newWindow;
-        expect(options.show).to.equal(true);
+        const [, newWindow] = await promise;
+        expect(newWindow.isVisible()).to.equal(true);
       });
     }
 
@@ -901,8 +1010,12 @@ describe('chromium features', () => {
       const w = new BrowserWindow({ show: false });
       w.loadURL('about:blank');
       w.webContents.executeJavaScript('{ b = window.open(\'\', \'__proto__\'); null }');
-      const [, , frameName] = await emittedOnce(w.webContents, 'new-window');
-
+      const frameName = await new Promise((resolve) => {
+        w.webContents.setWindowOpenHandler(details => {
+          setImmediate(() => resolve(details.frameName));
+          return { action: 'allow' };
+        });
+      });
       expect(frameName).to.equal('__proto__');
     });
   });
@@ -1002,6 +1115,14 @@ describe('chromium features', () => {
           }
         }).then((stream) => stream.getVideoTracks())`);
       expect(labels.some((l: any) => l)).to.be.true();
+    });
+
+    it('fails with "not supported" for getDisplayMedia', async () => {
+      const w = new BrowserWindow({ show: false });
+      w.loadFile(path.join(fixturesPath, 'pages', 'blank.html'));
+      const { ok, err } = await w.webContents.executeJavaScript('navigator.mediaDevices.getDisplayMedia({video: true}).then(s => ({ok: true}), e => ({ok: false, err: e.message}))');
+      expect(ok).to.be.false();
+      expect(err).to.equal('Not supported');
     });
   });
 
@@ -1461,6 +1582,34 @@ describe('chromium features', () => {
         expect((w.webContents as any).length()).to.equal(2);
       });
     });
+
+    describe('window.history.back', () => {
+      it('should not allow sandboxed iframe to modify main frame state', async () => {
+        const w = new BrowserWindow({ show: false });
+        w.loadURL('data:text/html,<iframe sandbox="allow-scripts"></iframe>');
+        await Promise.all([
+          emittedOnce(w.webContents, 'navigation-entry-committed'),
+          emittedOnce(w.webContents, 'did-frame-navigate'),
+          emittedOnce(w.webContents, 'did-navigate')
+        ]);
+
+        w.webContents.executeJavaScript('window.history.pushState(1, "")');
+        await Promise.all([
+          emittedOnce(w.webContents, 'navigation-entry-committed'),
+          emittedOnce(w.webContents, 'did-navigate-in-page')
+        ]);
+
+        (w.webContents as any).once('navigation-entry-committed', () => {
+          expect.fail('Unexpected navigation-entry-committed');
+        });
+        w.webContents.once('did-navigate-in-page', () => {
+          expect.fail('Unexpected did-navigate-in-page');
+        });
+        await w.webContents.mainFrame.frames[0].executeJavaScript('window.history.back()');
+        expect(await w.webContents.executeJavaScript('window.history.state')).to.equal(1);
+        expect((w.webContents as any).getActiveIndex()).to.equal(1);
+      });
+    });
   });
 
   describe('chrome://media-internals', () => {
@@ -1507,6 +1656,178 @@ describe('chromium features', () => {
         'document.hasFocus()'
       );
       expect(focus).to.be.false();
+    });
+  });
+
+  describe('navigator.userAgentData', () => {
+    // These tests are done on an http server because navigator.userAgentData
+    // requires a secure context.
+    let server: http.Server;
+    let serverUrl: string;
+    before(async () => {
+      server = http.createServer((req, res) => {
+        res.setHeader('Content-Type', 'text/html');
+        res.end('');
+      });
+      await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+      serverUrl = `http://localhost:${(server.address() as any).port}`;
+    });
+    after(() => {
+      server.close();
+    });
+
+    describe('is not empty', () => {
+      it('by default', async () => {
+        const w = new BrowserWindow({ show: false });
+        await w.loadURL(serverUrl);
+        const platform = await w.webContents.executeJavaScript('navigator.userAgentData.platform');
+        expect(platform).not.to.be.empty();
+      });
+
+      it('when there is a session-wide UA override', async () => {
+        const ses = session.fromPartition(`${Math.random()}`);
+        ses.setUserAgent('foobar');
+        const w = new BrowserWindow({ show: false, webPreferences: { session: ses } });
+        await w.loadURL(serverUrl);
+        const platform = await w.webContents.executeJavaScript('navigator.userAgentData.platform');
+        expect(platform).not.to.be.empty();
+      });
+
+      it('when there is a WebContents-specific UA override', async () => {
+        const w = new BrowserWindow({ show: false });
+        w.webContents.setUserAgent('foo');
+        await w.loadURL(serverUrl);
+        const platform = await w.webContents.executeJavaScript('navigator.userAgentData.platform');
+        expect(platform).not.to.be.empty();
+      });
+
+      it('when there is a WebContents-specific UA override at load time', async () => {
+        const w = new BrowserWindow({ show: false });
+        await w.loadURL(serverUrl, {
+          userAgent: 'foo'
+        });
+        const platform = await w.webContents.executeJavaScript('navigator.userAgentData.platform');
+        expect(platform).not.to.be.empty();
+      });
+    });
+
+    describe('brand list', () => {
+      it('contains chromium', async () => {
+        const w = new BrowserWindow({ show: false });
+        await w.loadURL(serverUrl);
+        const brands = await w.webContents.executeJavaScript('navigator.userAgentData.brands');
+        expect(brands.map((b: any) => b.brand)).to.include('Chromium');
+      });
+    });
+  });
+
+  describe('Badging API', () => {
+    it('does not crash', async () => {
+      const w = new BrowserWindow({ show: false });
+      await w.loadURL(`file://${fixturesPath}/pages/blank.html`);
+      await w.webContents.executeJavaScript('navigator.setAppBadge(42)');
+      await w.webContents.executeJavaScript('navigator.setAppBadge()');
+      await w.webContents.executeJavaScript('navigator.clearAppBadge()');
+    });
+  });
+
+  describe('navigator.webkitGetUserMedia', () => {
+    it('calls its callbacks', async () => {
+      const w = new BrowserWindow({ show: false });
+      await w.loadURL(`file://${fixturesPath}/pages/blank.html`);
+      await w.webContents.executeJavaScript(`new Promise((resolve) => {
+        navigator.webkitGetUserMedia({
+          audio: true,
+          video: false
+        }, () => resolve(),
+        () => resolve());
+      })`);
+    });
+  });
+
+  describe('navigator.language', () => {
+    it('should not be empty', async () => {
+      const w = new BrowserWindow({ show: false });
+      await w.loadURL('about:blank');
+      expect(await w.webContents.executeJavaScript('navigator.language')).to.not.equal('');
+    });
+  });
+
+  describe('heap snapshot', () => {
+    it('does not crash', async () => {
+      const w = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, contextIsolation: false } });
+      w.loadURL('about:blank');
+      await w.webContents.executeJavaScript('process._linkedBinding(\'electron_common_v8_util\').takeHeapSnapshot()');
+    });
+  });
+
+  ifdescribe(process.platform !== 'win32' && process.platform !== 'linux')('webgl', () => {
+    it('can be gotten as context in canvas', async () => {
+      const w = new BrowserWindow({ show: false });
+      w.loadURL('about:blank');
+      await w.loadURL(`file://${fixturesPath}/pages/blank.html`);
+      const canWebglContextBeCreated = await w.webContents.executeJavaScript(`
+        document.createElement('canvas').getContext('webgl') != null;
+      `);
+      expect(canWebglContextBeCreated).to.be.true();
+    });
+  });
+
+  describe('iframe', () => {
+    it('does not have node integration', async () => {
+      const w = new BrowserWindow({ show: false });
+      await w.loadURL(`file://${fixturesPath}/pages/blank.html`);
+      const result = await w.webContents.executeJavaScript(`
+        const iframe = document.createElement('iframe')
+        iframe.src = './set-global.html';
+        document.body.appendChild(iframe);
+        new Promise(resolve => iframe.onload = e => resolve(iframe.contentWindow.test))
+      `);
+      expect(result).to.equal('undefined undefined undefined');
+    });
+  });
+
+  describe('websockets', () => {
+    it('has user agent', async () => {
+      const server = http.createServer();
+      await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+      const port = (server.address() as AddressInfo).port;
+      const wss = new ws.Server({ server: server });
+      const finished = new Promise<string | undefined>((resolve, reject) => {
+        wss.on('error', reject);
+        wss.on('connection', (ws, upgradeReq) => {
+          resolve(upgradeReq.headers['user-agent']);
+        });
+      });
+      const w = new BrowserWindow({ show: false });
+      w.loadURL('about:blank');
+      w.webContents.executeJavaScript(`
+        new WebSocket('ws://127.0.0.1:${port}');
+      `);
+      expect(await finished).to.include('Electron');
+    });
+  });
+
+  describe('fetch', () => {
+    it('does not crash', async () => {
+      const server = http.createServer((req, res) => {
+        res.end('test');
+      });
+      defer(() => server.close());
+      await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+      const port = (server.address() as AddressInfo).port;
+      const w = new BrowserWindow({ show: false });
+      w.loadURL(`file://${fixturesPath}/pages/blank.html`);
+      const x = await w.webContents.executeJavaScript(`
+        fetch('http://127.0.0.1:${port}').then((res) => res.body.getReader())
+          .then((reader) => {
+            return reader.read().then((r) => {
+              reader.cancel();
+              return r.value;
+            });
+          })
+      `);
+      expect(x).to.deep.equal(new Uint8Array([116, 101, 115, 116]));
     });
   });
 });
@@ -1591,7 +1912,7 @@ describe('iframe using HTML fullscreen API while window is OS-fullscreened', () 
     server.close();
   });
 
-  it('can fullscreen from out-of-process iframes (OOPIFs)', async () => {
+  ifit(process.platform !== 'darwin')('can fullscreen from out-of-process iframes (non-macOS)', async () => {
     const fullscreenChange = emittedOnce(ipcMain, 'fullscreenChange');
     const html =
       '<iframe style="width: 0" frameborder=0 src="http://localhost:8989" allowfullscreen></iframe>';
@@ -1615,8 +1936,37 @@ describe('iframe using HTML fullscreen API while window is OS-fullscreened', () 
     expect(width).to.equal(0);
   });
 
+  ifit(process.platform === 'darwin')('can fullscreen from out-of-process iframes (macOS)', async () => {
+    await emittedOnce(w, 'enter-full-screen');
+    const fullscreenChange = emittedOnce(ipcMain, 'fullscreenChange');
+    const html =
+      '<iframe style="width: 0" frameborder=0 src="http://localhost:8989" allowfullscreen></iframe>';
+    w.loadURL(`data:text/html,${html}`);
+    await fullscreenChange;
+
+    const fullscreenWidth = await w.webContents.executeJavaScript(
+      "document.querySelector('iframe').offsetWidth"
+    );
+    expect(fullscreenWidth > 0).to.be.true();
+
+    await w.webContents.executeJavaScript(
+      "document.querySelector('iframe').contentWindow.postMessage('exitFullscreen', '*')"
+    );
+    await emittedOnce(w.webContents, 'leave-html-full-screen');
+
+    const width = await w.webContents.executeJavaScript(
+      "document.querySelector('iframe').offsetWidth"
+    );
+    expect(width).to.equal(0);
+
+    w.setFullScreen(false);
+    await emittedOnce(w, 'leave-full-screen');
+  });
+
   // TODO(jkleinsc) fix this flaky test on WOA
   ifit(process.platform !== 'win32' || process.arch !== 'arm64')('can fullscreen from in-process iframes', async () => {
+    if (process.platform === 'darwin') await emittedOnce(w, 'enter-full-screen');
+
     const fullscreenChange = emittedOnce(ipcMain, 'fullscreenChange');
     w.loadFile(path.join(fixturesPath, 'pages', 'fullscreen-ipif.html'));
     await fullscreenChange;
@@ -1679,11 +2029,39 @@ describe('navigator.serial', () => {
   });
 
   it('returns a port when select-serial-port event is defined', async () => {
+    let havePorts = false;
     w.webContents.session.on('select-serial-port', (event, portList, webContents, callback) => {
-      callback(portList[0].portId);
+      if (portList.length > 0) {
+        havePorts = true;
+        callback(portList[0].portId);
+      } else {
+        callback('');
+      }
     });
     const port = await getPorts();
-    expect(port).to.equal('[object SerialPort]');
+    if (havePorts) {
+      expect(port).to.equal('[object SerialPort]');
+    } else {
+      expect(port).to.equal('NotFoundError: No port selected by the user.');
+    }
+  });
+
+  it('navigator.serial.getPorts() returns values', async () => {
+    let havePorts = false;
+
+    w.webContents.session.on('select-serial-port', (event, portList, webContents, callback) => {
+      if (portList.length > 0) {
+        havePorts = true;
+        callback(portList[0].portId);
+      } else {
+        callback('');
+      }
+    });
+    await getPorts();
+    if (havePorts) {
+      const grantedPorts = await w.webContents.executeJavaScript('navigator.serial.getPorts()');
+      expect(grantedPorts).to.not.be.empty();
+    }
   });
 });
 
@@ -1891,7 +2269,7 @@ describe('navigator.hid', () => {
     serverUrl = `http://localhost:${(server.address() as any).port}`;
   });
 
-  const getDevices: any = () => {
+  const requestDevices: any = () => {
     return w.webContents.executeJavaScript(`
       navigator.hid.requestDevice({filters: []}).then(device => device.toString()).catch(err => err.toString());
     `, true);
@@ -1909,7 +2287,7 @@ describe('navigator.hid', () => {
 
   it('does not return a device if select-hid-device event is not defined', async () => {
     w.loadFile(path.join(fixturesPath, 'pages', 'blank.html'));
-    const device = await getDevices();
+    const device = await requestDevices();
     expect(device).to.equal('');
   });
 
@@ -1920,7 +2298,7 @@ describe('navigator.hid', () => {
       callback();
     });
     session.defaultSession.setPermissionCheckHandler(() => false);
-    const device = await getDevices();
+    const device = await requestDevices();
     expect(selectFired).to.be.false();
     expect(device).to.equal('');
   });
@@ -1938,7 +2316,7 @@ describe('navigator.hid', () => {
         callback();
       }
     });
-    const device = await getDevices();
+    const device = await requestDevices();
     expect(selectFired).to.be.true();
     if (haveDevices) {
       expect(device).to.contain('[object HIDDevice]');
@@ -1987,13 +2365,90 @@ describe('navigator.hid', () => {
       return true;
     });
     await w.webContents.executeJavaScript('navigator.hid.getDevices();', true);
-    const device = await getDevices();
+    const device = await requestDevices();
     expect(selectFired).to.be.true();
     if (haveDevices) {
       expect(device).to.contain('[object HIDDevice]');
       expect(gotDevicePerms).to.be.true();
     } else {
       expect(device).to.equal('');
+    }
+  });
+
+  it('excludes a device when a exclusionFilter is specified', async () => {
+    const exclusionFilters = <any>[];
+    let haveDevices = false;
+    let checkForExcludedDevice = false;
+
+    w.webContents.session.on('select-hid-device', (event, details, callback) => {
+      if (details.deviceList.length > 0) {
+        details.deviceList.find((device) => {
+          if (device.name && device.name !== '' && device.serialNumber && device.serialNumber !== '') {
+            if (checkForExcludedDevice) {
+              const compareDevice = {
+                vendorId: device.vendorId,
+                productId: device.productId
+              };
+              expect(compareDevice).to.not.equal(exclusionFilters[0], 'excluded device should not be returned');
+            } else {
+              haveDevices = true;
+              exclusionFilters.push({
+                vendorId: device.vendorId,
+                productId: device.productId
+              });
+              return true;
+            }
+          }
+        });
+      }
+      callback();
+    });
+
+    await requestDevices();
+    if (haveDevices) {
+      // We have devices to exclude, so check if exclusionFilters work
+      checkForExcludedDevice = true;
+      await w.webContents.executeJavaScript(`
+        navigator.hid.requestDevice({filters: [], exclusionFilters: ${JSON.stringify(exclusionFilters)}}).then(device => device.toString()).catch(err => err.toString());
+
+      `, true);
+    }
+  });
+
+  it('supports device.forget()', async () => {
+    let deletedDeviceFromEvent;
+    let haveDevices = false;
+    w.webContents.session.on('select-hid-device', (event, details, callback) => {
+      if (details.deviceList.length > 0) {
+        haveDevices = true;
+        callback(details.deviceList[0].deviceId);
+      } else {
+        callback();
+      }
+    });
+    w.webContents.session.on('hid-device-revoked', (event, details) => {
+      deletedDeviceFromEvent = details.device;
+    });
+    await requestDevices();
+    if (haveDevices) {
+      const grantedDevices = await w.webContents.executeJavaScript('navigator.hid.getDevices()');
+      if (grantedDevices.length > 0) {
+        const deletedDevice = await w.webContents.executeJavaScript(`
+          navigator.hid.getDevices().then(devices => {
+            devices[0].forget();
+            return {
+              vendorId: devices[0].vendorId,
+              productId: devices[0].productId,
+              name: devices[0].productName
+            }
+          })
+        `);
+        const grantedDevices2 = await w.webContents.executeJavaScript('navigator.hid.getDevices()');
+        expect(grantedDevices2.length).to.be.lessThan(grantedDevices.length);
+        if (deletedDevice.name !== '' && deletedDevice.productId && deletedDevice.vendorId) {
+          expect(deletedDeviceFromEvent).to.include(deletedDevice);
+        }
+      }
     }
   });
 });

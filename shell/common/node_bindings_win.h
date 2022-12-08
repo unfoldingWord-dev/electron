@@ -13,7 +13,6 @@ namespace electron {
 class NodeBindingsWin : public NodeBindings {
  public:
   explicit NodeBindingsWin(BrowserEnvironment browser_env);
-  ~NodeBindingsWin() override;
 
   void PrepareMessageLoop() override;
   void RunMessageLoop() override;

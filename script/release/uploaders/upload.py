@@ -47,7 +47,7 @@ def main():
   args = parse_args()
   if args.verbose:
     enable_verbose_mode()
-  if args.upload_to_s3:
+  if args.upload_to_storage:
     utcnow = datetime.datetime.utcnow()
     args.upload_timestamp = utcnow.strftime('%Y%m%d')
 
@@ -64,7 +64,7 @@ def main():
   if not release['draft']:
     tag_exists = True
 
-  if not args.upload_to_s3:
+  if not args.upload_to_storage:
     assert release['exists'], \
           'Release does not exist; cannot upload to GitHub!'
     assert tag_exists == args.overwrite, \
@@ -91,9 +91,9 @@ def main():
     shutil.copy2(os.path.join(OUT_DIR, 'dsym.zip'), dsym_zip)
     upload_electron(release, dsym_zip, args)
 
-    dsym_snaphot_zip = os.path.join(OUT_DIR, DSYM_SNAPSHOT_NAME)
-    shutil.copy2(os.path.join(OUT_DIR, 'dsym-snapshot.zip'), dsym_snaphot_zip)
-    upload_electron(release, dsym_snaphot_zip, args)    
+    dsym_snapshot_zip = os.path.join(OUT_DIR, DSYM_SNAPSHOT_NAME)
+    shutil.copy2(os.path.join(OUT_DIR, 'dsym-snapshot.zip'), dsym_snapshot_zip)
+    upload_electron(release, dsym_snapshot_zip, args)    
   elif PLATFORM == 'win32':
     pdb_zip = os.path.join(OUT_DIR, PDB_NAME)
     shutil.copy2(os.path.join(OUT_DIR, 'pdb.zip'), pdb_zip)
@@ -146,7 +146,7 @@ def main():
       OUT_DIR, 'hunspell_dictionaries.zip')
     upload_electron(release, hunspell_dictionaries_zip, args)
 
-  if not tag_exists and not args.upload_to_s3:
+  if not tag_exists and not args.upload_to_storage:
     # Upload symbols to symbol server.
     run_python_upload_script('upload-symbols.py')
     if PLATFORM == 'win32':
@@ -160,6 +160,8 @@ def main():
         'toolchain_profile.json')
     upload_electron(release, toolchain_profile_zip, args)
 
+  return 0
+
 def parse_args():
   parser = argparse.ArgumentParser(description='upload distribution file')
   parser.add_argument('-v', '--version', help='Specify the version',
@@ -170,9 +172,9 @@ def parse_args():
   parser.add_argument('-p', '--publish-release',
                       help='Publish the release',
                       action='store_true')
-  parser.add_argument('-s', '--upload_to_s3',
-                      help='Upload assets to s3 bucket',
-                      dest='upload_to_s3',
+  parser.add_argument('-s', '--upload_to_storage',
+                      help='Upload assets to azure bucket',
+                      dest='upload_to_storage',
                       action='store_true',
                       default=False,
                       required=False)
@@ -205,7 +207,8 @@ def zero_zip_date_time(fname):
   try:
     with open(fname, 'r+b') as f:
       _zero_zip_date_time(f)
-  except:
+  except Exception:
+    # pylint: disable=W0707
     raise NonZipFileError(fname)
 
 
@@ -225,7 +228,7 @@ def _zero_zip_date_time(zip_):
     ZIP64_EXTRA_HEADER = 0x0001
     zip64_extra_struct = Struct("<HHQQ")
     # ZIP64.
-    # When a ZIP64 extra field is present his 8byte length
+    # When a ZIP64 extra field is present this 8byte length
     # will override the 4byte length defined in canonical zips.
     # This is in the form:
     # - 0x0001 (header_id)
@@ -337,9 +340,10 @@ def upload_electron(release, file_path, args):
   except NonZipFileError:
     pass
 
-  # if upload_to_s3 is set, skip github upload.
-  if args.upload_to_s3:
-    key_prefix = 'electron-artifacts/{0}_{1}'.format(args.version,
+  # if upload_to_storage is set, skip github upload.
+  # todo (vertedinde): migrate this variable to upload_to_storage
+  if args.upload_to_storage:
+    key_prefix = 'release-builds/{0}_{1}'.format(args.version,
                                                      args.upload_timestamp)
     store_artifact(os.path.dirname(file_path), key_prefix, [file_path])
     upload_sha256_checksum(args.version, file_path, key_prefix)
@@ -353,7 +357,7 @@ def upload_electron(release, file_path, args):
 
 
 def upload_io_to_github(release, filename, filepath, version):
-  print('Uploading %s to Github' % \
+  print('Uploading %s to GitHub' % \
       (filename))
   script_path = os.path.join(
     ELECTRON_DIR, 'script', 'release', 'uploaders', 'upload-to-github.ts')
@@ -364,7 +368,7 @@ def upload_io_to_github(release, filename, filepath, version):
 def upload_sha256_checksum(version, file_path, key_prefix=None):
   checksum_path = '{}.sha256sum'.format(file_path)
   if key_prefix is None:
-    key_prefix = 'atom-shell/tmp/{0}'.format(version)
+    key_prefix = 'checksums-scratchpad/{0}'.format(version)
   sha256 = hashlib.sha256()
   with open(file_path, 'rb') as f:
     sha256.update(f.read())
