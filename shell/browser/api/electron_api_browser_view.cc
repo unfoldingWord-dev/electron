@@ -81,8 +81,7 @@ BrowserView::BrowserView(gin::Arguments* args,
 
   v8::Local<v8::Value> value;
 
-  // Copy the webContents option to webPreferences. This is only used internally
-  // to implement nativeWindowOpen option.
+  // Copy the webContents option to webPreferences.
   if (options.Get("webContents", &value)) {
     web_preferences.SetHidden("webContents", value);
   }
@@ -155,11 +154,11 @@ gfx::Rect BrowserView::GetBounds() {
 }
 
 void BrowserView::SetBackgroundColor(const std::string& color_name) {
-  view_->SetBackgroundColor(ParseHexColor(color_name));
+  view_->SetBackgroundColor(ParseCSSColor(color_name));
 
   if (web_contents()) {
     auto* wc = web_contents()->web_contents();
-    wc->SetPageBaseBackgroundColor(ParseHexColor(color_name));
+    wc->SetPageBaseBackgroundColor(ParseCSSColor(color_name));
   }
 }
 

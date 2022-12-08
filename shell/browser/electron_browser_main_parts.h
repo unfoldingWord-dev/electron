@@ -57,11 +57,11 @@ class ElectronExtensionsBrowserClient;
 class ViewsDelegate;
 #endif
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 class ViewsDelegateMac;
 #endif
 
-#if defined(OS_LINUX)
+#if BUILDFLAG(IS_LINUX)
 class DarkThemeObserver;
 #endif
 
@@ -86,7 +86,7 @@ class ElectronBrowserMainParts : public content::BrowserMainParts {
   // used to enable the location services once per client.
   device::mojom::GeolocationControl* GetGeolocationControl();
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
   device::GeolocationManager* GetGeolocationManager();
 #endif
 
@@ -114,7 +114,7 @@ class ElectronBrowserMainParts : public content::BrowserMainParts {
  private:
   void PreCreateMainMessageLoopCommon();
 
-#if defined(OS_POSIX)
+#if BUILDFLAG(IS_POSIX)
   // Set signal handlers.
   void HandleSIGCHLD();
   void InstallShutdownSignalHandlers(
@@ -122,13 +122,13 @@ class ElectronBrowserMainParts : public content::BrowserMainParts {
       const scoped_refptr<base::SingleThreadTaskRunner>& task_runner);
 #endif
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
   void FreeAppDelegate();
   void RegisterURLHandler();
   void InitializeMainNib();
 #endif
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
   std::unique_ptr<ViewsDelegateMac> views_delegate_;
 #else
   std::unique_ptr<ViewsDelegate> views_delegate_;
@@ -139,7 +139,7 @@ class ElectronBrowserMainParts : public content::BrowserMainParts {
   std::unique_ptr<display::Screen> screen_;
 #endif
 
-#if defined(OS_LINUX)
+#if BUILDFLAG(IS_LINUX)
   // Used to notify the native theme of changes to dark mode.
   std::unique_ptr<DarkThemeObserver> dark_theme_observer_;
 #endif
@@ -168,7 +168,7 @@ class ElectronBrowserMainParts : public content::BrowserMainParts {
 
   mojo::Remote<device::mojom::GeolocationControl> geolocation_control_;
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
   std::unique_ptr<device::GeolocationManager> geolocation_manager_;
 #endif
 

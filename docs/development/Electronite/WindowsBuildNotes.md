@@ -2,9 +2,13 @@
 ### Setup on Clean Windows 10 VM
 - Configured my VM using these notes as a reference:
   - https://chromium.googlesource.com/chromium/src/+/main/docs/windows_build_instructions.md#visual-studio
-  - https://github.com/unfoldingWord/electronite/blob/v17.3.1-graphite/docs/development/build-instructions-windows.md
-- Make sure the VM has a lot of disk space - I ran out of disk space with 120GB of storage configured.  Rather than starting over with a new VM.  I added a second Virtual Hard Drive with 100GB and then used that drive for the builds.
+  - https://github.com/unfoldingWord/electronite/blob/v18.2.1-graphite/docs/development/build-instructions-windows.md
+- Make sure the VM has a lot of disk space - I configured with 220GB of storage.
+- if you have trouble building with these notes, you could try the older Chromium Build tools: https://github.com/unfoldingWord/electronite/blob/v18.2.1-graphite/docs/development/Electronite/WindowsBuildNotesChromeTools.md
 - Make sure to add exception to the build folder for Windows defender, or it will delete a couple of the build files.
+  - Go to Start button > Settings > Update & Security > Windows Security > Virus & threat protection.
+  - Under Virus & threat protection settings, select Manage settings, and then under Exclusions, select Add or remove exclusions.
+  - Add folder `.\Build-Electron` (which is the default build folder used below, or the build folder you actually use).
 - Add to git support for long file names: `git config --system core.longpaths true`
 - Installed VS 2019 Community edition and Windows SDK 10.0.19041.0.
 - Installed Python 3.9.11 (Python 3.10 has breaking changes that broke compile) from https://www.python.org/downloads/windows/
@@ -13,25 +17,143 @@
 python3 -m pip install --upgrade pip setuptools wheel
 python3 -m pip install pywin32
 ```
-- installed node
+- installed node LTS
 - Added environment variables:
 ```
 2019_install=C:\Program Files (x86)\Microsoft Visual Studio\2019\Community
 WINDOWSSDKDIR=C:\Program Files (x86)\Windows Kits\10
 ```
 
+- installed: https://chocolatey.org/install
+	
+- Setup Build tools (using command prompt, not powershell).  Install using didn't work for me:
+```
+npm i -g @electron/build-tools
+C:
+cd %HOMEPATH%
+git clone https://github.com/electron/build-tools .electron_build_tools
+cd .electron_build_tools
+npm i
+```
+
+#### Monitoring Goma status
+- if you browse to http://localhost:8088 on your local machine you can monitor compile jobs as they flow through the goma system.
+
 ### Build Electronite
-- _**Note:** Use command prompt, not powershell as it will cause problems._
-- cd to the folder you will use for build
-- unzip the depot_tools here
-- download build script to this folder from: https://github.com/unfoldingWord/electronite/blob/v17.3.1-graphite/docs/development/Electronite/electronite-tools.bat
-- before build do: `set PATH=%cd%\depot_tools;%PATH%`
-- get source files (this can take several hours the first time as the git cache is loaded): `.\electronite-tools.bat get v17.3.1-graphite`
-- builds can take over 20 hours on a VM.
-- build Electronite for 32-bit Windows:
-  - build for 32-bit: `.\electronite-tools.bat build x86`
-  - create release for 32-bit: `.\electronite-tools.bat release x86`
-- build Electronite for 64-bit Windows:
-  - build for 64-bit: `.\electronite-tools.bat build x64`
-  - create release for 64-bit: `.\electronite-tools.bat release x64`
+#### Build Intel x64
+- open command prompt and initialize build configuration (note that if you have a slow or unreliable internet connection, it is better to change the goma setting from `cache-only` to `none`):
+```
+e init --root=.\Build-Electron -o x64 x64 -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
+```
+
+- edit `~\.electron_build_tools\configs\evm.x64.json`
+and add option to args:       `"target_cpu = \"x64\""`
+
+- get the base Electron source code (this can take many hours the first time as the git cache is loaded):
+```
+e sync
+```
+
+- checkout the correct Electronite tag
+```
+cd .\Build-Electron\src\electron
+git fetch --all
+git checkout tags/v18.2.1-graphite -b v18.2.1-graphite
+cd ..\..
+```
+
+- now get the Electronite sources
+```
+e sync
+```
+
+- Do build (takes a long time)
+```
+e use x64
+set NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
+e build electron
+```
+
+- Make the release to .\Build-Electron\src\out\x64\dist.zip
+```
+e build electron:dist
+```
+
+#### Build Intel x86 (32 bit)
+- open command prompt and initialize build configuration (note that if you have a slow or unreliable internet connection, it is better to change the goma setting from `cache-only` to `none`):
+```
+e init --root=.\Build-Electron -o x86 x86 -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
+```
+
+- edit `~\.electron_build_tools\configs\evm.x86.json`
+  and add option to args:       `"target_cpu = \"x86\""`
+
+- get the base Electron source code (this can take many hours the first time as the git cache is loaded):
+```
+e sync
+```
+
+- checkout the correct Electronite tag
+```
+cd .\Build-Electron\src\electron
+git fetch --all
+git checkout tags/v18.2.1-graphite -b v18.2.1-graphite
+cd ..\..
+```
+
+- now get the Electronite sources
+```
+e sync
+```
+
+- Do build (takes a long time)
+```
+e use x86
+set NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
+e build electron
+```
+
+- Make the release to .\Build-Electron\src\out\x86\dist.zip
+```
+e build electron:dist
+```
+
+#### Build Intel arm64
+- open command prompt and initialize build configuration (note that if you have a slow or unreliable internet connection, it is better to change the goma setting from `cache-only` to `none`):
+```
+e init --root=.\Build-Electron -o arm64 arm64 -i release --goma cache-only --fork unfoldingWord/electronite --use-https -f
+```
+
+- edit `~\.electron_build_tools\configs\evm.arm64.json`
+  and add option to args:       `"target_cpu = \"arm64\""`
+
+- get the base Electron source code (this can take many hours the first time as the git cache is loaded):
+```
+e sync
+```
+
+- checkout the correct Electronite tag
+```
+cd .\Build-Electron\src\electron
+git fetch --all
+git checkout tags/v18.2.1-graphite -b v18.2.1-graphite
+cd ..\..
+```
+
+- now get the Electronite sources
+```
+e sync
+```
+
+- Do build (takes a long time)
+```
+e use arm64
+set NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
+e build electron
+```
+
+- Make the release to .\Build-Electron\src\out\arm64\dist.zip
+```
+e build electron:dist
+```
 

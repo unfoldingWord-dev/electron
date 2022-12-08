@@ -54,6 +54,14 @@ SkColor WinFrameView::GetReadableFeatureColor(SkColor background_color) {
                                                   : SK_ColorBLACK;
 }
 
+void WinFrameView::InvalidateCaptionButtons() {
+  // Ensure that the caption buttons container exists
+  DCHECK(caption_button_container_);
+
+  caption_button_container_->InvalidateLayout();
+  caption_button_container_->SchedulePaint();
+}
+
 gfx::Rect WinFrameView::GetWindowBoundsForClientBounds(
     const gfx::Rect& client_bounds) const {
   return views::GetWindowBoundsForClientBounds(
@@ -65,6 +73,25 @@ int WinFrameView::FrameBorderThickness() const {
   return (IsMaximized() || frame()->IsFullscreen())
              ? 0
              : display::win::ScreenWin::GetSystemMetricsInDIP(SM_CXSIZEFRAME);
+}
+
+views::View* WinFrameView::TargetForRect(views::View* root,
+                                         const gfx::Rect& rect) {
+  if (NonClientHitTest(rect.origin()) != HTCLIENT) {
+    // Custom system titlebar returns non HTCLIENT value, however event should
+    // be handled by the view, not by the system, because there are no system
+    // buttons underneath.
+    if (!ShouldCustomDrawSystemTitlebar()) {
+      return this;
+    }
+    auto local_point = rect.origin();
+    ConvertPointToTarget(parent(), caption_button_container_, &local_point);
+    if (!caption_button_container_->HitTestPoint(local_point)) {
+      return this;
+    }
+  }
+
+  return NonClientFrameView::TargetForRect(root, rect);
 }
 
 int WinFrameView::NonClientHitTest(const gfx::Point& point) {

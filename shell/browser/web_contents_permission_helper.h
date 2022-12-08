@@ -36,9 +36,13 @@ class WebContentsPermissionHelper
   void RequestFullscreenPermission(base::OnceCallback<void(bool)> callback);
   void RequestMediaAccessPermission(const content::MediaStreamRequest& request,
                                     content::MediaResponseCallback callback);
+  void RequestPointerLockPermission(
+      bool user_gesture,
+      bool last_unlocked_by_target,
+      base::OnceCallback<void(content::WebContents*, bool, bool, bool)>
+          callback);
   void RequestWebNotificationPermission(
       base::OnceCallback<void(bool)> callback);
-  void RequestPointerLockPermission(bool user_gesture);
   void RequestOpenExternalPermission(base::OnceCallback<void(bool)> callback,
                                      bool user_gesture,
                                      const GURL& url);
@@ -87,6 +91,8 @@ class WebContentsPermissionHelper
                              const base::Value* device,
                              content::RenderFrameHost* render_frame_host) const;
 
+  // TODO(clavin): refactor to use the WebContents provided by the
+  // WebContentsUserData base class instead of storing a duplicate ref
   content::WebContents* web_contents_;
 
   WEB_CONTENTS_USER_DATA_KEY_DECL();

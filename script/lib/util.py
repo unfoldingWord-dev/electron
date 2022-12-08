@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from __future__ import print_function
 import atexit
@@ -20,7 +20,7 @@ except ImportError:
   from urllib2 import urlopen
 import zipfile
 
-from lib.config import is_verbose_mode
+from lib.config import is_verbose_mode, s3_config
 
 ELECTRON_DIR = os.path.abspath(
   os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -160,7 +160,14 @@ def get_electron_version():
   with open(version_file) as f:
     return 'v' + f.read().strip()
 
-def s3put(bucket, access_key, secret_key, prefix, key_prefix, files):
+def store_artifact(prefix, key_prefix, files):
+  # Legacy S3 Bucket
+  s3put(prefix, key_prefix, files)
+  # New AZ Storage
+  azput(prefix, key_prefix, files)
+
+def s3put(prefix, key_prefix, files):
+  bucket, access_key, secret_key = s3_config()
   env = os.environ.copy()
   env['AWS_ACCESS_KEY_ID'] = access_key
   env['AWS_SECRET_ACCESS_KEY'] = secret_key
@@ -171,6 +178,16 @@ def s3put(bucket, access_key, secret_key, prefix, key_prefix, files):
     '--prefix', prefix,
     '--key_prefix', key_prefix,
     '--grant', 'public-read',
+  ] + files, env)
+  print(output)
+
+def azput(prefix, key_prefix, files):
+  env = os.environ.copy()
+  output = execute([
+    'node',
+    os.path.join(os.path.dirname(__file__), 'azput.js'),
+    '--prefix', prefix,
+    '--key_prefix', key_prefix,
   ] + files, env)
   print(output)
 
@@ -211,14 +228,3 @@ def get_buildtools_executable(name):
   if sys.platform == 'win32':
     path += '.exe'
   return path
-
-def get_objcopy_path(target_cpu):
-  if PLATFORM != 'linux':
-    raise Exception(
-      "get_objcopy_path: unexpected platform '{0}'".format(PLATFORM))
-
-  if target_cpu != 'x64':
-      raise Exception(
-      "get_objcopy_path: unexpected target cpu '{0}'".format(target_cpu))
-  return os.path.join(SRC_DIR, 'third_party', 'binutils', 'Linux_x64',
-                        'Release', 'bin', 'objcopy')

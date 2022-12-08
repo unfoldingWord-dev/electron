@@ -104,9 +104,7 @@ class RendererClientBase : public content::ContentRendererClient
   bool OverrideCreatePlugin(content::RenderFrame* render_frame,
                             const blink::WebPluginParams& params,
                             blink::WebPlugin** plugin) override;
-  void AddSupportedKeySystems(
-      std::vector<std::unique_ptr<::media::KeySystemProperties>>* key_systems)
-      override;
+  void GetSupportedKeySystems(media::GetSupportedKeySystemsCB cb) override;
   bool IsKeySystemsUpdateNeeded() override;
   void DidSetUserAgent(const std::string& user_agent) override;
   bool IsPluginHandledExternally(content::RenderFrame* render_frame,
@@ -114,6 +112,9 @@ class RendererClientBase : public content::ContentRendererClient
                                  const GURL& original_url,
                                  const std::string& mime_type) override;
   bool IsOriginIsolatedPepperPlugin(const base::FilePath& plugin_path) override;
+  v8::Local<v8::Object> GetScriptableObject(
+      const blink::WebElement& plugin_element,
+      v8::Isolate* isolate) override;
 
   void RunScriptsAtDocumentStart(content::RenderFrame* render_frame) override;
   void RunScriptsAtDocumentEnd(content::RenderFrame* render_frame) override;

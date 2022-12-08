@@ -24,7 +24,7 @@ describe('ipc module', () => {
         const result = await ipcRenderer.invoke('test', ...args);
         ipcRenderer.send('result', { result });
       } catch (e) {
-        ipcRenderer.send('result', { error: e.message });
+        ipcRenderer.send('result', { error: (e as Error).message });
       }
     }
 
@@ -212,6 +212,8 @@ describe('ipc module', () => {
       const [ev, msg] = await p;
       expect(msg).to.equal('hi');
       expect(ev.ports).to.have.length(1);
+      expect(ev.senderFrame.parent).to.be.null();
+      expect(ev.senderFrame.routingId).to.equal(w.webContents.mainFrame.routingId);
       const [port] = ev.ports;
       expect(port).to.be.an.instanceOf(EventEmitter);
     });
@@ -226,6 +228,7 @@ describe('ipc module', () => {
       const [ev, msg] = await p;
       expect(msg).to.equal('hi');
       expect(ev.ports).to.deep.equal([]);
+      expect(ev.senderFrame.routingId).to.equal(w.webContents.mainFrame.routingId);
     });
 
     it('can communicate between main and renderer', async () => {
@@ -241,6 +244,7 @@ describe('ipc module', () => {
       }})()`);
       const [ev] = await p;
       expect(ev.ports).to.have.length(1);
+      expect(ev.senderFrame.routingId).to.equal(w.webContents.mainFrame.routingId);
       const [port] = ev.ports;
       port.start();
       port.postMessage(42);

@@ -4,13 +4,14 @@
 
 #include <dwmapi.h>
 #include <shellapi.h>
+#include <wrl/client.h>
 
+#include "base/win/atl.h"  // Must be before UIAutomationCore.h
 #include "content/public/browser/browser_accessibility_state.h"
 #include "shell/browser/browser.h"
 #include "shell/browser/native_window_views.h"
 #include "shell/browser/ui/views/root_view.h"
 #include "shell/common/electron_constants.h"
-#include "ui/base/win/accessibility_misc_utils.h"
 #include "ui/display/display.h"
 #include "ui/display/win/screen_win.h"
 #include "ui/gfx/geometry/insets.h"
@@ -18,6 +19,7 @@
 #include "ui/views/widget/native_widget_private.h"
 
 // Must be included after other Windows headers.
+#include <UIAutomationClient.h>
 #include <UIAutomationCoreApi.h>
 
 namespace electron {
@@ -312,6 +314,15 @@ bool NativeWindowViews::PreHandleMSG(UINT message,
         NotifyWindowMoved();
         is_moving_ = false;
       }
+
+      // If the user dragged or moved the window during one or more
+      // calls to window.setBounds(), we want to apply the most recent
+      // one once they are done with the move or resize operation.
+      if (pending_bounds_change_.has_value()) {
+        SetBounds(pending_bounds_change_.value(), false /* animate */);
+        pending_bounds_change_.reset();
+      }
+
       return false;
     }
     case WM_MOVING: {

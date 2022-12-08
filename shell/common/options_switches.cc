@@ -132,9 +132,6 @@ const char kContextIsolation[] = "contextIsolation";
 // Web runtime features.
 const char kExperimentalFeatures[] = "experimentalFeatures";
 
-// Opener window's ID.
-const char kOpenerID[] = "openerId";
-
 // Enable the rubber banding effect.
 const char kScrollBounce[] = "scrollBounce";
 
@@ -149,8 +146,6 @@ const char kNodeIntegrationInWorker[] = "nodeIntegrationInWorker";
 
 // Enable the web view tag.
 const char kWebviewTag[] = "webviewTag";
-
-const char kNativeWindowOpen[] = "nativeWindowOpen";
 
 const char kCustomArgs[] = "additionalArguments";
 

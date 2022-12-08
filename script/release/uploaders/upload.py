@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from __future__ import print_function
 import argparse
@@ -16,10 +16,10 @@ sys.path.append(
   os.path.abspath(os.path.dirname(os.path.abspath(__file__)) + "/../.."))
 
 from zipfile import ZipFile
-from lib.config import PLATFORM, get_target_arch,  get_env_var, s3_config, \
+from lib.config import PLATFORM, get_target_arch, \
                        get_zip_name, enable_verbose_mode, get_platform_key
 from lib.util import get_electron_branding, execute, get_electron_version, \
-                     s3put, get_electron_exec, get_out_dir, \
+                     store_artifact, get_electron_exec, get_out_dir, \
                      SRC_DIR, ELECTRON_DIR, TS_NODE
 
 
@@ -33,6 +33,8 @@ OUT_DIR = get_out_dir()
 DIST_NAME = get_zip_name(PROJECT_NAME, ELECTRON_VERSION)
 SYMBOLS_NAME = get_zip_name(PROJECT_NAME, ELECTRON_VERSION, 'symbols')
 DSYM_NAME = get_zip_name(PROJECT_NAME, ELECTRON_VERSION, 'dsym')
+DSYM_SNAPSHOT_NAME = get_zip_name(PROJECT_NAME, ELECTRON_VERSION,
+                                  'dsym-snapshot')
 PDB_NAME = get_zip_name(PROJECT_NAME, ELECTRON_VERSION, 'pdb')
 DEBUG_NAME = get_zip_name(PROJECT_NAME, ELECTRON_VERSION, 'debug')
 TOOLCHAIN_PROFILE_NAME = get_zip_name(PROJECT_NAME, ELECTRON_VERSION,
@@ -88,6 +90,10 @@ def main():
     dsym_zip = os.path.join(OUT_DIR, DSYM_NAME)
     shutil.copy2(os.path.join(OUT_DIR, 'dsym.zip'), dsym_zip)
     upload_electron(release, dsym_zip, args)
+
+    dsym_snaphot_zip = os.path.join(OUT_DIR, DSYM_SNAPSHOT_NAME)
+    shutil.copy2(os.path.join(OUT_DIR, 'dsym-snapshot.zip'), dsym_snaphot_zip)
+    upload_electron(release, dsym_snaphot_zip, args)    
   elif PLATFORM == 'win32':
     pdb_zip = os.path.join(OUT_DIR, PDB_NAME)
     shutil.copy2(os.path.join(OUT_DIR, 'pdb.zip'), pdb_zip)
@@ -153,7 +159,6 @@ def main():
         os.path.join(OUT_DIR, 'windows_toolchain_profile.json'),
         'toolchain_profile.json')
     upload_electron(release, toolchain_profile_zip, args)
-
 
 def parse_args():
   parser = argparse.ArgumentParser(description='upload distribution file')
@@ -334,14 +339,10 @@ def upload_electron(release, file_path, args):
 
   # if upload_to_s3 is set, skip github upload.
   if args.upload_to_s3:
-    bucket, access_key, secret_key = s3_config()
     key_prefix = 'electron-artifacts/{0}_{1}'.format(args.version,
                                                      args.upload_timestamp)
-    s3put(bucket, access_key, secret_key, os.path.dirname(file_path),
-          key_prefix, [file_path])
+    store_artifact(os.path.dirname(file_path), key_prefix, [file_path])
     upload_sha256_checksum(args.version, file_path, key_prefix)
-    s3url = 'https://gh-contractor-zcbenz.s3.amazonaws.com'
-    print('{0} uploaded to {1}/{2}/{0}'.format(filename, s3url, key_prefix))
     return
 
   # Upload the file.
@@ -361,7 +362,6 @@ def upload_io_to_github(release, filename, filepath, version):
 
 
 def upload_sha256_checksum(version, file_path, key_prefix=None):
-  bucket, access_key, secret_key = s3_config()
   checksum_path = '{}.sha256sum'.format(file_path)
   if key_prefix is None:
     key_prefix = 'atom-shell/tmp/{0}'.format(version)
@@ -372,8 +372,7 @@ def upload_sha256_checksum(version, file_path, key_prefix=None):
   filename = os.path.basename(file_path)
   with open(checksum_path, 'w') as checksum:
     checksum.write('{} *{}'.format(sha256.hexdigest(), filename))
-  s3put(bucket, access_key, secret_key, os.path.dirname(checksum_path),
-        key_prefix, [checksum_path])
+  store_artifact(os.path.dirname(checksum_path), key_prefix, [checksum_path])
 
 
 def get_release(version):

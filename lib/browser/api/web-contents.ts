@@ -1,4 +1,4 @@
-import { app, ipcMain, session, deprecate, webFrameMain } from 'electron/main';
+import { app, ipcMain, session, webFrameMain, deprecate } from 'electron/main';
 import type { BrowserWindowConstructorOptions, LoadURLOptions } from 'electron/main';
 
 import * as url from 'url';
@@ -560,6 +560,10 @@ const loggingEnabled = () => {
 
 // Add JavaScript wrappers for WebContents class.
 WebContents.prototype._init = function () {
+  const prefs = this.getLastWebPreferences() || {};
+  if (!prefs.nodeIntegration && (prefs.preload != null || prefs.preloadURL != null) && prefs.sandbox == null) {
+    deprecate.log('The default sandbox option for windows without nodeIntegration is changing. Presently, by default, when a window has a preload script, it defaults to being unsandboxed. In Electron 20, this default will be changing, and all windows that have nodeIntegration: false (which is the default) will be sandboxed by default. If your preload script doesn\'t use Node, no action is needed. If your preload script does use Node, either refactor it to move Node usage to the main process, or specify sandbox: false in your WebPreferences.');
+  }
   // Read off the ID at construction time, so that it's accessible even after
   // the underlying C++ WebContents is destroyed.
   const id = this.id;
@@ -613,6 +617,7 @@ WebContents.prototype._init = function () {
   });
 
   this.on('-ipc-ports' as any, function (event: Electron.IpcMainEvent, internal: boolean, channel: string, message: any, ports: any[]) {
+    addSenderFrameToEvent(event);
     event.ports = ports.map(p => new MessagePortMain(p));
     ipcMain.emit(channel, event, message);
   });
@@ -692,8 +697,8 @@ WebContents.prototype._init = function () {
         // TODO(zcbenz): The features string is parsed twice: here where it is
         // passed to C++, and in |makeBrowserWindowOptions| later where it is
         // not actually used since the WebContents is created here.
-        // We should be able to remove the latter once the |nativeWindowOpen|
-        // option is removed.
+        // We should be able to remove the latter once the |new-window| event
+        // is removed.
         const { webPreferences: parsedWebPreferences } = parseFeatures(rawFeatures);
         // Parameters should keep same with |makeBrowserWindowOptions|.
         const webPreferences = makeWebPreferences({
@@ -705,8 +710,7 @@ WebContents.prototype._init = function () {
       }
     });
 
-    // Create a new browser window for the native implementation of
-    // "window.open", used in sandbox and nativeWindowOpen mode.
+    // Create a new browser window for "window.open"
     this.on('-add-new-contents' as any, (event: ElectronInternal.Event, webContents: Electron.WebContents, disposition: string,
       _userGesture: boolean, _left: number, _top: number, _width: number, _height: number, url: string, frameName: string,
       referrer: Electron.Referrer, rawFeatures: string, postData: PostData) => {
@@ -734,11 +738,6 @@ WebContents.prototype._init = function () {
         }
       });
     });
-
-    const prefs = this.getLastWebPreferences() || {};
-    if (prefs.nativeWindowOpen === false) {
-      deprecate.log('Deprecation Warning: Disabling nativeWindowOpen is deprecated. The nativeWindowOpen option will be removed in Electron 18.');
-    }
   }
 
   this.on('login', (event, ...args) => {

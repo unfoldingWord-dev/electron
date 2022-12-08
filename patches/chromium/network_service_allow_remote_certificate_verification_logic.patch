@@ -7,12 +7,12 @@ This adds a callback from the network service that's used to implement
 session.setCertificateVerifyCallback.
 
 diff --git a/services/network/network_context.cc b/services/network/network_context.cc
-index 4a3f4fe1fb97a5715894ff236c5fa2f2684b728d..b8a81db86d15d6e81de48526777a6e7708cbd7c6 100644
+index 2ee1a3da9ca1543d032c2e05c9b340a231f0f495..a4cd97599e2f131fe0d97ee49a44ed5b748739b7 100644
 --- a/services/network/network_context.cc
 +++ b/services/network/network_context.cc
-@@ -119,6 +119,11 @@
- #include "services/network/web_transport.h"
+@@ -126,6 +126,11 @@
  #include "third_party/abseil-cpp/absl/types/optional.h"
+ #include "url/gurl.h"
  
 +// Electron
 +#include "net/cert/caching_cert_verifier.h"
@@ -114,7 +114,7 @@ index 4a3f4fe1fb97a5715894ff236c5fa2f2684b728d..b8a81db86d15d6e81de48526777a6e77
  constexpr uint32_t NetworkContext::kMaxOutstandingRequestsPerProcess;
  
  NetworkContext::PendingCertVerify::PendingCertVerify() = default;
-@@ -659,6 +749,13 @@ void NetworkContext::SetClient(
+@@ -671,6 +761,13 @@ void NetworkContext::SetClient(
    client_.Bind(std::move(client));
  }
  
@@ -128,10 +128,10 @@ index 4a3f4fe1fb97a5715894ff236c5fa2f2684b728d..b8a81db86d15d6e81de48526777a6e77
  void NetworkContext::CreateURLLoaderFactory(
      mojo::PendingReceiver<mojom::URLLoaderFactory> receiver,
      mojom::URLLoaderFactoryParamsPtr params) {
-@@ -2135,6 +2232,9 @@ URLRequestContextOwner NetworkContext::MakeURLRequestContext(
+@@ -2235,6 +2332,9 @@ URLRequestContextOwner NetworkContext::MakeURLRequestContext(
          std::move(cert_verifier));
      cert_verifier = base::WrapUnique(cert_verifier_with_trust_anchors_);
- #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+ #endif  // BUILDFLAG(IS_CHROMEOS)
 +    auto remote_cert_verifier = std::make_unique<RemoteCertVerifier>(std::move(cert_verifier));
 +    remote_cert_verifier_ = remote_cert_verifier.get();
 +    cert_verifier = std::make_unique<net::CachingCertVerifier>(std::move(remote_cert_verifier));
@@ -139,10 +139,10 @@ index 4a3f4fe1fb97a5715894ff236c5fa2f2684b728d..b8a81db86d15d6e81de48526777a6e77
  
    builder.SetCertVerifier(IgnoreErrorsCertVerifier::MaybeWrapCertVerifier(
 diff --git a/services/network/network_context.h b/services/network/network_context.h
-index 6784d76ced7754c44054b243a75a6265314b4d56..55cff37a1ad0ae89bde3ffda11c3d1e9d194e22d 100644
+index 01befea8b354ed1dd143aa895d0d9efb0d26fd35..06a36a156501b252e91037ebac45c29c2995f624 100644
 --- a/services/network/network_context.h
 +++ b/services/network/network_context.h
-@@ -103,6 +103,7 @@ class DomainReliabilityMonitor;
+@@ -105,6 +105,7 @@ class URLMatcher;
  
  namespace network {
  class CertVerifierWithTrustAnchors;
@@ -150,7 +150,7 @@ index 6784d76ced7754c44054b243a75a6265314b4d56..55cff37a1ad0ae89bde3ffda11c3d1e9
  class CookieManager;
  class ExpectCTReporter;
  class HostResolver;
-@@ -217,6 +218,8 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) NetworkContext
+@@ -220,6 +221,8 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) NetworkContext
    void CreateURLLoaderFactory(
        mojo::PendingReceiver<mojom::URLLoaderFactory> receiver,
        mojom::URLLoaderFactoryParamsPtr params) override;
@@ -159,7 +159,7 @@ index 6784d76ced7754c44054b243a75a6265314b4d56..55cff37a1ad0ae89bde3ffda11c3d1e9
    void ResetURLLoaderFactories() override;
    void GetCookieManager(
        mojo::PendingReceiver<mojom::CookieManager> receiver) override;
-@@ -758,6 +761,8 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) NetworkContext
+@@ -795,6 +798,8 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) NetworkContext
    CertVerifierWithTrustAnchors* cert_verifier_with_trust_anchors_ = nullptr;
  #endif
  
@@ -169,10 +169,10 @@ index 6784d76ced7754c44054b243a75a6265314b4d56..55cff37a1ad0ae89bde3ffda11c3d1e9
    // CertNetFetcher is not used by the current platform, or if the actual
    // net::CertVerifier is instantiated outside of the network service.
 diff --git a/services/network/public/mojom/network_context.mojom b/services/network/public/mojom/network_context.mojom
-index 8cdb76c6eac2bf3412b55ab1dd0fad0ccb1f954d..647b1e2fc81fb4ee177827d6909c816631009ec3 100644
+index 0b1afd416381c28e5bc96fa44562c061f44a7121..ae0a20a7a33e5a313f5545985a34e9cb93220996 100644
 --- a/services/network/public/mojom/network_context.mojom
 +++ b/services/network/public/mojom/network_context.mojom
-@@ -272,6 +272,17 @@ struct NetworkContextFilePaths {
+@@ -277,6 +277,17 @@ struct NetworkContextFilePaths {
    bool trigger_migration = false;
  };
  
@@ -190,7 +190,7 @@ index 8cdb76c6eac2bf3412b55ab1dd0fad0ccb1f954d..647b1e2fc81fb4ee177827d6909c8166
  // Parameters for constructing a network context.
  struct NetworkContextParams {
    // The user agent string.
-@@ -787,6 +798,9 @@ interface NetworkContext {
+@@ -821,6 +832,9 @@ interface NetworkContext {
    // Sets a client for this network context.
    SetClient(pending_remote<NetworkContextClient> client);
  

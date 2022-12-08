@@ -1,5 +1,5 @@
 diff --git a/DEPS b/DEPS
-index 7b8f85788..c36c0ecf2 100644
+index 5047b6b16..3c928c079 100644
 --- a/DEPS
 +++ b/DEPS
 @@ -27,12 +27,14 @@ vars = {
@@ -54,24 +54,24 @@ index 7b8f85788..c36c0ecf2 100644
  
  hooks = [
 diff --git a/patches/chromium/.patches b/patches/chromium/.patches
-index 7a6535756..f1f96cf76 100644
+index c7311e348..7f9c36e22 100644
 --- a/patches/chromium/.patches
 +++ b/patches/chromium/.patches
-@@ -119,3 +119,4 @@ remove_incorrect_width_height_adjustments.patch
- set_dpi_correctly_during_main_window_creation.patch
- ui_gtk_public_header.patch
+@@ -115,3 +115,4 @@ fix_non-client_mouse_tracking_and_message_bubbling_on_windows.patch
+ remove_incorrect_width_height_adjustments.patch
  introduce_ozoneplatform_electron_can_call_x11_property.patch
+ make_gtk_getlibgtk_public.patch
 +add_graphite.patch
 diff --git a/patches/chromium/add_graphite.patch b/patches/chromium/add_graphite.patch
 new file mode 100644
-index 000000000..772d8185c
+index 000000000..33bc776bd
 --- /dev/null
 +++ b/patches/chromium/add_graphite.patch
 @@ -0,0 +1,217 @@
 +From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 +From: Joel <da1nerd@pm.me>
 +Date: Tue, 23 Jul 2019 15:48:39 -0700
-+Subject: [PATCH] adds graphite support for font rendering - patched for v17.3.1
++Subject: [PATCH] adds graphite support for font rendering - patched for v17.3.1 and v18.2.1
 +
 +diff --git a/third_party/BUILD.gn b/third_party/BUILD.gn
 +index a62632e2c3fcf..0a8714996d3b9 100644

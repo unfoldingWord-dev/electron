@@ -357,7 +357,7 @@ describe('webContents module', () => {
     });
 
     it('sets appropriate error information on rejection', async () => {
-      let err;
+      let err: any;
       try {
         await w.loadURL('file:non-existent');
       } catch (e) {
@@ -807,10 +807,10 @@ describe('webContents module', () => {
     });
   });
 
-  describe('focus()', () => {
-    describe('when the web contents is hidden', () => {
+  describe('focus APIs', () => {
+    describe('focus()', () => {
       afterEach(closeAllWindows);
-      it('does not blur the focused window', async () => {
+      it('does not blur the focused window when the web contents is hidden', async () => {
         const w = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true } });
         w.show();
         await w.loadURL('about:blank');
@@ -823,6 +823,60 @@ describe('webContents module', () => {
         child.close();
         expect(currentFocused).to.be.true();
         expect(childFocused).to.be.false();
+      });
+    });
+
+    const moveFocusToDevTools = async (win: BrowserWindow) => {
+      const devToolsOpened = emittedOnce(win.webContents, 'devtools-opened');
+      win.webContents.openDevTools({ mode: 'right' });
+      await devToolsOpened;
+      win.webContents.devToolsWebContents!.focus();
+    };
+
+    describe('focus event', () => {
+      afterEach(closeAllWindows);
+
+      it('is triggered when web contents is focused', async () => {
+        const w = new BrowserWindow({ show: false });
+        await w.loadURL('about:blank');
+        await moveFocusToDevTools(w);
+        const focusPromise = emittedOnce(w.webContents, 'focus');
+        w.webContents.focus();
+        await expect(focusPromise).to.eventually.be.fulfilled();
+      });
+
+      it('is triggered when BrowserWindow is focused', async () => {
+        const window1 = new BrowserWindow({ show: false });
+        const window2 = new BrowserWindow({ show: false });
+
+        await Promise.all([
+          window1.loadURL('about:blank'),
+          window2.loadURL('about:blank')
+        ]);
+
+        const focusPromise1 = emittedOnce(window1.webContents, 'focus');
+        const focusPromise2 = emittedOnce(window2.webContents, 'focus');
+
+        window1.showInactive();
+        window2.showInactive();
+
+        window1.focus();
+        await expect(focusPromise1).to.eventually.be.fulfilled();
+
+        window2.focus();
+        await expect(focusPromise2).to.eventually.be.fulfilled();
+      });
+    });
+
+    describe('blur event', () => {
+      afterEach(closeAllWindows);
+      it('is triggered when web contents is blurred', async () => {
+        const w = new BrowserWindow({ show: true });
+        await w.loadURL('about:blank');
+        w.webContents.focus();
+        const blurPromise = emittedOnce(w.webContents, 'blur');
+        await moveFocusToDevTools(w);
+        await expect(blurPromise).to.eventually.be.fulfilled();
       });
     });
   });
@@ -893,7 +947,6 @@ describe('webContents module', () => {
   });
 
   describe('zoom api', () => {
-    const scheme = (global as any).standardScheme;
     const hostZoomMap: Record<string, number> = {
       host1: 0.3,
       host2: 0.7,
@@ -902,7 +955,7 @@ describe('webContents module', () => {
 
     before(() => {
       const protocol = session.defaultSession.protocol;
-      protocol.registerStringProtocol(scheme, (request, callback) => {
+      protocol.registerStringProtocol(standardScheme, (request, callback) => {
         const response = `<script>
                             const {ipcRenderer} = require('electron')
                             ipcRenderer.send('set-zoom', window.location.hostname)
@@ -916,7 +969,7 @@ describe('webContents module', () => {
 
     after(() => {
       const protocol = session.defaultSession.protocol;
-      protocol.unregisterProtocol(scheme);
+      protocol.unregisterProtocol(standardScheme);
     });
 
     afterEach(closeAllWindows);
@@ -1008,7 +1061,7 @@ describe('webContents module', () => {
           if (finalNavigation) {
             done();
           } else {
-            w.loadURL(`${scheme}://host2`);
+            w.loadURL(`${standardScheme}://host2`);
           }
         } catch (e) {
           done(e);
@@ -1025,7 +1078,7 @@ describe('webContents module', () => {
           done(e);
         }
       });
-      w.loadURL(`${scheme}://host1`);
+      w.loadURL(`${standardScheme}://host1`);
     });
 
     it('can propagate zoom level across same session', async () => {
@@ -1037,10 +1090,10 @@ describe('webContents module', () => {
         w2.close();
       });
 
-      await w.loadURL(`${scheme}://host3`);
+      await w.loadURL(`${standardScheme}://host3`);
       w.webContents.zoomLevel = hostZoomMap.host3;
 
-      await w2.loadURL(`${scheme}://host3`);
+      await w2.loadURL(`${standardScheme}://host3`);
       const zoomLevel1 = w.webContents.zoomLevel;
       expect(zoomLevel1).to.equal(hostZoomMap.host3);
 
@@ -1057,7 +1110,7 @@ describe('webContents module', () => {
         }
       });
       const protocol = w2.webContents.session.protocol;
-      protocol.registerStringProtocol(scheme, (request, callback) => {
+      protocol.registerStringProtocol(standardScheme, (request, callback) => {
         callback('hello');
       });
 
@@ -1065,13 +1118,13 @@ describe('webContents module', () => {
         w2.setClosable(true);
         w2.close();
 
-        protocol.unregisterProtocol(scheme);
+        protocol.unregisterProtocol(standardScheme);
       });
 
-      await w.loadURL(`${scheme}://host3`);
+      await w.loadURL(`${standardScheme}://host3`);
       w.webContents.zoomLevel = hostZoomMap.host3;
 
-      await w2.loadURL(`${scheme}://host3`);
+      await w2.loadURL(`${standardScheme}://host3`);
       const zoomLevel1 = w.webContents.zoomLevel;
       expect(zoomLevel1).to.equal(hostZoomMap.host3);
 
@@ -1245,8 +1298,8 @@ describe('webContents module', () => {
       expect(currentRenderViewDeletedEmitted).to.be.false('current-render-view-deleted was emitted');
     });
 
-    it('does not emit current-render-view-deleted when speculative RVHs are deleted and nativeWindowOpen is set to true', async () => {
-      const parentWindow = new BrowserWindow({ show: false, webPreferences: { nativeWindowOpen: true } });
+    it('does not emit current-render-view-deleted when speculative RVHs are deleted', async () => {
+      const parentWindow = new BrowserWindow({ show: false });
       let currentRenderViewDeletedEmitted = false;
       let childWindow: BrowserWindow | null = null;
       const destroyed = emittedOnce(parentWindow.webContents, 'destroyed');
@@ -2054,7 +2107,7 @@ describe('webContents module', () => {
   describe('page-title-updated event', () => {
     afterEach(closeAllWindows);
     it('is emitted with a full title for pages with no navigation', async () => {
-      const bw = new BrowserWindow({ show: false, webPreferences: { nativeWindowOpen: true } });
+      const bw = new BrowserWindow({ show: false });
       await bw.loadURL('about:blank');
       bw.webContents.executeJavaScript('child = window.open("", "", "show=no"); null');
       const [, child] = await emittedOnce(app, 'web-contents-created');

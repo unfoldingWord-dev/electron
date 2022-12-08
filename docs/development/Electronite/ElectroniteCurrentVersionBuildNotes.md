@@ -6,9 +6,9 @@ Based on wiki notes for `electronite-v12.0.5` from: https://github.com/unfolding
 
 # Building
 
-- Windows build notes: https://github.com/unfoldingWord/electronite/blob/v17.3.1-graphite/docs/development/Electronite/WindowsBuildNotes.md
-- MacOS build notes: https://github.com/unfoldingWord/electronite/blob/v17.3.1-graphite/docs/development/Electronite/MacBuildNotes.md
-- Linux build notes: https://github.com/unfoldingWord/electronite/blob/v17.3.1-graphite/docs/development/Electronite/LinuxBuildNotes.md
+- Windows build notes: https://github.com/unfoldingWord/electronite/blob/v18.2.1-graphite/docs/development/Electronite/WindowsBuildNotes.md
+- MacOS build notes: https://github.com/unfoldingWord/electronite/blob/v18.2.1-graphite/docs/development/Electronite/MacBuildNotes.md
+- Linux build notes: https://github.com/unfoldingWord/electronite/blob/v18.2.1-graphite/docs/development/Electronite/LinuxBuildNotes.md
 
 Running the scripts without arguments will display the following commands which you will generally want to execute in order:
 1. `get <ref>` fetches all of the code. Where `<ref>` is a branch or tag.

@@ -46,7 +46,7 @@ namespace electron {
 class ElectronMenuModel;
 class NativeBrowserView;
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 typedef NSView* NativeWindowHandle;
 #else
 typedef gfx::AcceleratedWidget NativeWindowHandle;
@@ -138,7 +138,7 @@ class NativeWindow : public base::SupportsUserData,
   virtual void Invalidate() = 0;
   virtual void SetTitle(const std::string& title) = 0;
   virtual std::string GetTitle() = 0;
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
   virtual std::string GetAlwaysOnTopLevel() = 0;
   virtual void SetActive(bool is_key) = 0;
   virtual bool IsActive() const = 0;
@@ -209,7 +209,7 @@ class NativeWindow : public base::SupportsUserData,
   virtual void SetVibrancy(const std::string& type);
 
   // Traffic Light API
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
   virtual void SetWindowButtonVisibility(bool visible) = 0;
   virtual bool GetWindowButtonVisibility() const = 0;
   virtual void SetTrafficLightPosition(absl::optional<gfx::Point> position) = 0;
@@ -308,7 +308,7 @@ class NativeWindow : public base::SupportsUserData,
   void NotifyWindowSystemContextMenu(int x, int y, bool* prevent_default);
   void NotifyLayoutWindowControlsOverlay();
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   void NotifyWindowMessage(UINT message, WPARAM w_param, LPARAM l_param);
 #endif
 
@@ -328,6 +328,10 @@ class NativeWindow : public base::SupportsUserData,
   };
   TitleBarStyle title_bar_style() const { return title_bar_style_; }
   int titlebar_overlay_height() const { return titlebar_overlay_height_; }
+  void set_titlebar_overlay_height(int height) {
+    titlebar_overlay_height_ = height;
+  }
+  bool titlebar_overlay_enabled() const { return titlebar_overlay_; }
 
   bool has_frame() const { return has_frame_; }
   void set_has_frame(bool has_frame) { has_frame_ = has_frame; }
@@ -444,7 +448,8 @@ class NativeWindowRelay
 
  private:
   friend class content::WebContentsUserData<NativeWindow>;
-  explicit NativeWindowRelay(base::WeakPtr<NativeWindow> window);
+  explicit NativeWindowRelay(content::WebContents* web_contents,
+                             base::WeakPtr<NativeWindow> window);
 
   base::WeakPtr<NativeWindow> native_window_;
 };

@@ -30,6 +30,9 @@ class WinFrameView : public FramelessView {
 
   SkColor GetReadableFeatureColor(SkColor background_color);
 
+  // Tells the NonClientView to invalidate the WinFrameView's caption buttons.
+  void InvalidateCaptionButtons();
+
   // views::NonClientFrameView:
   gfx::Rect GetWindowBoundsForClientBounds(
       const gfx::Rect& client_bounds) const override;
@@ -57,6 +60,9 @@ class WinFrameView : public FramelessView {
   friend class WinCaptionButtonContainer;
 
   int FrameBorderThickness() const;
+
+  // views::ViewTargeterDelegate:
+  views::View* TargetForRect(views::View* root, const gfx::Rect& rect) override;
 
   // Returns the thickness of the window border for the top edge of the frame,
   // which is sometimes different than FrameBorderThickness(). Does not include
