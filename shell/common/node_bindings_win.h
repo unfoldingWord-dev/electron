@@ -14,14 +14,8 @@ class NodeBindingsWin : public NodeBindings {
  public:
   explicit NodeBindingsWin(BrowserEnvironment browser_env);
 
-  void PrepareMessageLoop() override;
-  void RunMessageLoop() override;
-
  private:
   void PollEvents() override;
-
-  // Indicates whether polling thread has been created.
-  bool initialized_ = false;
 };
 
 }  // namespace electron
