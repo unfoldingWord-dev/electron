@@ -1,5 +1,5 @@
 ## Building Electronite on Linux
-### Setup on Clean Linux VM
+### Setup Build Envirnonment on Clean Linux VM
 - Configured my VM using these notes as a reference: [build-instructions-linux](../build-instructions-linux.md)
 - Make sure the VM has a lot of disk space - I ran out of disk space with 60GB of storage configured.  Rather than starting over with a new VM.  I added a second Virtual Hard Drive with 100GB and then used that drive for the builds.
 - to create `arm64` and `arm` builds, you must have installed the arm dependencies mentioned in the Linux build instructions above.  Then run:
