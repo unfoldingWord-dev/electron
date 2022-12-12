@@ -10,6 +10,8 @@ echo "PATH = $PATH"
 export GIT_CACHE_PATH=`pwd`/git_cache
 mkdir -p "${GIT_CACHE_PATH}"
 
+echo "$(date)" > ./start_time_$1_$2.txt
+
 # sccache no longer supported in Electron
 # export SCCACHE_BUCKET="electronjs-sccache"
 # export SCCACHE_TWO_TIER=true
@@ -51,10 +53,15 @@ if [ "$COMMAND" == "get" ]; then
   git describe --tags
   cd ../..
   
+  # save in case graphite patch fails
+  echo "$(date)" > ./end_time_$1_$2.txt
+
   echo "Applying graphite patches"
   cd ./src
   git apply ./electron/docs/development/Electronite/add_graphite_cpp_std_iterator.patch
   cd ..
+  
+  echo "$(date)" > ./end_time_$1_$2.txt
   exit 0
 fi
 
@@ -85,6 +92,8 @@ if [ "$COMMAND" == "build" ]; then
   gn gen out/Release${RELEASE_TARGET} --args="import(\"//electron/build/args/release.gn\") $GN_EXTRA_ARGS"
   ninja -C out/Release${RELEASE_TARGET} electron
   cd -
+  
+  echo "$(date)" > ./end_time_$1_$2.txt
   exit 0
 fi
 
@@ -112,6 +121,8 @@ if [ "$COMMAND" == "release" ]; then
     ./electron/script/strip-binaries.py ${STRIP_EXTRA_ARGS} -d out/Release${RELEASE_TARGET}
   fi
   ninja -C out/Release${RELEASE_TARGET} electron:electron_dist_zip
+  
+  echo "$(date)" > ./end_time_$1_$2.txt
   exit 0
 fi
 

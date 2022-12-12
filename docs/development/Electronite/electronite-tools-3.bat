@@ -16,7 +16,7 @@ echo "GIT_CACHE_PATH=%GIT_CACHE_PATH%"
 echo "SCCACHE_BUCKET=%SCCACHE_BUCKET%"
 echo "working_dir=%working_dir%"
 
-echo "%date% - %time%" > start_time.txt
+echo "%date% - %time%" > start_time_%1%_%2%.txt
 
 rem TODO: configure environment variables.
 
@@ -67,6 +67,9 @@ call git --version
 call git status
 call git describe --tags
 cd ..\..
+
+rem save in case graphite patch fails
+echo "%date% - %time%" > end_time_%1%_%2%.txt
 
 echo Applying graphite patches
 cd .\src
@@ -148,4 +151,4 @@ rem ####################
 
 cd %working_dir%
 
-echo "%date% - %time%" > end_time.txt
+echo "%date% - %time%" > end_time_%1%_%2%.txt
