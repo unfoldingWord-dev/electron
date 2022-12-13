@@ -10,7 +10,7 @@ echo "PATH = $PATH"
 export GIT_CACHE_PATH=`pwd`/git_cache
 mkdir -p "${GIT_CACHE_PATH}"
 
-echo "$(date)" > ./start_time_$1_$2.txt
+echo "$(date)" > ./start_time_$1_$2_$(date).txt
 
 # sccache no longer supported in Electron
 # export SCCACHE_BUCKET="electronjs-sccache"
@@ -54,14 +54,14 @@ if [ "$COMMAND" == "get" ]; then
   cd ../..
   
   # save in case graphite patch fails
-  echo "$(date)" > ./end_time_$1_$2.txt
+  echo "$(date)" > ./end_time_$1_$2_$(date).txt
 
   echo "Applying graphite patches"
   cd ./src
   git apply ./electron/docs/development/Electronite/add_graphite_cpp_std_iterator.patch
   cd ..
   
-  echo "$(date)" > ./end_time_$1_$2.txt
+  echo "$(date)" > ./end_time_$1_$2_$(date).txt
   exit 0
 fi
 
@@ -93,7 +93,7 @@ if [ "$COMMAND" == "build" ]; then
   ninja -C out/Release${RELEASE_TARGET} electron
   cd -
   
-  echo "$(date)" > ./end_time_$1_$2.txt
+  echo "$(date)" > ./end_time_$1_$2_$(date).txt
   exit 0
 fi
 
@@ -122,7 +122,7 @@ if [ "$COMMAND" == "release" ]; then
   fi
   ninja -C out/Release${RELEASE_TARGET} electron:electron_dist_zip
   
-  echo "$(date)" > ./end_time_$1_$2.txt
+  echo "$(date)" > ./end_time_$1_$2_$(date).txt
   exit 0
 fi
 
