@@ -5,6 +5,10 @@ echo "Path = %Path%"
 set working_dir=%cd%
 set GIT_CACHE_PATH=%working_dir%\git_cache
 mkdir %GIT_CACHE_PATH%
+set COMMAND=%1
+set TARGET=%2
+rem Count in roman numerals
+set PASS=%PASS%I
 
 rem sccache no longer supported in Electron
 rem set SCCACHE_BUCKET=electronjs-sccache
@@ -16,9 +20,8 @@ echo "GIT_CACHE_PATH=%GIT_CACHE_PATH%"
 echo "SCCACHE_BUCKET=%SCCACHE_BUCKET%"
 echo "working_dir=%working_dir%"
 
-echo "%date% - %time%" > start_time_%1%_%2%_%date%_%time%.txt
+echo "%date% - %time%" > start_time_%COMMAND%_%TARGET%_%PASS%.txt
 
-rem TODO: configure environment variables.
 
 rem ------------------------
 rem check command to execute
@@ -69,7 +72,7 @@ call git describe --tags
 cd ..\..
 
 rem save in case graphite patch fails
-echo "%date% - %time%" > end_time_%1%_%2%_%date%_%time%.txt
+echo "%date% - %time%" > end_time_%COMMAND%_%TARGET%_%PASS%.txt
 
 echo Applying graphite patches
 cd .\src
@@ -151,4 +154,4 @@ rem ####################
 
 cd %working_dir%
 
-echo "%date% - %time%" > end_time_%1%_%2%_%date%_%time%.txt
+echo "%date% - %time%" > end_time_%COMMAND%_%TARGET%_%PASS%.txt
