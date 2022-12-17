@@ -65,3 +65,4 @@ if exist "%TARGET_FOLDER%" (
     exit /b 10
 )
 
+echo "Done copying build to %TARGET_FOLDER%"
