@@ -1,5 +1,5 @@
 ## Building Electronite on Windows
-### Setup Build Envirnonment on Clean Windows 10 VM
+### Setup Build Environment on Clean Windows 10 VM
 - Configured my VM using these notes as a reference:
   - https://chromium.googlesource.com/chromium/src/+/main/docs/windows_build_instructions.md#visual-studio
   - [build-instructions-windows](../build-instructions-windows.md)

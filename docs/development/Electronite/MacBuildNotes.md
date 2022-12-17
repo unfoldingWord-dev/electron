@@ -1,5 +1,5 @@
 ## Building Electronite on MacOS
-### Setup Build Envirnonment on MacOS Monterey
+### Setup Build Environment on MacOS Monterey
 - Configured using these notes as a reference: [build-instructions-macos](../build-instructions-macos.md)
 - Can build on Monterey
 - Building for x64 does not work on M1 Silicon Macs, only for Arm64.  On Intel based Macs can build for both Arm64 and Intel x64
