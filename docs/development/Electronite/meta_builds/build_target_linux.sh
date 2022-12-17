@@ -8,8 +8,8 @@ DEST=$2
 
 echo "Building $TARGET to: $DEST"
 
-BUILD_TARGET=./src/out/Release-$TARGET/Electron.app
-if [ -d $BUILD_TARGET ]; then
+BUILD_TARGET=./src/out/Release-$TARGET/electron
+if [ -f $BUILD_TARGET ]; then
     echo "Build Target already exists: $BUILD_TARGET"
 else
     echo "Doing Build $TARGET to $BUILD_TARGET"
@@ -17,7 +17,7 @@ else
     echo "Finished Build $TARGET to $BUILD_TARGET"
 fi
 
-if [ -d $BUILD_TARGET ]; then
+if [ -f $BUILD_TARGET ]; then
     echo "Target built: $BUILD_TARGET"
 else
     echo "Target failed: $BUILD_TARGET"

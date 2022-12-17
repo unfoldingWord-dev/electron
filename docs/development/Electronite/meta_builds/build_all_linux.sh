@@ -15,14 +15,14 @@ fi
 
 TARGET=x64
 DEST_FILE=$DEST/$TARGET/dist.zip
-if [ -d $DEST_FILE ]; then
+if [ -f $DEST_FILE ]; then
     echo "Build Target already exists: $DEST_FILE"
 else
     echo "Doing Build $TARGET"
     ./build_target_linux.sh $TARGET $DEST
 fi
 
-if [ -d $DEST_FILE ]; then
+if [ -f $DEST_FILE ]; then
     echo "Target built: $DEST_FILE"
 else
     echo "Target failed: $DEST_FILE"
@@ -31,7 +31,7 @@ fi
 
 TARGET=arm64
 DEST_FILE=$DEST/$TARGET/dist.zip
-if [ -d $DEST_FILE ]; then
+if [ -f $DEST_FILE ]; then
     echo "Build Target already exists: $DEST_FILE"
 else
     echo "Doing Build $TARGET"
@@ -42,7 +42,7 @@ else
     ./build_target_linux.sh $TARGET $DEST
 fi
 
-if [ -d $DEST_FILE ]; then
+if [ -f $DEST_FILE ]; then
     echo "Target built: $DEST_FILE"
 else
     echo "Target failed: $DEST_FILE"
