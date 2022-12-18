@@ -23,9 +23,9 @@ else
 fi
 
 if [ -f $DEST_FILE ]; then
-    echo "$TARGET built: $DEST_FILE"
+    echo "Distribution $TARGET built: $DEST_FILE"
 else
-    echo "$TARGET failed: $DEST_FILE"
+    echo "Distribution $TARGET failed: $DEST_FILE"
     exit 10
 fi
 
@@ -43,8 +43,8 @@ else
 fi
 
 if [ -f $DEST_FILE ]; then
-    echo "$TARGET built: $DEST_FILE"
+    echo "Distribution $TARGET built: $DEST_FILE"
 else
-    echo "$TARGET failed: $DEST_FILE"
+    echo "Distribution $TARGET failed: $DEST_FILE"
     exit 10
 fi

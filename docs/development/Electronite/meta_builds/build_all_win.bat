@@ -20,9 +20,9 @@ if exist "%DEST_FILE%" (
 )
 
 if exist "%DEST_FILE%" (
-    echo "%TARGET% built: %DEST_FILE%"
+    echo "Distribution %TARGET% built: %DEST_FILE%"
 ) else (
-    echo "%TARGET% failed: %DEST_FILE%"
+    echo "Distribution %TARGET% failed: %DEST_FILE%"
     exit /b 10
 )
 
@@ -36,9 +36,9 @@ if exist "%DEST_FILE%" (
 )
 
 if exist "%DEST_FILE%" (
-    echo "%TARGET% built: %DEST_FILE%"
+    echo "Distribution %TARGET% built: %DEST_FILE%"
 ) else (
-    echo "%TARGET% failed: %DEST_FILE%"
+    echo "Distribution %TARGET% failed: %DEST_FILE%"
     exit /b 10
 )
 
@@ -52,9 +52,9 @@ if exist "%DEST_FILE%" (
 )
 
 if exist "%DEST_FILE%" (
-    echo "%TARGET% built: %DEST_FILE%"
+    echo "Distribution %TARGET% built: %DEST_FILE%"
 ) else (
-    echo "%TARGET% failed: %DEST_FILE%"
+    echo "Distribution %TARGET% failed: %DEST_FILE%"
     exit /b 10
 )
 
