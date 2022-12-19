@@ -76,7 +76,7 @@ echo "%date% - %time%" > end_time_%COMMAND%_%TARGET%_%PASS%.txt
 
 echo Applying graphite patches
 cd .\src
-git apply .\electron\docs\development\Electronite\add_graphite_cpp_std_iterator.patch
+git apply --whitespace=warn .\electron\docs\development\Electronite\add_graphite_cpp_std_iterator.patch
 cd ..
 
 goto End
