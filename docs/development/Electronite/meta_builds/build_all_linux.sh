@@ -48,3 +48,5 @@ else
     echo "Distribution $TARGET failed: $DEST_FILE"
     exit 10
 fi
+
+echo "All builds completed to $DEST"

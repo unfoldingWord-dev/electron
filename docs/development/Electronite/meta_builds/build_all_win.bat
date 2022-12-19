@@ -59,3 +59,4 @@ if exist %DEST_FILE% (
     exit /b 10
 )
 
+echo "All builds completed to %DEST%"
