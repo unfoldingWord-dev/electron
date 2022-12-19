@@ -1,7 +1,7 @@
 set BRANCH=%1
 set DEST=%2
 
-rem Example `build_all_win.bat electronite-v22.0.0-initialBuild results/v22.0.0`
+rem Example `build_all_win.bat electronite-v22.0.0-initialBuild results\v22.0.0`
 
 echo "Building %BRANCH% to: %DEST%"
 
@@ -28,6 +28,7 @@ if exist %DEST_FILE% (
 
 set TARGET=x86
 set DEST_FILE=%DEST%\%TARGET%\dist.zip
+
 if exist %DEST_FILE% (
     echo "Build %TARGET% already exists: %DEST_FILE%"
 ) else (
