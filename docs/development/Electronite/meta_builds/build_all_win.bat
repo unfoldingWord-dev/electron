@@ -1,6 +1,11 @@
 set BRANCH=%1
 set DEST=%2
 
+rem Meta Build script to get sources, and then build for x64, x86, and arm64 by calling build_target_win.bat
+rem     for each architecture
+rem
+rem to troubleshoot build problems, do build logging by doing `set BUILD_EXTRAS=-vvvvv` before running
+rem
 rem Example `build_all_win.bat electronite-v22.0.0-initialBuild results\v22.0.0`
 
 echo "Building %BRANCH% to: %DEST%"

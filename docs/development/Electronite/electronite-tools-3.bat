@@ -1,7 +1,9 @@
 echo off
+
 rem Base Build script to do one of getting sources, building Electronite executable, packaging Electronite is dist.zip
 rem
 rem to troubleshoot build problems, do build logging by doing `set BUILD_EXTRAS=-vvvvv` before running
+
 set ELECTRONITE_REPO=https://github.com/unfoldingWord/electronite
 set Path=%Path%;%HOMEDRIVE%%HOMEPATH%\.electron_build_tools\third_party\depot_tools;%HOMEDRIVE%%HOMEPATH%\.electron_build_tools\src
 echo "Path = %Path%"

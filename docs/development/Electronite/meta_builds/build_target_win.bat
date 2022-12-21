@@ -1,6 +1,10 @@
 set TARGET=%1
 set DEST=%2
 
+rem Build script to do build build and release for %TARGET% if not present
+rem
+rem to troubleshoot build problems, do build logging by doing `set BUILD_EXTRAS=-vvvvv` before running
+rem
 rem Example `build_target_win.bat x64 results`
 
 echo "Building %TARGET% to: %DEST%"
