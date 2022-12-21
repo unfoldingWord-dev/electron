@@ -1,5 +1,8 @@
 echo off
-set ELECTRONITE_REPO="https://github.com/unfoldingWord/electronite"
+rem Base Build script to do one of getting sources, building Electronite executable, packaging Electronite is dist.zip
+rem
+rem to troubleshoot build problems, do build logging by doing `set BUILD_EXTRAS=-vvvvv` before running
+set ELECTRONITE_REPO=https://github.com/unfoldingWord/electronite
 set Path=%Path%;%HOMEDRIVE%%HOMEPATH%\.electron_build_tools\third_party\depot_tools;%HOMEDRIVE%%HOMEPATH%\.electron_build_tools\src
 echo "Path = %Path%"
 set working_dir=%cd%
@@ -95,11 +98,11 @@ set CHROMIUM_BUILDTOOLS_PATH=%cd%\buildtools
 if %build_x64% == false (
     echo Generating %2 configuration...
     call gn gen out/Release-%2 --args="target_cpu=\"%2\" import(\"//electron/build/args/release.gn\")"
-    call ninja -C out/Release-%2 electron
+    call ninja -C out/Release-%2 electron %BUILD_EXTRAS%
 ) else (
     echo Generating configuration...
     call gn gen out/Release --args="import(\"//electron/build/args/release.gn\")"
-    call ninja -C out/Release electron
+    call ninja -C out/Release electron %BUILD_EXTRAS%
 )
 
 goto End
@@ -117,11 +120,11 @@ cd src
 if %build_x64% == false (
     echo Creating %2 distributable
     electron\script\strip-binaries.py -d out\Release-%2
-    call ninja -C out\Release-%2 electron:electron_dist_zip
+    call ninja -C out\Release-%2 electron:electron_dist_zip %BUILD_EXTRAS%
 ) else (
     echo Creating distributable
     electron\script\strip-binaries.py -d out\Release
-    call ninja -C out\Release electron:electron_dist_zip
+    call ninja -C out\Release electron:electron_dist_zips %BUILD_EXTRAS%
 )
 
 goto End
