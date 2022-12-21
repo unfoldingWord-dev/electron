@@ -27,7 +27,7 @@ WINDOWSSDKDIR=C:\Program Files (x86)\Windows Kits\10
 
 - installed: https://chocolatey.org/install
 	
-- Setup Build tools (using command prompt, not powershell).  Install using powershell didn't work for me:
+- Setup Build tools in build folder (using command prompt, not powershell).  Install using powershell didn't work for me:
 ```
 git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
 ```
