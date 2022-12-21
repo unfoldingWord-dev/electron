@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e
 
+# Base Build script to do one of: getting sources, building Electronite executable, packaging Electronite as dist.zip
+#
+# to troubleshoot build problems, do build logging by doing `set BUILD_EXTRAS=-vvvvv` before running
+
 ELECTRONITE_REPO="https://github.com/unfoldingWord/electronite"
 COMMAND=$1
 
@@ -93,7 +97,7 @@ if [ "$COMMAND" == "build" ]; then
 #  export GN_EXTRA_ARGS="${GN_EXTRA_ARGS} cc_wrapper=\"${PWD}/electron/external_binaries/sccache\""
   echo "Generating configuration..."
   gn gen out/Release${RELEASE_TARGET} --args="import(\"//electron/build/args/release.gn\") $GN_EXTRA_ARGS"
-  ninja -C out/Release${RELEASE_TARGET} electron
+  ninja -C out/Release${RELEASE_TARGET} electron ${BUILD_EXTRAS}
   cd -
   
   export DATE=`date`
@@ -124,7 +128,7 @@ if [ "$COMMAND" == "release" ]; then
   if [ "`uname`" != "Darwin" ]; then
     ./electron/script/strip-binaries.py ${STRIP_EXTRA_ARGS} -d out/Release${RELEASE_TARGET}
   fi
-  ninja -C out/Release${RELEASE_TARGET} electron:electron_dist_zip
+  ninja -C out/Release${RELEASE_TARGET} electron:electron_dist_zip ${BUILD_EXTRAS}
   
   export DATE=`date`
   echo "$DATE" > "./end_time_$1_$2_$DATE.txt"

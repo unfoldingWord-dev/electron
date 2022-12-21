@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+# Meta Build script to get sources, and then build for x64 and arm64 by calling build_target_mac.sh
+#     for each architecture.  The dist.zip files are stored at $DEST
+#
+# to troubleshoot build problems, do build logging by doing `export BUILD_EXTRAS=-vvvvv` before running
+#
 # Example `./build_all_mac.sh electronite-v21.2.0-beta results`
 
 BRANCH=$1

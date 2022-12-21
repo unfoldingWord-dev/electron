@@ -2,7 +2,7 @@ set BRANCH=%1
 set DEST=%2
 
 rem Meta Build script to get sources, and then build for x64, x86, and arm64 by calling build_target_win.bat
-rem     for each architecture
+rem     for each architecture.  The dist.zip files are stored at %DEST%
 rem
 rem to troubleshoot build problems, do build logging by doing `set BUILD_EXTRAS=-vvvvv` before running
 rem

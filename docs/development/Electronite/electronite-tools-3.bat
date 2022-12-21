@@ -1,6 +1,6 @@
 echo off
 
-rem Base Build script to do one of getting sources, building Electronite executable, packaging Electronite is dist.zip
+rem Base Build script to do one of: getting sources, building Electronite executable, packaging Electronite as dist.zip
 rem
 rem to troubleshoot build problems, do build logging by doing `set BUILD_EXTRAS=-vvvvv` before running
 

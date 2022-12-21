@@ -1,7 +1,7 @@
 set TARGET=%1
 set DEST=%2
 
-rem Build script to do build build and release for %TARGET% if not present
+rem Build script to do build build and release for %TARGET% if not present at %DEST%
 rem
 rem to troubleshoot build problems, do build logging by doing `set BUILD_EXTRAS=-vvvvv` before running
 rem
