@@ -5,7 +5,8 @@ set -x
 # script to get electron tag ($NEW_ELECTRON_VERSION) from upstream, make 
 #        both a new electron branch and a new electronite branch.
 #    Then copy files from old electronite branch ($OLD_ELECTRONITE_BRANCH)
-#        and commit them.
+#        and commit them in new electronite branch.
+#
 # Example `./make_new_electronite.sh v21.3.3 electronite-v22.0.0
 
 NEW_ELECTRON_VERSION=$1
