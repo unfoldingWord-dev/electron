@@ -6,7 +6,7 @@ set -e
 #
 # to troubleshoot build problems, do build logging by doing `export BUILD_EXTRAS=-vvvvv` before running
 #
-# Example `./build_all_linux.sh electronite-v21.3.3-beta results/v21.3.3`
+# Example `./build_all_linux.sh electronite-v21.3.3-beta results/linux/v21.3.3`
 
 BRANCH=$1
 DEST=$2
