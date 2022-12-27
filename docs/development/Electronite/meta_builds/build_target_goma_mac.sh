@@ -5,7 +5,9 @@ set -e
 #
 # to troubleshoot build problems, do build logging by doing `export BUILD_EXTRAS=-vvvvv` before running
 #
-# Example `./build_target_mac.sh x64 results`
+# to enable goma, do `export GOMA=cache-only` before running script
+#
+# Example `./build_target_goma_mac.sh x64 results/mac/v22.0.0`
 
 TARGET=$1
 DEST=$2
