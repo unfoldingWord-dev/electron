@@ -8,7 +8,7 @@ set -x
 
 # try `make_new_electronite.sh get electronite-v21.3.3-beta`
 FORK="unfoldingWord/electronite"
-ELECTRONITE_REPO="https://github.com/${FORK}"
+ELECTRONITE_REPO="https://github.com/$FORK"
 COMMAND=$1
 
 # Configure environment variables and paths
@@ -48,10 +48,13 @@ if [ "$COMMAND" == "get" ]; then
 
   echo "Fetching code. This can take hours and download over 20GB."
   echo "Checking out $ELECTRONITE_REPO.git@origin/$BRANCH"
-  e init --root=. -o x64 x64 -i release --goma cache-only --fork ${FORK}@{$BRANCH} --use-https -f
   CONFIG_FILE=~/.electron_build_tools/configs/evm.x64.json
-  # add branch to fork
-  sed 's|${FORK}.git|${FORK}.git@origin/{$BRANCH}|g' ${CONFIG_FILE} > build_config.new
+  rm ${CONFIG_FILE}
+
+  e init --root=. -o x64 x64 -i release --goma cache-only --fork ${FORK} --use-https -f
+  cp ${CONFIG_FILE} ${CONFIG_FILE}.old
+# add branch to fork
+  sed "s|${FORK}.git|${FORK}.git@origin/${BRANCH}|g" ${CONFIG_FILE} > build_config.new
   # replace generated config
   cp build_config.new ${CONFIG_FILE}
 
