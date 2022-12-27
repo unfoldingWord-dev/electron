@@ -36,16 +36,16 @@ else
   echo "GOMA is set to ${GOMA}"
 fi
 
-echo "OS type ${$OSTYPE}"
+echo "OS type ${OSTYPE}"
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
   echo "Linux Detected"
-  SED_INPLACE=-i
+  SED_INPLACE=-i.orig
 elif [[ "$OSTYPE" == "darwin"* ]]; then
   echo "MacOS Detected"
-  SED_INPLACE=-I
+  SED_INPLACE=-I .orig
 else
   echo "Other Detected"
-  SED_INPLACE=-i
+  SED_INPLACE=-i.orig
 fi
 echo "using SED_INPLACE of ${SED_INPLACE}"
 
@@ -119,7 +119,7 @@ if [ "$COMMAND" == "build" ]; then
   RELEASE_TARGET="-${TARGET}"
   e init --root=. -o $TARGET $TARGET -i release --goma $GOMA --fork ${FORK} --use-https -f
   # add target architecture to config
-  sed ${SED_INPLACE} .orig 's|release.gn\\")"|release.gn\\")", "target_cpu = \\"'"$TARGET"'\\""|g' ${CONFIG_FILE}
+  sed ${SED_INPLACE} 's|release.gn\\")"|release.gn\\")", "target_cpu = \\"'"$TARGET"'\\""|g' ${CONFIG_FILE}
 
   echo "Building Electronite..."  
   e build electron
@@ -145,7 +145,7 @@ if [ "$COMMAND" == "release" ]; then
   RELEASE_TARGET="-${TARGET}"
   e init --root=. -o $TARGET $TARGET -i release --goma $GOMA --fork ${FORK} --use-https -f
   # add target architecture to config
-  sed ${SED_INPLACE} .orig 's|release.gn\\")"|release.gn\\")", "target_cpu = \\"'"$TARGET"'\\""|g' ${CONFIG_FILE}
+  sed ${SED_INPLACE} 's|release.gn\\")"|release.gn\\")", "target_cpu = \\"'"$TARGET"'\\""|g' ${CONFIG_FILE}
 
   echo "Creating Electronite Distributable..."  
   e build electron:dist
