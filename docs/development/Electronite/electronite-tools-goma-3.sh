@@ -28,6 +28,13 @@ export NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
 echo "GIT_CACHE_PATH=${GIT_CACHE_PATH}"
 echo "SCCACHE_BUCKET=${SCCACHE_BUCKET}"
 
+if [ "GOMA" == "" ]; then
+  GOMA=none
+  echo "GOMA defaulting to ${GOMA}"
+else
+  echo "GOMA is set to ${GOMA}"
+fi
+
 ##########################
 # fetch code
 ##########################
@@ -88,27 +95,20 @@ fi
 if [ "$COMMAND" == "build" ]; then
   if [ $# -ge 2 ]; then
     TARGET=$2
-    RELEASE_TARGET="-${TARGET}"
-    export GN_EXTRA_ARGS="${GN_EXTRA_ARGS} target_cpu = \"${TARGET}\""
-    echo "Building for ${TARGET}"
-    if [ "$TARGET" == "arm64" ] && [ "`uname`" == "Linux" ]; then
-      export GN_EXTRA_ARGS="${GN_EXTRA_ARGS} fatal_linker_warnings = false enable_linux_installer = false"
-    fi
-    echo "Building for \"${TARGET}\", extra args: \"${GN_EXTRA_ARGS}\""
+    echo "Building for \"${TARGET}\""
   else
-    RELEASE_TARGET=""
-    echo "Building for default \"x64\", extra args: \"${GN_EXTRA_ARGS}\""
+    echo "Building for default \"x64\""
+    TARGET=x64
   fi
 
-  echo "Building target: ${RELEASE_TARGET}"
+  CONFIG_FILE=~/.electron_build_tools/configs/evm.$TARGET.json
+  RELEASE_TARGET="-${TARGET}"
+  e init --root=. -o $TARGET $TARGET -i release --goma $GOMA --fork ${FORK} --use-https -f
+  # add target architecture to config
+  sed -I .orig 's|release.gn\\")",|release.gn\\")", "target_cpu = \\"'"$TARGET"'\\"",|g' ${CONFIG_FILE}
 
-  cd src
-  export CHROMIUM_BUILDTOOLS_PATH=`pwd`/buildtools
-#  export GN_EXTRA_ARGS="${GN_EXTRA_ARGS} cc_wrapper=\"${PWD}/electron/external_binaries/sccache\""
-  echo "Generating configuration..."
-  gn gen out/Release${RELEASE_TARGET} --args="import(\"//electron/build/args/release.gn\") $GN_EXTRA_ARGS"
-  ninja -C out/Release${RELEASE_TARGET} electron ${BUILD_EXTRAS}
-  cd -
+  echo "Building Electronite..."  
+  e build electron
   
   export DATE=`date`
   echo "$DATE" > "./end_time_$1_$2_$DATE.txt"
@@ -120,25 +120,21 @@ fi
 ##########################
 if [ "$COMMAND" == "release" ]; then
   if [ $# -ge 2 ]; then
-    TARGET="$2"
-    RELEASE_TARGET="-${TARGET}"
-    STRIP_EXTRA_ARGS=--target-cpu=$TARGET
-    export GN_EXTRA_ARGS="${GN_EXTRA_ARGS} target_cpu=\"${TARGET}\""
-    echo "Releasing for \"${TARGET}\", extra args: \"${STRIP_EXTRA_ARGS}\""
+    TARGET=$2
+    echo "Building for \"${TARGET}\""
   else
-    RELEASE_TARGET=""
-    STRIP_EXTRA_ARGS=""
-    echo "Releasing for default \"x64\", extra args: \"${STRIP_EXTRA_ARGS}\""    
+    echo "Building for default \"x64\""
+    TARGET=x64
   fi
 
-  echo "Releasing: ${RELEASE_TARGET}"
+  CONFIG_FILE=~/.electron_build_tools/configs/evm.$TARGET.json
+  RELEASE_TARGET="-${TARGET}"
+  e init --root=. -o $TARGET $TARGET -i release --goma $GOMA --fork ${FORK} --use-https -f
+  # add target architecture to config
+  sed -I .orig 's|release.gn\\")",|release.gn\\")", "target_cpu = \\"'"$TARGET"'\\"",|g' ${CONFIG_FILE}
 
-  echo "Creating distributable"
-  cd src
-  if [ "`uname`" != "Darwin" ]; then
-    ./electron/script/strip-binaries.py ${STRIP_EXTRA_ARGS} -d out/Release${RELEASE_TARGET}
-  fi
-  ninja -C out/Release${RELEASE_TARGET} electron:electron_dist_zip ${BUILD_EXTRAS}
+  echo "Creating Electronite Distributable..."  
+  e build electron:dist
   
   export DATE=`date`
   echo "$DATE" > "./end_time_$1_$2_$DATE.txt"
