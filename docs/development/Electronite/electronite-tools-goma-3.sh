@@ -28,7 +28,7 @@ export NINJA_STATUS="[%r processes, %f/%t @ %o/s : %es] "
 echo "GIT_CACHE_PATH=${GIT_CACHE_PATH}"
 echo "SCCACHE_BUCKET=${SCCACHE_BUCKET}"
 
-if [ "GOMA" == "" ]; then
+if [ "${GOMA}" == "" ]; then
   GOMA=none
   echo "GOMA defaulting to ${GOMA}"
 else
@@ -105,7 +105,7 @@ if [ "$COMMAND" == "build" ]; then
   RELEASE_TARGET="-${TARGET}"
   e init --root=. -o $TARGET $TARGET -i release --goma $GOMA --fork ${FORK} --use-https -f
   # add target architecture to config
-  sed -I .orig 's|release.gn\\")",|release.gn\\")", "target_cpu = \\"'"$TARGET"'\\"",|g' ${CONFIG_FILE}
+  sed -I .orig 's|release.gn\\")"|release.gn\\")", "target_cpu = \\"'"$TARGET"'\\""|g' ${CONFIG_FILE}
 
   echo "Building Electronite..."  
   e build electron
@@ -131,7 +131,7 @@ if [ "$COMMAND" == "release" ]; then
   RELEASE_TARGET="-${TARGET}"
   e init --root=. -o $TARGET $TARGET -i release --goma $GOMA --fork ${FORK} --use-https -f
   # add target architecture to config
-  sed -I .orig 's|release.gn\\")",|release.gn\\")", "target_cpu = \\"'"$TARGET"'\\"",|g' ${CONFIG_FILE}
+  sed -I .orig 's|release.gn\\")"|release.gn\\")", "target_cpu = \\"'"$TARGET"'\\""|g' ${CONFIG_FILE}
 
   echo "Creating Electronite Distributable..."  
   e build electron:dist
