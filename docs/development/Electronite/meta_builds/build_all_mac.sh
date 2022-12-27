@@ -6,7 +6,7 @@ set -e
 #
 # to troubleshoot build problems, do build logging by doing `export BUILD_EXTRAS=-vvvvv` before running
 #
-# Example `./build_all_mac.sh electronite-v21.2.0-beta results`
+# Example `./build_all_mac.sh electronite-v21.2.0-beta results/mac/v21.2.0`
 
 BRANCH=$1
 DEST=$2

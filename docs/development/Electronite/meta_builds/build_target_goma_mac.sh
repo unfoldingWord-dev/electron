@@ -5,35 +5,37 @@ set -e
 #
 # to troubleshoot build problems, do build logging by doing `export BUILD_EXTRAS=-vvvvv` before running
 #
-# Example `./build_target_linux.sh x64 results/linux/v21.2.0`
+# to enable goma, do `export GOMA=cache-only` before running script
+#
+# Example `./build_target_goma_mac.sh x64 results/mac/v22.0.0`
 
 TARGET=$1
 DEST=$2
 
 echo "Building $TARGET to: $DEST"
 
-BUILD_TARGET=./src/out/Release-$TARGET/electron
-if [ -f $BUILD_TARGET ]; then
+BUILD_TARGET=./src/out/$TARGET/Electron.app
+if [ -d $BUILD_TARGET ]; then
     echo "Build Target already exists: $BUILD_TARGET"
 else
     echo "Doing Build $TARGET to $BUILD_TARGET"
-    ./electronite-tools-3.sh build $TARGET
+    ./electronite-tools-goma-3.sh build $TARGET
     echo "Finished Build $TARGET to $BUILD_TARGET"
 fi
 
-if [ -f $BUILD_TARGET ]; then
+if [ -d $BUILD_TARGET ]; then
     echo "Target built: $BUILD_TARGET"
 else
     echo "Target failed: $BUILD_TARGET"
     exit 1
 fi
 
-RELEASE_TARGET=./src/out/Release-$TARGET/dist.zip
+RELEASE_TARGET=./src/out/$TARGET/dist.zip
 if [ -f $RELEASE_TARGET ]; then
     echo "Release Target already exists: $RELEASE_TARGET"
 else
     echo "Doing Release $TARGET"
-    ./electronite-tools-3.sh release $TARGET
+    ./electronite-tools-goma-3.sh release $TARGET
 fi
 
 if [ -f $RELEASE_TARGET ]; then
@@ -69,7 +71,7 @@ else
     exit 1
 fi
 
-TARGET_FOLDER=./src/out/Release-$TARGET
+TARGET_FOLDER=./src/out/$TARGET
 echo "Remove $TARGET_FOLDER to free up space for later builds"
 rm -rf $TARGET_FOLDER
 if [ -d $TARGET_FOLDER ]; then

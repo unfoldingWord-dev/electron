@@ -6,7 +6,7 @@ rem     for each architecture.  The dist.zip files are stored at %DEST%
 rem
 rem to troubleshoot build problems, do build logging by doing `set BUILD_EXTRAS=-vvvvv` before running
 rem
-rem Example `build_all_win.bat electronite-v22.0.0-initialBuild results\v22.0.0`
+rem Example `build_all_win.bat electronite-v22.0.0-initialBuild results\win\v22.0.0`
 
 echo "Building %BRANCH% to: %DEST%"
 

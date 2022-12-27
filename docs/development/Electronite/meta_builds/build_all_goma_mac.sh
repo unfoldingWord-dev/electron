@@ -1,12 +1,14 @@
 #!/bin/bash
 set -e
 
-# Meta Build script to get sources, and then build for x64 and arm64 by calling build_target_linux.sh
+# Meta Build script to get sources, and then build for x64 and arm64 by calling build_target_mac.sh
 #     for each architecture.  The dist.zip files are stored at $DEST
 #
 # to troubleshoot build problems, do build logging by doing `export BUILD_EXTRAS=-vvvvv` before running
 #
-# Example `./build_all_linux.sh electronite-v21.2.0-beta results/linux/v21.2.0`
+# to enable goma, do `export GOMA=cache-only` before running script
+#
+# Example `./build_all_goma_mac.sh electronite-v21.3.3-beta results/mac/v21.3.3`
 
 BRANCH=$1
 DEST=$2
@@ -15,7 +17,7 @@ echo "Building $BRANCH to: $DEST"
 
 if [ ! -d src ]; then
     echo "Getting sources from $BRANCH"
-    ./electronite-tools-3.sh get $BRANCH
+    ./electronite-tools-goma-3.sh get $BRANCH
 fi
 
 TARGET=x64
@@ -24,7 +26,7 @@ if [ -f $DEST_FILE ]; then
     echo "Build $TARGET already exists: $DEST_FILE"
 else
     echo "Doing Build $TARGET"
-    ./build_target_linux.sh $TARGET $DEST
+    ./build_target_goma_mac.sh $TARGET $DEST
 fi
 
 if [ -f $DEST_FILE ]; then
@@ -40,11 +42,7 @@ if [ -f $DEST_FILE ]; then
     echo "Build $TARGET already exists: $DEST_FILE"
 else
     echo "Doing Build $TARGET"
-    cd ./src
-    build/linux/sysroot_scripts/install-sysroot.py --arch=arm64
-    cd ..
-
-    ./build_target_linux.sh $TARGET $DEST
+    ./build_target_goma_mac.sh $TARGET $DEST
 fi
 
 if [ -f $DEST_FILE ]; then
