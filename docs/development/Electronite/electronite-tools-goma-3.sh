@@ -42,7 +42,7 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
   SED_INPLACE=-i.orig
 elif [[ "$OSTYPE" == "darwin"* ]]; then
   echo "MacOS Detected"
-  SED_INPLACE=-I .orig
+  SED_INPLACE="-I .orig"
 else
   echo "Other Detected"
   SED_INPLACE=-i.orig
