@@ -135,11 +135,15 @@ fi
 if [ "$COMMAND" == "release" ]; then
   if [ $# -ge 2 ]; then
     TARGET=$2
-    echo "Building for \"${TARGET}\""
+    STRIP_EXTRA_ARGS=--target-cpu=$TARGET
+    echo "Releasing for \"${TARGET}\", extra args: \"${STRIP_EXTRA_ARGS}\""
   else
-    echo "Building for default \"x64\""
     TARGET=x64
+    STRIP_EXTRA_ARGS=""
+    echo "Releasing for default \"x64\", extra args: \"${STRIP_EXTRA_ARGS}\""
   fi
+  
+  echo "Releasing: ${RELEASE_TARGET}"
 
   CONFIG_FILE=~/.electron_build_tools/configs/evm.$TARGET.json
   RELEASE_TARGET="-${TARGET}"
@@ -147,7 +151,14 @@ if [ "$COMMAND" == "release" ]; then
   # add target architecture to config
   sed ${SED_INPLACE} 's|release.gn\\")"|release.gn\\")", "target_cpu = \\"'"$TARGET"'\\""|g' ${CONFIG_FILE}
 
-  echo "Creating Electronite Distributable..."  
+  if [ "`uname`" != "Darwin" ]; then
+    echo "Removing symbols for Linux..."
+    cd src
+    ./electron/script/strip-binaries.py ${STRIP_EXTRA_ARGS} -d out/${TARGET}
+    cd ..
+  fi
+
+  echo "Creating Electronite Distributable..."
   e build electron:dist
   
   export DATE=`date`
