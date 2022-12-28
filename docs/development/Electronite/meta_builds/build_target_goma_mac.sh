@@ -3,9 +3,10 @@ set -e
 
 # Build script to do build build and release for $TARGET if not present at $DEST
 #
-# to troubleshoot build problems, do build logging by doing `export BUILD_EXTRAS=-vvvvv` before running
-#
+# Uses Electron build tools.
 # to enable goma, do `export GOMA=cache-only` before running script
+#
+# to troubleshoot build problems, do build logging by doing `export BUILD_EXTRAS=-vvvvv` before running
 #
 # Example `./build_target_goma_mac.sh x64 results/mac/v22.0.0`
 

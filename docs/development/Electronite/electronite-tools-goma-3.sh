@@ -4,9 +4,10 @@ set -x
 
 # Base Build script to do one of: getting sources, building Electronite executable, packaging Electronite as dist.zip
 #
-# to troubleshoot build problems, do build logging by doing `set BUILD_EXTRAS=-vvvvv` before running
-#
+# Uses Electron build tools.
 # to enable goma, do `export GOMA=cache-only` before running script
+#
+# to troubleshoot build problems, do build logging by doing `set BUILD_EXTRAS=-vvvvv` before running
 
 FORK="unfoldingWord/electronite"
 ELECTRONITE_REPO="https://github.com/$FORK"
@@ -70,7 +71,7 @@ if [ "$COMMAND" == "get" ]; then
   echo "Fetching code. This can take hours and download over 20GB."
   echo "Checking out $ELECTRONITE_REPO.git@origin/$BRANCH"
   CONFIG_FILE=~/.electron_build_tools/configs/evm.x64.json
-  rm ${CONFIG_FILE}
+  rm -f ${CONFIG_FILE}
 
   e init --root=. -o x64 x64 -i release --goma cache-only --fork ${FORK} --use-https -f
   cp ${CONFIG_FILE} ${CONFIG_FILE}.old

@@ -3,6 +3,8 @@ set -e
 
 # Build script to do build build and release for $TARGET if not present at $DEST
 #
+# Uses Chromium build tools.
+#
 # to troubleshoot build problems, do build logging by doing `export BUILD_EXTRAS=-vvvvv` before running
 #
 # Example `./build_target_mac.sh x64 results/mac/v21.2.0`
