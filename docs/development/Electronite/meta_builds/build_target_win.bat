@@ -3,6 +3,8 @@ set DEST=%2
 
 rem Build script to do build build and release for %TARGET% if not present at %DEST%
 rem
+rem Uses Chromium build tools.
+rem
 rem to troubleshoot build problems, do build logging by doing `set BUILD_EXTRAS=-vvvvv` before running
 rem
 rem Example `build_target_win.bat x64 results`

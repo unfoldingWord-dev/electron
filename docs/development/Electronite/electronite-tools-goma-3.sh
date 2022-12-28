@@ -4,9 +4,10 @@ set -x
 
 # Base Build script to do one of: getting sources, building Electronite executable, packaging Electronite as dist.zip
 #
-# to troubleshoot build problems, do build logging by doing `set BUILD_EXTRAS=-vvvvv` before running
-#
+# Uses Electron build tools.
 # to enable goma, do `export GOMA=cache-only` before running script
+#
+# to troubleshoot build problems, do build logging by doing `set BUILD_EXTRAS=-vvvvv` before running
 
 FORK="unfoldingWord/electronite"
 ELECTRONITE_REPO="https://github.com/$FORK"
