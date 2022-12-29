@@ -70,15 +70,16 @@ if [ "$COMMAND" == "get" ]; then
 
   echo "Fetching code. This can take hours and download over 20GB."
   echo "Checking out $ELECTRONITE_REPO.git@origin/$BRANCH"
+  # clear old configs
   CONFIG_FILE=~/.electron_build_tools/configs/evm.x64.json
   rm -f ${CONFIG_FILE}
+  rm -f  ./.gclient
 
   e init --root=. -o x64 x64 -i release --goma cache-only --fork ${FORK} --use-https -f
-  cp ${CONFIG_FILE} ${CONFIG_FILE}.old
-# add branch to fork
-  sed "s|${FORK}.git|${FORK}.git@origin/${BRANCH}|g" ${CONFIG_FILE} > build_config.new
-  # replace generated config
-  cp build_config.new ${CONFIG_FILE}
+  
+  # add branch to fork
+  sed ${SED_INPLACE} "s|${FORK}.git|${FORK}.git@origin/${BRANCH}|g" ${CONFIG_FILE}
+  sed ${SED_INPLACE} "s|https://github.com/electron/electron|https://github.com/${FORK}.git@origin/${BRANCH}|g" ./.gclient
 
   echo "Checking out branch and Applying electronite patches"
   e sync
