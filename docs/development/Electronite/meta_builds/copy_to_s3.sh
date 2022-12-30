@@ -20,10 +20,12 @@ set +o history
 
 # set AWS Keys in environment variables
 if [ "$AWS_ACCESS_KEY_ID" == "" ]; then
-  read -p "Enter AWS_ACCESS_KEY_ID: " AWS_ACCESS_KEY_ID
+  read -p "Enter AWS_ACCESS_KEY_ID: " KEY_ID
+  export AWS_ACCESS_KEY_ID=$KEY_ID
 fi
 if [ "$AWS_SECRET_ACCESS_KEY" == "" ]; then
-  read -p "Enter AWS_SECRET_ACCESS_KEY: " AWS_SECRET_ACCESS_KEY
+  read -p "Enter AWS_SECRET_ACCESS_KEY: " ACCESS_KEY
+  export AWS_SECRET_ACCESS_KEY=$ACCESS_KEY
 fi
 
 if [ "`uname`" == "Darwin" ]; then
@@ -40,5 +42,17 @@ set -x
 # presumes to current folder is the build folder
 /usr/local/bin/aws s3 cp results/${TARGET}/${VERSION}/arm64/dist.zip s3://electronite-build-data/Electronite/${TARGET}/${VERSION}/arm64/dist.zip
 /usr/local/bin/aws s3 cp results/${TARGET}/${VERSION}/x64/dist.zip s3://electronite-build-data/Electronite/${TARGET}/${VERSION}/x64/dist.zip
+
+set +x
+
+if [ "$KEY_ID" != "" ]; then
+  echo "Clearing temp AWS_ACCESS_KEY_ID"
+  export AWS_ACCESS_KEY_ID=
+fi
+
+if [ "$ACCESS_KEY" != "" ]; then
+  echo "Clearing temp AWS_SECRET_ACCESS_KEY"
+  export AWS_SECRET_ACCESS_KEY=
+fi
 
 echo "All copies completed to $VERSION"
