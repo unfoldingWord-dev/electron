@@ -4,6 +4,11 @@ set -e
 # Copy electronite builds to S3 storage.  First do cd to build folder before running script. 
 #  Only parameter is version.  If AWS keys are not set, will do prompting.
 #
+# troubleshooting:
+#   Got an S3 error that AWS user did not exist when entering credentials at prompts.  
+#     No obvious reason for this, but found it started working by either setting or 
+#     clearing ID `export AWS_SECRET_ACCESS_KEY=` before running script.
+#
 # Example `./copy_to_s3.sh v22.0.0`
 
 VERSION=$1
@@ -21,7 +26,7 @@ if [ "$AWS_SECRET_ACCESS_KEY" == "" ]; then
   read -p "Enter AWS_SECRET_ACCESS_KEY: " AWS_SECRET_ACCESS_KEY
 fi
 
-if [ "`uname`" != "Darwin" ]; then
+if [ "`uname`" == "Darwin" ]; then
   echo "Detected Mac"
   TARGET=mac
 else
