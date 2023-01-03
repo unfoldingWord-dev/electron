@@ -5,6 +5,10 @@ set -e
 #     for each architecture.  The dist.zip files are stored at $DEST
 #
 # Uses Electron build tools.
+#
+# need to set paths before running this script:
+#     `export PATH=~/.electron_build_tools/third_party/depot_tools:~/.electron_build_tools/src:$PATH`
+#
 # to enable goma, do `export GOMA=cache-only` before running script
 #
 # to troubleshoot build problems, do build logging by doing `export BUILD_EXTRAS=-vvvvv` before running

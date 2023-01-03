@@ -5,6 +5,9 @@ rem Build script to do build build and release for %TARGET% if not present at %D
 rem
 rem Uses Chromium build tools.
 rem
+rem need to set paths before running this script. cd to the build directory and do:
+rem     `set Path=%cd%\depot_tools;%Path%`
+rem
 rem to troubleshoot build problems, do build logging by doing `set BUILD_EXTRAS=-vvvvv` before running
 rem
 rem Example `build_target_win.bat x64 results`

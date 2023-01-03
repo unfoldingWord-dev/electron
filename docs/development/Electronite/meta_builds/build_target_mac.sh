@@ -5,6 +5,9 @@ set -e
 #
 # Uses Chromium build tools.
 #
+# need to set paths before running this script:
+#     `export PATH=$(pwd)/depot_tools:$PATH`
+#
 # to troubleshoot build problems, do build logging by doing `export BUILD_EXTRAS=-vvvvv` before running
 #
 # Example `./build_target_mac.sh x64 results/mac/v21.2.0`

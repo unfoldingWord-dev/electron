@@ -5,6 +5,10 @@ set -x
 # Base Build script to do one of: getting sources, building Electronite executable, packaging Electronite as dist.zip
 #
 # Uses Electron build tools.
+#
+# need to set paths before running this script:
+#     `export PATH=~/.electron_build_tools/third_party/depot_tools:~/.electron_build_tools/src:$PATH`
+#
 # to enable goma, do `export GOMA=cache-only` before running script
 #
 # to troubleshoot build problems, do build logging by doing `set BUILD_EXTRAS=-vvvvv` before running

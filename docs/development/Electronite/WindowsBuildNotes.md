@@ -38,8 +38,8 @@ git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
 #### Build Intel x64
 - open command prompt, cd to the build directory, and initialize build configuration:
 ```
-set Path=%cd%\depot_tools;%Path%; 
-.\electronite-tools-3.bat get electronite-v22.0.0-beta; 
+set Path=%cd%\depot_tools;%Path%
+.\electronite-tools-3.bat get electronite-v22.0.0-beta
 ```
 
 - Do build (takes a long time)
@@ -63,8 +63,8 @@ set Path=%cd%\depot_tools;%Path%;
 
 - get the Electronite source code (this can take many hours the first time as the git cache is loaded), checkout the correct Electronite tag and get build sources
 ```
-set Path=%cd%\depot_tools;%Path%; 
-.\electronite-tools-3.bat get electronite-v22.0.0-beta; 
+set Path=%cd%\depot_tools;%Path%
+.\electronite-tools-3.bat get electronite-v22.0.0-beta
 ```
 
 - Do build (takes a long time)
@@ -80,8 +80,8 @@ set Path=%cd%\depot_tools;%Path%;
 
 -- get the Electronite source code (this can take many hours the first time as the git cache is loaded), checkout the correct Electronite tag and get build sources
 ```
-set Path=%cd%\depot_tools;%Path%; 
-.\electronite-tools-3.bat get electronite-v22.0.0-beta; 
+set Path=%cd%\depot_tools;%Path%
+.\electronite-tools-3.bat get electronite-v22.0.0-beta
 ```
 
 - Do build (takes a long time)

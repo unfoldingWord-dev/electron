@@ -6,6 +6,9 @@ set -e
 #
 # Uses Chromium build tools.
 #
+# need to set paths before running this script:
+#     `export PATH=$(pwd)/depot_tools:$PATH`
+#
 # to troubleshoot build problems, do build logging by doing `export BUILD_EXTRAS=-vvvvv` before running
 #
 # Example `./build_all_linux.sh electronite-v21.2.0-beta results/linux/v21.2.0`

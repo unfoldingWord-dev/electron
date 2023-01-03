@@ -5,6 +5,9 @@ set -e
 #
 # Uses Chromium build tools.
 #
+# need to set paths before running this script:
+#     `export PATH=$(pwd)/depot_tools:$PATH`
+#
 # to troubleshoot build problems, do build logging by doing `set BUILD_EXTRAS=-vvvvv` before running
 
 ELECTRONITE_REPO="https://github.com/unfoldingWord/electronite"

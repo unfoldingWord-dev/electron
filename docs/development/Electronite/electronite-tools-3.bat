@@ -2,6 +2,11 @@ echo off
 
 rem Base Build script to do one of: getting sources, building Electronite executable, packaging Electronite as dist.zip
 rem
+rem Uses Chromium build tools.
+rem
+rem need to set paths before running this script. cd to the build directory and do:
+rem     `set Path=%cd%\depot_tools;%Path%`
+rem
 rem to troubleshoot build problems, do build logging by doing `set BUILD_EXTRAS=-vvvvv` before running
 
 set ELECTRONITE_REPO=https://github.com/unfoldingWord/electronite
