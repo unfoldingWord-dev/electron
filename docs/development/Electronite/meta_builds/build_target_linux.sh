@@ -10,7 +10,7 @@ set -e
 #
 # to troubleshoot build problems, do build logging by doing `export BUILD_EXTRAS=-vvvvv` before running
 #
-# Example `./build_target_linux.sh x64 results/linux/v21.2.0`
+# Example `./build_target_linux.sh x64 results/linux/v22.0.1`
 
 TARGET=$1
 DEST=$2

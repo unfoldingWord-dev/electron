@@ -7,7 +7,7 @@ set -x
 #    Then copy files from old electronite branch ($OLD_ELECTRONITE_BRANCH)
 #        and commit them in new electronite branch.
 #
-# Example `./make_new_electronite.sh v21.3.3 electronite-v22.0.0
+# Example `./make_new_electronite.sh v22.0.1 electronite-v22.0.0
 
 NEW_ELECTRON_VERSION=$1
 OLD_ELECTRONITE_BRANCH=$2
