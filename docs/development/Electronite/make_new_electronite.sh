@@ -22,6 +22,8 @@ cp patches/chromium/add_graphite.patch temp_files/add_graphite.patch
 
 # Get all upstream tags
 git fetch --force --tags upstream
+# push up the new tags
+git push --tags
 # get the source electron tag
 git checkout $NEW_ELECTRON_VERSION
 # create a new electron branch from electron sources
