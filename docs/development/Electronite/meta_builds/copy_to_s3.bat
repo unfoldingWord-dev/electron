@@ -15,13 +15,13 @@ set ACCESS_KEY=%3
 echo "Copying Electronite builds for VERSION to S3"
 
 rem set AWS Keys in environment variables
-if %KEY_ID%. != . {
+if NOT %KEY_ID%. == . (
   set AWS_ACCESS_KEY_ID=%KEY_ID%
-}
+)
 
-if %ACCESS_KEY%. != . {
+if NOT %ACCESS_KEY%. == . (
   set AWS_SECRET_ACCESS_KEY=%ACCESS_KEY%
-fi
+)
 
 set TARGET=win
 
@@ -31,14 +31,14 @@ aws s3 cp results\%TARGET%\%VERSION%\arm64\dist.zip s3://electronite-build-data/
 aws s3 cp results\%TARGET%\%VERSION%\x86\dist.zip s3://electronite-build-data/Electronite/%TARGET%/%VERSION%/x86/dist.zip
 aws s3 cp results\%TARGET%\%VERSION%\x64\dist.zip s3://electronite-build-data/Electronite/%TARGET%/%VERSION%/x64/dist.zip
 
-if %KEY_ID%. != . {
+if NOT %KEY_ID%. == . (
   echo "Clearing temp AWS_ACCESS_KEY_ID"
   set AWS_ACCESS_KEY_ID=
-}
+)
 
-if %ACCESS_KEY%. != . {
+if NOT %ACCESS_KEY%. == . (
   echo "Clearing temp AWS_SECRET_ACCESS_KEY"
   set AWS_SECRET_ACCESS_KEY=
-}
+)
 
 echo "All copies completed to %VERSION%"
