@@ -8,6 +8,7 @@ rem     clearing ID `export AWS_SECRET_ACCESS_KEY=` before running script.
 rem
 rem Example `./copy_to_s3.sh v22.0.1 <key> <secret>`
 
+SETLOCAL
 set VERSION=%1
 set KEY_ID=%2
 set ACCESS_KEY=%3
