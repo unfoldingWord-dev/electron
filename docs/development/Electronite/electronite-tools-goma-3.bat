@@ -1,4 +1,4 @@
-echo off
+echo on
 
 rem Base Build script to do one of: getting sources, building Electronite executable, packaging Electronite as dist.zip
 rem
@@ -25,7 +25,6 @@ rem sccache no longer supported in Electron
 rem set SCCACHE_BUCKET=electronjs-sccache
 rem set SCCACHE_TWO_TIER=true
 
-SETLOCAL
 set DEPOT_TOOLS_WIN_TOOLCHAIN=0
 set NINJA_STATUS="[%%r processes, %%f/%%t @ %%o/s : %%es] "
 echo "GIT_CACHE_PATH=%GIT_CACHE_PATH%"
@@ -71,22 +70,24 @@ cd %depot_tools_dir% && call git reset HEAD --hard && echo depot_tools is ready
 cd %working_dir%
 
 rem fetch code
-echo Fetching code. This can take hours and download over 20GB.
-echo Deleting src folder.
+echo "Fetching code. This can take hours and download over 20GB."
+echo "Deleting src folder"
 if exist src rmdir /Q /S src
-echo Deleted src folder.
+echo "Deleted src folder"
 
-echo Checking out %ELECTRONITE_REPO%.git@origin/%checkout_tag%
+echo "Checking out %ELECTRONITE_REPO%.git@origin/%checkout_tag%"
 rem clear old configs
 set CONFIG_FILE=%HOMEDRIVE%%HOMEPATH%\.electron_build_tools\configs\evm.x64.json
 del -f %CONFIG_FILE%
 del -f  .\.gclient
 
 call e init --root=. -o x64 x64 -i release --goma cache-only --fork %FORK% --use-https -f
-  
+echo "Config: %CONFIG_FILE%"
+pause
+
 rem add branch to fork
-sed -i.orig "s|%FORK%.git|%FORK%.git@origin/%BRANCH%|g" %CONFIG_FILE%
-sed -i.orig "s|https://github.com/electron/electron|https://github.com/%FORK%.git@origin/%BRANCH%|g" .\.gclient
+call sed -i.orig "s|%FORK%.git|%FORK%.git@origin/%BRANCH%|g" %CONFIG_FILE%
+call sed -i.orig "s|https://github.com/electron/electron|https://github.com/%FORK%.git@origin/%BRANCH%|g" .\.gclient
 
 pause
 
@@ -104,7 +105,7 @@ cd ..\..
 rem save in case graphite patch fails
 echo "%date% - %time%" > end_time_%COMMAND%_%TARGET%_%PASS%.txt
 
-echo Applying graphite patches
+echo "Applying graphite patches"
 cd .\src
 call git apply --whitespace=warn .\electron\docs\development\Electronite\add_graphite_cpp_std_iterator.patch
 cd ..
@@ -115,20 +116,23 @@ goto End
 rem ####################
 rem build release
 rem ####################
-if NOT %TARGET%.==. then (
+if NOT %TARGET%.==. (
     echo "Building for %TARGET%"
 ) else (
     echo "Building for default x64"
     set TARGET=x64
 )
 
-echo Building
+echo "Building..."
 
 set CONFIG_FILE=%HOMEDRIVE%%HOMEPATH%\.electron_build_tools\configs\evm.%TARGET%.json
 set RELEASE_TARGET="-%TARGET%"
 call e init --root=. -o %TARGET% %TARGET% -i release --goma %GOMA% --fork %FORK% --use-https -f
+
 rem add target architecture to config
-sed -i.orig 's|release.gn\\")"|release.gn\\")", "target_cpu = \\"'%TARGET%'\\""|g' %CONFIG_FILE%
+call sed -i.orig "s|release.gn\\\x22)\x22|release.gn\\\x22)\x22, \x22target_cpu = \\\x22%TARGET%\\\x22\x22|g" "%CONFIG_FILE%"
+rem call type "%CONFIG_FILE%"
+rem sed -i.orig 's|release.gn\\")"|release.gn\\")", "target_cpu = \\"'%TARGET%'\\""|g' %CONFIG_FILE%
 
 pause
 
@@ -141,20 +145,20 @@ goto End
 rem ####################
 rem create distributable
 rem ####################
-if NOT %TARGET%.==. then (
+if NOT %TARGET%.==. (
     echo "Building for %TARGET%"
 ) else (
     echo "Building for default x64"
     set TARGET=x64
 )
 
-echo Making release
+echo "Making release"
 
 set CONFIG_FILE=%HOMEDRIVE%%HOMEPATH%\.electron_build_tools\configs\evm.%TARGET%.json
 set RELEASE_TARGET="-%TARGET%"
 call e init --root=. -o %TARGET% %TARGET% -i release --goma %GOMA% --fork %FORK% --use-https -f
 rem add target architecture to config
-sed -i.orig 's|release.gn\\")"|release.gn\\")", "target_cpu = \\"'%TARGET%'\\""|g' %CONFIG_FILE%
+call sed -i.orig "s|release.gn\\\x22)\x22|release.gn\\\x22)\x22, \x22target_cpu = \\\x22%TARGET%\\\x22\x22|g" "%CONFIG_FILE%"
 
 echo "Creating Electronite Distributable..."
 call e build electron:dist
