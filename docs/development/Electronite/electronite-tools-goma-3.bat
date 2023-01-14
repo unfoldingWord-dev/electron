@@ -130,8 +130,10 @@ call e init --root=. -o %TARGET% %TARGET% -i release --goma %GOMA% --fork %FORK%
 rem add target architecture to config
 sed -i.orig 's|release.gn\\")"|release.gn\\")", "target_cpu = \\"'%TARGET%'\\""|g' %CONFIG_FILE%
 
-  echo "Building Electronite..."  
-  e build electron
+pause
+
+echo "Building Electronite..."  
+call e build electron
   
 goto End
 
@@ -139,22 +141,24 @@ goto End
 rem ####################
 rem create distributable
 rem ####################
-set build_x64=false
-if "%2" == "" set build_x64=true
-
-echo Making release
-cd src
-
-if %build_x64% == false (
-    echo Creating %2 distributable
-    electron\script\strip-binaries.py -d out\Release-%2
-    call ninja -C out\Release-%2 electron:electron_dist_zip %BUILD_EXTRAS%
+if NOT %TARGET%.==. then (
+    echo "Building for %TARGET%"
 ) else (
-    echo Creating distributable
-    electron\script\strip-binaries.py -d out\Release
-    call ninja -C out\Release electron:electron_dist_zips %BUILD_EXTRAS%
+    echo "Building for default x64"
+    set TARGET=x64
 )
 
+echo Making release
+
+set CONFIG_FILE=%HOMEDRIVE%%HOMEPATH%\.electron_build_tools\configs\evm.%TARGET%.json
+set RELEASE_TARGET="-%TARGET%"
+call e init --root=. -o %TARGET% %TARGET% -i release --goma %GOMA% --fork %FORK% --use-https -f
+rem add target architecture to config
+sed -i.orig 's|release.gn\\")"|release.gn\\")", "target_cpu = \\"'%TARGET%'\\""|g' %CONFIG_FILE%
+
+echo "Creating Electronite Distributable..."
+call e build electron:dist
+  
 goto End
 
 rem ####################
