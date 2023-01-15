@@ -3,7 +3,7 @@ set DEST=%2
 
 rem Build script to do build build and release for %TARGET% if not present at %DEST%
 rem
-rem Uses Chromium build tools.
+rem Uses Electronite build tools.
 rem
 rem need to set paths before running this script.
 rem     `set Path=%HOMEDRIVE%%HOMEPATH%\.electron_build_tools\third_party\depot_tools;%HOMEDRIVE%%HOMEPATH%\.electron_build_tools\src;%Path%`
@@ -28,7 +28,7 @@ if exist %BUILD_TARGET% (
 if exist %BUILD_TARGET% (
     echo "Target built: %BUILD_TARGET%"
 ) else (
-    echo "Target failed: %BUILD_TARGET%"
+    echo "Target build failed: %BUILD_TARGET%"
     exit /b 10
 )
 
@@ -44,7 +44,7 @@ if exist %RELEASE_TARGET% (
 if exist %RELEASE_TARGET% (
     echo "Target released: %RELEASE_TARGET%"
 ) else (
-    echo "Target failed: %RELEASE_TARGET%"
+    echo "Target release failed: %RELEASE_TARGET%"
     exit /b 10
 )
 

@@ -2,7 +2,7 @@ echo on
 
 rem Base Build script to do one of: getting sources, building Electronite executable, packaging Electronite as dist.zip
 rem
-rem Uses Chromium build tools.
+rem Uses Electronite build tools.
 rem
 rem need to set paths before running this script.
 rem     `set Path=%HOMEDRIVE%%HOMEPATH%\.electron_build_tools\third_party\depot_tools;%HOMEDRIVE%%HOMEPATH%\.electron_build_tools\src;%Path%`
@@ -39,6 +39,8 @@ if %GOMA%.==. (
 ) else (
   echo "GOMA is set to %GOMA%"
 )
+
+setlocal
 
 rem ------------------------
 rem check command to execute
