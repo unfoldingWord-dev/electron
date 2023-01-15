@@ -58,7 +58,7 @@ rem ####################
 rem fetch code
 rem ####################
 if %2.==. goto MissingTag
-set checkout_tag=%2
+set BRANCH=%2
 
 rem make sure depot_tools is clean
 echo Preparing depot_tools
@@ -75,22 +75,23 @@ echo "Deleting src folder"
 if exist src rmdir /Q /S src
 echo "Deleted src folder"
 
-echo "Checking out %ELECTRONITE_REPO%.git@origin/%checkout_tag%"
+echo "Checking out %ELECTRONITE_REPO%.git@origin/%BRANCH%"
 rem clear old configs
 set CONFIG_FILE=%HOMEDRIVE%%HOMEPATH%\.electron_build_tools\configs\evm.x64.json
-del -f %CONFIG_FILE%
-del -f  .\.gclient
+del %CONFIG_FILE%
+del .\.gclient
 
 call e init --root=. -o x64 x64 -i release --goma cache-only --fork %FORK% --use-https -f
-echo "Config: %CONFIG_FILE%"
-pause
+rem echo "Config: %CONFIG_FILE%"
+rem pause
 
 rem add branch to fork
 call sed -i.orig "s|%FORK%.git|%FORK%.git@origin/%BRANCH%|g" %CONFIG_FILE%
 call sed -i.orig "s|https://github.com/electron/electron|https://github.com/%FORK%.git@origin/%BRANCH%|g" .\.gclient
+rem call type %CONFIG_FILE%
+rem pause
 
-pause
-
+rem echo "Config: %CONFIG_FILE%"
 echo "Checking out branch and Applying electronite patches"
 call  e sync
   
@@ -99,7 +100,7 @@ cd src\electron
 call git --version
 call git status
 call git describe --tags
-pause
+rem pause
 cd ..\..
 
 rem save in case graphite patch fails
@@ -131,10 +132,8 @@ call e init --root=. -o %TARGET% %TARGET% -i release --goma %GOMA% --fork %FORK%
 
 rem add target architecture to config
 call sed -i.orig "s|release.gn\\\x22)\x22|release.gn\\\x22)\x22, \x22target_cpu = \\\x22%TARGET%\\\x22\x22|g" "%CONFIG_FILE%"
-rem call type "%CONFIG_FILE%"
-rem sed -i.orig 's|release.gn\\")"|release.gn\\")", "target_cpu = \\"'%TARGET%'\\""|g' %CONFIG_FILE%
 
-pause
+rem pause
 
 echo "Building Electronite..."  
 call e build electron
