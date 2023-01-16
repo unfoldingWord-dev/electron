@@ -71,6 +71,10 @@ echo depot_tools_dir=%depot_tools_dir%"
 cd %depot_tools_dir% && call git reset HEAD --hard && echo depot_tools is ready
 cd %working_dir%
 
+rem remove cached electronite repo
+if exist .\git_cache\github.com-unfoldingword-electronite rmdir /Q /S .\git_cache\github.com-unfoldingword-electronite
+if exist .\git_cache\github.com-unfoldingword-electronite.locked del /f .\git_cache\github.com-unfoldingword-electronite.locked
+
 rem fetch code
 echo "Fetching code. This can take hours and download over 20GB."
 echo "Deleting src folder"
