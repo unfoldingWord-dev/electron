@@ -49,6 +49,18 @@ if [ "$COMMAND" == "get" ]; then
     rm -rf src.old&
   fi  
 
+  # remove cached electronite repo
+  FILE=./git_cache/github.com-unfoldingword-electronite
+  if [ -d $FILE ]; then
+    echo "Removing $FILE"
+    rm -rf $FILE
+  fi
+  FILE=./git_cache/github.com-unfoldingword-electronite.locked
+  if [ -d $FILE ]; then
+    echo "Removing $FILE"
+    rm -f $FILE
+  fi
+
   echo "Fetching code. This can take hours and download over 20GB."
   echo "Checking out $ELECTRONITE_REPO.git@origin/$BRANCH"
   gclient config --name "src/electron" --unmanaged $ELECTRONITE_REPO.git@origin/$BRANCH

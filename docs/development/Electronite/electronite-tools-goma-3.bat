@@ -1,17 +1,17 @@
-echo off
+echo on
 
 rem Base Build script to do one of: getting sources, building Electronite executable, packaging Electronite as dist.zip
 rem
-rem Uses Chromium build tools.
+rem Uses Electronite build tools.
 rem
-rem need to set paths before running this script. cd to the build directory and do:
-rem     `set Path=%cd%\depot_tools;%Path%`
+rem need to set paths before running this script.
+rem     `set Path=%HOMEDRIVE%%HOMEPATH%\.electron_build_tools\third_party\depot_tools;%HOMEDRIVE%%HOMEPATH%\.electron_build_tools\src;%Path%`
 rem
 rem to troubleshoot build problems, do build logging by doing `set BUILD_EXTRAS=-vvvvv` before running
 
-SETLOCAL
+set FORK=unfoldingWord/electronite
 set ELECTRONITE_REPO=https://github.com/unfoldingWord/electronite
-set Path=%Path%;%HOMEDRIVE%%HOMEPATH%\.electron_build_tools\third_party\depot_tools;%HOMEDRIVE%%HOMEPATH%\.electron_build_tools\src
+rem set Path=%Path%;%HOMEDRIVE%%HOMEPATH%\.electron_build_tools\third_party\depot_tools;%HOMEDRIVE%%HOMEPATH%\.electron_build_tools\src
 echo "Path = %Path%"
 set working_dir=%cd%
 set GIT_CACHE_PATH=%working_dir%\git_cache
@@ -33,6 +33,14 @@ echo "working_dir=%working_dir%"
 
 echo "%date% - %time%" > start_time_%COMMAND%_%TARGET%_%PASS%.txt
 
+if %GOMA%.==. (
+  set GOMA=none
+  echo "GOMA defaulting to %GOMA%"
+) else (
+  echo "GOMA is set to %GOMA%"
+)
+
+setlocal
 
 rem ------------------------
 rem check command to execute
@@ -52,7 +60,7 @@ rem ####################
 rem fetch code
 rem ####################
 if %2.==. goto MissingTag
-set checkout_tag=%2
+set BRANCH=%2
 
 rem make sure depot_tools is clean
 echo Preparing depot_tools
@@ -68,28 +76,43 @@ if exist .\git_cache\github.com-unfoldingword-electronite rmdir /Q /S .\git_cach
 if exist .\git_cache\github.com-unfoldingword-electronite.locked del /f .\git_cache\github.com-unfoldingword-electronite.locked
 
 rem fetch code
-echo Fetching code. This can take hours and download over 20GB.
-echo Deleting src folder.
+echo "Fetching code. This can take hours and download over 20GB."
+echo "Deleting src folder"
 if exist src rmdir /Q /S src
-echo Deleted src folder.
+echo "Deleted src folder"
 
-echo Checking out %ELECTRONITE_REPO%.git@origin/%checkout_tag%
-call gclient config --name "src/electron" --unmanaged %ELECTRONITE_REPO%.git@origin/%checkout_tag%
+echo "Checking out %ELECTRONITE_REPO%.git@origin/%BRANCH%"
+rem clear old configs
+set CONFIG_FILE=%HOMEDRIVE%%HOMEPATH%\.electron_build_tools\configs\evm.x64.json
+del %CONFIG_FILE%
+del .\.gclient
 
-echo Checking out branch and Applying electronite patches
-call gclient sync --with_branch_heads --with_tags
+call e init --root=. -o x64 x64 -i release --goma cache-only --fork %FORK% --use-https -f
+rem echo "Config: %CONFIG_FILE%"
+rem pause
 
-echo Identify checked out branch
+rem add branch to fork
+call sed -i.orig "s|%FORK%.git|%FORK%.git@origin/%BRANCH%|g" %CONFIG_FILE%
+call sed -i.orig "s|https://github.com/electron/electron|https://github.com/%FORK%.git@origin/%BRANCH%|g" .\.gclient
+rem call type %CONFIG_FILE%
+rem pause
+
+rem echo "Config: %CONFIG_FILE%"
+echo "Checking out branch and Applying electronite patches"
+call  e sync
+  
+echo "Identify checked out branch"
 cd src\electron
 call git --version
 call git status
 call git describe --tags
+rem pause
 cd ..\..
 
 rem save in case graphite patch fails
 echo "%date% - %time%" > end_time_%COMMAND%_%TARGET%_%PASS%.txt
 
-echo Applying graphite patches
+echo "Applying graphite patches"
 cd .\src
 call git apply --whitespace=warn .\electron\docs\development\Electronite\add_graphite_cpp_std_iterator.patch
 cd ..
@@ -100,45 +123,51 @@ goto End
 rem ####################
 rem build release
 rem ####################
-set build_x64=false
-if "%2" == "" set build_x64=true
-
-echo Building release
-cd src
-set CHROMIUM_BUILDTOOLS_PATH=%cd%\buildtools
-
-if %build_x64% == false (
-    echo Generating %2 configuration...
-    call gn gen out/Release-%2 --args="target_cpu=\"%2\" import(\"//electron/build/args/release.gn\")"
-    call ninja -C out/Release-%2 electron %BUILD_EXTRAS%
+if NOT %TARGET%.==. (
+    echo "Building for %TARGET%"
 ) else (
-    echo Generating configuration...
-    call gn gen out/Release --args="import(\"//electron/build/args/release.gn\")"
-    call ninja -C out/Release electron %BUILD_EXTRAS%
+    echo "Building for default x64"
+    set TARGET=x64
 )
 
+echo "Building..."
+
+set CONFIG_FILE=%HOMEDRIVE%%HOMEPATH%\.electron_build_tools\configs\evm.%TARGET%.json
+set RELEASE_TARGET="-%TARGET%"
+call e init --root=. -o %TARGET% %TARGET% -i release --goma %GOMA% --fork %FORK% --use-https -f
+
+rem add target architecture to config
+call sed -i.orig "s|release.gn\\\x22)\x22|release.gn\\\x22)\x22, \x22target_cpu = \\\x22%TARGET%\\\x22\x22|g" "%CONFIG_FILE%"
+
+rem pause
+
+echo "Building Electronite..."  
+call e build electron
+  
 goto End
 
 :Release
 rem ####################
 rem create distributable
 rem ####################
-set build_x64=false
-if "%2" == "" set build_x64=true
-
-echo Making release
-cd src
-
-if %build_x64% == false (
-    echo Creating %2 distributable
-    electron\script\strip-binaries.py -d out\Release-%2
-    call ninja -C out\Release-%2 electron:electron_dist_zip %BUILD_EXTRAS%
+if NOT %TARGET%.==. (
+    echo "Building for %TARGET%"
 ) else (
-    echo Creating distributable
-    electron\script\strip-binaries.py -d out\Release
-    call ninja -C out\Release electron:electron_dist_zips %BUILD_EXTRAS%
+    echo "Building for default x64"
+    set TARGET=x64
 )
 
+echo "Making release"
+
+set CONFIG_FILE=%HOMEDRIVE%%HOMEPATH%\.electron_build_tools\configs\evm.%TARGET%.json
+set RELEASE_TARGET="-%TARGET%"
+call e init --root=. -o %TARGET% %TARGET% -i release --goma %GOMA% --fork %FORK% --use-https -f
+rem add target architecture to config
+call sed -i.orig "s|release.gn\\\x22)\x22|release.gn\\\x22)\x22, \x22target_cpu = \\\x22%TARGET%\\\x22\x22|g" "%CONFIG_FILE%"
+
+echo "Creating Electronite Distributable..."
+call e build electron:dist
+  
 goto End
 
 rem ####################
