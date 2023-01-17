@@ -2,7 +2,6 @@
 ### Setup Build Environment on MacOS Monterey
 - Configured using these notes as a reference: [build-instructions-macos](../build-instructions-macos.md)
 - Can build on Monterey
-- Building for x64 does not work on M1 Silicon Macs, only for Arm64.  On Intel based Macs can build for both Arm64 and Intel x64
 - Make sure you have a lot of free disk space - need over 150GB free.
 - if you have trouble building with these notes, you could try the older Chromium Build tools: [MacBuildNotesChromeTools](MacBuildNotesChromeTools.md)
 - Used xcode 13.3.1
@@ -17,7 +16,7 @@ nvm use v16
 node --version
 ```
 - installed homebrew: `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"`
-- Installed Python 3.9 (Python 3.10 has breaking changes that broke Electron compile). Can install using brew `brew install python@3.9`, or download from `https://www.python.org/downloads/` .  Check by `python3 --version` .
+- Installed Python 3.10. Can install using brew `brew install python@3.10`, or download from `https://www.python.org/downloads/` .  Check by `python3 --version` .
 - make sure there is a default Python installed by `python --version`. Should report 2.x.x, but If it reports 3.x.x it may work.  Can install 2.7.18 from https://www.python.org/ftp/python/2.7.18/python-2.7.18-macosx10.9.pkg
 - configured Python:
 ```
