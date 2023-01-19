@@ -7,10 +7,10 @@ set -x
 #    Then copy files from old electronite branch ($OLD_ELECTRONITE_BRANCH)
 #        and commit them in new electronite branch.
 #
-# Example `./make_new_electronite.sh v22.0.1 electronite-v22.0.0`
+# Example `./make_new_electronite.sh v22.0.3 electronite-v22.0.1`
 #
 # or with github token:
-#   `./make_new_electronite.sh v22.0.1 electronite-v22.0.0 <token>`
+#   `./make_new_electronite.sh v22.0.3 electronite-v22.0.1 <token>`
 
 NEW_ELECTRON_VERSION=$1
 OLD_ELECTRONITE_BRANCH=$2
@@ -25,8 +25,14 @@ cp patches/chromium/add_graphite.patch temp_files/add_graphite.patch
 
 # Get all upstream tags
 git fetch --force --tags upstream
+
 # push up the new electron tag
-git push origin $NEW_ELECTRON_VERSION
+if [ "${CREDS}" == "" ]; then
+  git push origin $NEW_ELECTRON_VERSION
+else # use passed credentials
+  git push --tags https://${CREDS}@github.com/unfoldingWord/electronite.git
+fi
+
 # get the source electron tag
 git checkout $NEW_ELECTRON_VERSION
 # create a new electron branch from electron sources
