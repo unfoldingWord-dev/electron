@@ -30,7 +30,7 @@ git fetch --force --tags upstream
 if [ "${CREDS}" == "" ]; then
   git push origin $NEW_ELECTRON_VERSION
 else # use passed credentials
-  git push --tags https://${CREDS}@github.com/unfoldingWord/electronite.git
+  git push --tags https://${CREDS}@github.com/unfoldingWord/electronite.git $NEW_ELECTRON_VERSION
 fi
 
 # get the source electron tag
