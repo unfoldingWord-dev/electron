@@ -2,7 +2,7 @@
 set -e
 
 # Copy electronite builds to S3 storage.  First do cd to build folder before running script. 
-#  Only parameter is version.  If AWS keys are not set, will do prompting.
+#  Only parameter is VERSION.  If AWS keys are not set, will do prompting.
 #
 # troubleshooting:
 #   Got an S3 error that AWS user did not exist when entering credentials at prompts.  
@@ -30,28 +30,48 @@ fi
 
 if [ "`uname`" == "Darwin" ]; then
   echo "Detected Mac"
-  TARGET=mac
 else
   echo "Fallback to Linux"
-  TARGET=linux
 fi
 
 set -x
 
+copy_from_s3 ()
+{
+  VERSION_=$1
+  OS=$2
+  ARCH=$3
+  
+  OS_DEST=$OS
+  if [ "$OS" == "mac" ]; then
+    OS_DEST=darwin
+  elif [ "$OS" == "win" ]; then
+    OS_DEST=win32     
+  fi
+  
+  ARCH_DEST=$ARCH
+  if [ "$ARCH" == "x86" ]; then
+    ARCH_DEST=ia32   
+  fi
+  
+  echo "Copying from $OS/$ARCH to $OS_DEST/$ARCH_DEST"
+  /usr/local/bin/aws s3 cp s3://electronite-build-data/Electronite/${OS}/${VERSION_}/${ARCH}/dist.zip  ./electronite-${VERSION_}-graphite-beta-${OS_DEST}-${ARCH_DEST}.zip
+}
+
 # do the s3 copy commands and then exit bash
 # presumes to current folder is the build folder
 TARGET=mac
-/usr/local/bin/aws s3 cp s3://electronite-build-data/Electronite/${TARGET}/${VERSION}/arm64/dist.zip ./${TARGET}/${VERSION}/arm64/dist.zip
-/usr/local/bin/aws s3 cp s3://electronite-build-data/Electronite/${TARGET}/${VERSION}/x64/dist.zip ./${TARGET}/${VERSION}/x64/dist.zip
+copy_from_s3 $VERSION mac x64
+copy_from_s3 $VERSION mac arm64
 
 TARGET=win
-/usr/local/bin/aws s3 cp s3://electronite-build-data/Electronite/${TARGET}/${VERSION}/arm64/dist.zip ./${TARGET}/${VERSION}/arm64/dist.zip
-/usr/local/bin/aws s3 cp s3://electronite-build-data/Electronite/${TARGET}/${VERSION}/x64/dist.zip ./${TARGET}/${VERSION}/x64/dist.zip
-/usr/local/bin/aws s3 cp s3://electronite-build-data/Electronite/${TARGET}/${VERSION}/x86/dist.zip ./${TARGET}/${VERSION}/x86/dist.zip
+copy_from_s3 $VERSION win x64
+copy_from_s3 $VERSION win x86
+copy_from_s3 $VERSION win arm64
 
 TARGET=linux
-/usr/local/bin/aws s3 cp s3://electronite-build-data/Electronite/${TARGET}/${VERSION}/arm64/dist.zip ./${TARGET}/${VERSION}/arm64/dist.zip
-/usr/local/bin/aws s3 cp s3://electronite-build-data/Electronite/${TARGET}/${VERSION}/x64/dist.zip ./${TARGET}/${VERSION}/x64/dist.zip
+copy_from_s3 $VERSION linux x64
+copy_from_s3 $VERSION linux arm64
 
 set +x
 
