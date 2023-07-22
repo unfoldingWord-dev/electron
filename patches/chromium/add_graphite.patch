@@ -14,8 +14,8 @@ index a62632e2c3fcf..0a8714996d3b9 100644
 +import("//third_party/graphite/graphite.gni")
  import("//third_party/libjpeg.gni")
  
- assert(!is_ios, "This is not used on iOS, don't drag it in unintentionally")
-@@ -60,5 +61,8 @@ component("freetype_harfbuzz") {
+ assert(
+@@ -63,5 +64,8 @@ component("freetype_harfbuzz") {
      public_configs += [ "//third_party/harfbuzz-ng:harfbuzz_from_pkgconfig" ]
    } else {
      public_deps += [ "//third_party/harfbuzz-ng:harfbuzz_source" ]
@@ -28,7 +28,8 @@ diff --git a/third_party/blink/renderer/platform/fonts/web_font_decoder.cc b/thi
 index 6e388c9135c64..e6eea739ac230 100644
 --- a/third_party/blink/renderer/platform/fonts/web_font_decoder.cc
 +++ b/third_party/blink/renderer/platform/fonts/web_font_decoder.cc
-@@ -102,6 +102,11 @@ ots::TableAction BlinkOTSContext::GetTableAction(uint32_t tag) {
+@@ -100,7 +100,12 @@ ots::TableAction BlinkOTSContext::GetTableAction(uint32_t tag) {
+   const uint32_t kCbdtTag = OTS_TAG('C', 'B', 'D', 'T');
    const uint32_t kCblcTag = OTS_TAG('C', 'B', 'L', 'C');
    const uint32_t kColrTag = OTS_TAG('C', 'O', 'L', 'R');
    const uint32_t kCpalTag = OTS_TAG('C', 'P', 'A', 'L');
@@ -40,8 +41,7 @@ index 6e388c9135c64..e6eea739ac230 100644
    const uint32_t kCff2Tag = OTS_TAG('C', 'F', 'F', '2');
    const uint32_t kSbixTag = OTS_TAG('s', 'b', 'i', 'x');
  #if HB_VERSION_ATLEAST(1, 0, 0)
-@@ -128,6 +133,12 @@ ots::TableAction BlinkOTSContext::GetTableAction(uint32_t tag) {
-     // Windows Color Emoji Tables
+@@ -128,6 +133,12 @@ // Windows Color Emoji Tables
      case kColrTag:
      case kCpalTag:
 +    // Graphite
