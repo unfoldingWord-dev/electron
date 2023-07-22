@@ -6,7 +6,7 @@ rem   Got an S3 error that AWS user did not exist when entering credentials at p
 rem     No obvious reason for this, but found it started working by either setting or 
 rem     clearing ID `export AWS_SECRET_ACCESS_KEY=` before running script.
 rem
-rem Example `.\copy_to_s3.bat v22.0.3 <key> <secret>`
+rem Example `.\copy_to_s3.bat v24.6.4 <key> <secret>`
 
 SETLOCAL
 set VERSION=%1

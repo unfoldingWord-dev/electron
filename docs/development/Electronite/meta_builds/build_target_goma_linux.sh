@@ -12,7 +12,7 @@ set -e
 #
 # to troubleshoot build problems, do build logging by doing `export BUILD_EXTRAS=-vvvvv` before running
 #
-# Example `./build_target_goma_linux.sh x64 results/linux/v22.0.3`
+# Example `./build_target_goma_linux.sh x64 results/linux/v24.6.4`
 
 TARGET=$1
 DEST=$2
