@@ -14,8 +14,8 @@ index a62632e2c3fcf..0a8714996d3b9 100644
 +import("//third_party/graphite/graphite.gni")
  import("//third_party/libjpeg.gni")
  
- assert(!is_ios, "This is not used on iOS, don't drag it in unintentionally")
-@@ -60,5 +61,8 @@ component("freetype_harfbuzz") {
+ assert(
+@@ -63,5 +64,8 @@ component("freetype_harfbuzz") {
      public_configs += [ "//third_party/harfbuzz-ng:harfbuzz_from_pkgconfig" ]
    } else {
      public_deps += [ "//third_party/harfbuzz-ng:harfbuzz_source" ]
