@@ -35,20 +35,20 @@ fi
 # Set the directory to the parent folder
 results_dir="results"
 
-# Loop through each subfolder in the parent folder
+# Loop through each target OS found
 for TARGET_DIR in "$results_dir"/*; do
     VERSION_DIR="$TARGET_DIR/$VERSION"
-    # Check if the current item is a directory
+    # Check if there is the version directory is in there
     if [ -d "$VERSION_DIR" ]; then
         TARGET=$(basename "$TARGET_DIR")
         echo "found TARGET_DIR: $VERSION_DIR"
+        # check if there is an architecture
         for ARCH_DIR in "$VERSION_DIR"/*; do
             ARCH=$(basename "$ARCH_DIR")
             DIST_PATH="$ARCH_DIR/dist.zip"
+            # check if there is a dist.zip for that arch
             if [ -f "$DIST_PATH" ]; then
               echo "found ARCH_DIR dist: $DIST_PATH"
-              echo "found TARGET: $TARGET"
-              echo "found ARCH: $ARCH"
               set -x
               /usr/local/bin/aws s3 cp results/${TARGET}/${VERSION}/${ARCH}/dist.zip s3://electronite-build-data/Electronite/${TARGET}/${VERSION}/${ARCH}/dist.zip
               set +x
@@ -56,21 +56,6 @@ for TARGET_DIR in "$results_dir"/*; do
         done
     fi
 done
-
-#if [ "`uname`" == "Darwin" ]; then
-#  echo "Detected Mac"
-#  TARGET_DIR=mac
-#else
-#  echo "Fallback to Linux"
-#  TARGET_DIR=linux
-#fi
-
-set -x
-
-## do the s3 copy commands and then exit bash
-## presumes to current folder is the build folder
-#/usr/local/bin/aws s3 cp results/${TARGET_DIR}/${VERSION}/arm64/dist.zip s3://electronite-build-data/Electronite/${TARGET_DIR}/${VERSION}/arm64/dist.zip
-#/usr/local/bin/aws s3 cp results/${TARGET_DIR}/${VERSION}/x64/dist.zip s3://electronite-build-data/Electronite/${TARGET_DIR}/${VERSION}/x64/dist.zip
 
 set +x
 
